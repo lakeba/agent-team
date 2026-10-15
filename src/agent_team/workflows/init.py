@@ -74,6 +74,9 @@ provider = "claude"
 model = "claude-sonnet-5-5"
 effort = "medium"
 
+# Any member can take skills: Markdown files or skill folders (with SKILL.md) added to its prompt.
+#   skills = ["team/skills/conventions.md", "~/.claude/skills/security-review"]
+
 # Optional members. Uncomment any of them; `build` uses them automatically (skip with --skip).
 # [[agents]]                          # reviews every approved build; a NO sends it back
 # name = "Sentinel"
@@ -142,8 +145,9 @@ def run(root: Path, builder_provider: str = "local", builder_model: str = "qwen3
         encoding="utf-8")
     gitignore = root / ".gitignore"
     lines = gitignore.read_text(encoding="utf-8").splitlines() if gitignore.exists() else []
-    if ".team/" not in lines:
-        gitignore.write_text("\n".join(lines + ["", "# agent-team logs and screenshots", ".team/"]).lstrip() + "\n",
+    missing = [x for x in (".team/", ".team.toml.bak") if x not in lines]
+    if missing:
+        gitignore.write_text("\n".join(lines + ["", "# agent-team logs, runs and the dashboard's backup", *missing]).lstrip() + "\n",
                              encoding="utf-8")
     ui.action(f"wrote {path} (test command: {test_command or 'none detected'}; repo: {github_repo(root) or 'none'})")
     ui.say("Edit the guarantees and team, then run `agent-team doctor`.")

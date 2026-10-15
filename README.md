@@ -56,7 +56,8 @@ agent-team doctor     # checks every member can be reached
 ```
 
 Then edit `.team.toml` (or open `agent-team ui` and use **Edit team**): set the project's
-guarantees, adjust the team, set spend limits under `[limits]`, and run a workflow:
+guarantees, adjust the team, give members skills (Markdown files or Claude Code skill folders added
+to their prompts), set spend limits under `[limits]`, and run a workflow:
 
 ```bash
 agent-team discuss "next features"                       # agree a roadmap

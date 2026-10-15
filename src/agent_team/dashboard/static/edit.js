@@ -87,7 +87,9 @@ function renderEditor(el) {
         field("Effort", select(a, "effort", EFFORTS.map(x => [x, x]), { allowBlank: true }), "default: high"),
         field("Owns (one path per line)", list(a, "owns", { rows: 2 }), "This member must sign off PRs that change these paths"),
         field("Description", text(a, "description", { placeholder: "Shown to the team; also this member's view in discussions" })),
-        field("Prompt file", text(a, "prompt", { placeholder: "optional, e.g. team/sentinel.md" }))),
+        field("Prompt file", text(a, "prompt", { placeholder: "optional, e.g. team/sentinel.md" }), "Replaces the whole role prompt"),
+        field("Skills (one per line)", list(a, "skills", { rows: 2, placeholder: "team/skills/owasp.md\n~/.claude/skills/security-review" }),
+          "Markdown files or skill folders (with SKILL.md), added to this member's prompt")),
       h("div", { class: "actions" }, h("button", { type: "button", class: "danger",
         onclick: () => { d.agents.splice(i, 1); markDirty(); renderTeam(); } }, `Remove ${a.name || "member"}`))));
   });

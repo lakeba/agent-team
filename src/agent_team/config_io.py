@@ -132,7 +132,7 @@ def clean(data: dict) -> dict:
                  for n, p in (data.get("providers") or {}).items()}
     agents = [{k: v for k, v in (a or {}).items() if k in af} for a in data.get("agents") or []]
     for a in agents:   # strip blanks from list fields the form may send
-        for k in ("owns",):
+        for k in ("owns", "skills"):
             if isinstance(a.get(k), list):
                 a[k] = [x.strip() for x in a[k] if isinstance(x, str) and x.strip()]
     if isinstance(project.get("guarantees"), list):

@@ -9,3 +9,4 @@ venv/
 
 # The team's own logs and screenshots when it works on this repo
 .team/
+.team.toml.bak

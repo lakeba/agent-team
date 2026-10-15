@@ -176,7 +176,13 @@ function renderTeam() {
         h("dt", {}, "Effort"), h("dd", {}, m.effort),
         h("dt", {}, "Owns"), h("dd", {}, m.owns.length ? h("span", { class: "chips" }, m.owns.map(o => h("span", { class: "chip" }, o))) : h("span", { class: "muted" }, "nothing")),
         m.key_env ? [h("dt", {}, "Key"), h("dd", {}, h("span", { class: "mono" }, m.key_env), " ", m.key_set ? status("good", "set") : status("bad", "not set"))] : null,
-        m.custom_prompt ? [h("dt", {}, "Prompt"), h("dd", {}, "custom")] : null),
+        m.custom_prompt ? [h("dt", {}, "Prompt"), h("dd", {}, "custom")] : null,
+        m.skills && m.skills.length ? [h("dt", {}, "Skills"), h("dd", {}, h("span", { class: "chips" }, m.skills.map(s => {
+          const chip = h("span", { class: "chip" }, s.missing ? `${s.name} (missing)` : s.name);
+          attachTip(chip, s.missing ? `${s.path}: not found` : `${s.description || s.path} · ${fmtInt(s.chars)} characters`);
+          return chip;
+        })))] : null),
+      m.skills_problem ? h("p", { class: "health-line" }, m.skills_problem) : null,
       hm && !hm.ok ? h("p", { class: "health-line" }, hm.status) : null);
   })));
   const g = t.project.guarantees;

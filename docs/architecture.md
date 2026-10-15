@@ -40,7 +40,9 @@ devops member.
 An agent joins its config, its provider and an append-only conversation (append-only keeps
 provider-side reasoning valid between turns). Its system prompt comes from a Markdown template
 for its role, filled with project facts: the roster, the guarantees, the test command and the
-paths it owns. A project can replace any member's prompt with its own file (`prompt = "..."`).
+paths it owns. A project can replace any member's prompt with its own file (`prompt = "..."`), or
+add to it with `skills` (`skills.py`): Markdown files or skill folders appended after the role
+prompt, so the workflow's reply formats still hold.
 
 ## 4. Workflows (`workflows/`)
 

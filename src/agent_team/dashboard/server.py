@@ -41,6 +41,8 @@ HEADERS = {
 
 
 def team_info(team: config.Team) -> dict:
+    from .. import skills as skills_mod
+    skill_problems = skills_mod.problems(team)
     roles_needed = {"lead": "plan, build, review", "builder": "build", "devops": "ship, setup", "marketing": "market"}
     members = []
     for a in team.agents.values():
@@ -52,6 +54,7 @@ def team_info(team: config.Team) -> dict:
             "key_env": p.api_key_env, "key_set": bool(p.api_key_env and os.environ.get(p.api_key_env)),
             "remote": p.kind == "agent-http" or bool(p.url and "localhost" not in p.url and "127.0.0.1" not in p.url),
             "custom_prompt": bool(a.prompt),
+            "skills": [_skill_label(team, s) for s in a.skills], "skills_problem": skill_problems.get(a.name, ""),
         })
     pr = team.project
     return {
@@ -62,6 +65,15 @@ def team_info(team: config.Team) -> dict:
         "missing_roles": {r: why for r, why in roles_needed.items() if not team.by_role(r, required=False)},
         "roster": team_roster(team),
     }
+
+
+def _skill_label(team: config.Team, entry: str) -> dict:
+    from .. import skills as skills_mod
+    try:
+        s = skills_mod.load_one(team, entry)
+        return {"path": entry, "name": s.name, "description": s.description, "chars": len(s.text)}
+    except config.ConfigError:
+        return {"path": entry, "name": entry, "description": "", "chars": 0, "missing": True}
 
 
 def health(team: config.Team, timeout: float = 25.0) -> dict:

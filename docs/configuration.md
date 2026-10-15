@@ -65,6 +65,7 @@ per_day = 20.0   # all runs in this project, per UTC day
 | `description` | `""` | Shown to the team; also this member's perspective in discussions. |
 | `owns` | `[]` | Path prefixes this member must sign off before a PR touching them can merge. `"*"` means every path. For `qa` and `docs` members it is also where they may write (defaults: test folders; README, `docs/`, CHANGELOG). |
 | `prompt` | `""` | A Markdown file (relative to the project) replacing this member's role prompt. Placeholders such as `{name}`, `{project}`, `{roster}`, `{guarantees}` are filled in. |
+| `skills` | `[]` | Markdown files, or folders holding a `SKILL.md` (a Claude Code skill works as it is), added to this member's prompt after its role prompt. Relative to the project; `~` is the home folder. See below. |
 | `color` | by role | Terminal colour: orange, cyan, pink, green, yellow, blue, magenta, red. |
 
 ### Optional roles in `build`
@@ -80,3 +81,27 @@ When the team has them, `build` brings in:
 Leave any out for one run with `--skip qa,security,docs`. With two or more `builder` members,
 `build --parallel` has the lead split the plan into parts with separate paths, and the builders
 work on them at the same time.
+
+### Skills
+
+Give a member extra knowledge or house rules without replacing its role prompt:
+
+```toml
+[[agents]]
+name = "Sentinel"
+role = "security"
+provider = "claude"
+model = "claude-sonnet-5-5"
+skills = ["team/skills/owasp.md", "~/.claude/skills/security-review"]
+```
+
+- A skill is a Markdown file, or a folder with a `SKILL.md`. YAML front matter (`name`,
+  `description`) titles it; the rest is the skill.
+- Skills are added under "Your skills", after the role prompt, so the workflow's rules and reply
+  formats (`VERDICT:`, `SIGN-OFF:`) still hold. `prompt` replaces the role prompt; `skills` add to it.
+- They work with every provider, and the roster tells the other members who has which skill.
+- They are sent with every call the member makes, so they cost tokens each time; one member's
+  skills together are limited to 60,000 characters.
+- `agent-team doctor` and the dashboard report a skill that is missing or too large; a run refuses
+  to start with one.
+

@@ -7,7 +7,8 @@ const STATUS = {
   root: '/work/todo-py',
   project: { name: 'todo-py', repo: 'lakeba/todo-py' },
   members: [
-    { name: 'Atlas', role: 'lead', kind: 'anthropic', model: 'claude-opus-5-5', url: '', owns: ['ROADMAP.md'], remote: false },
+    { name: 'Atlas', role: 'lead', kind: 'anthropic', model: 'claude-opus-5-5', url: '', owns: ['ROADMAP.md'], remote: false,
+      skills: [{ name: 'api-style' }] },
     { name: 'Forge', role: 'builder', kind: 'agent-http', model: '', url: 'http://studio:8765', owns: [], remote: true },
   ],
   missing_roles: { marketing: 'market' },
@@ -45,6 +46,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     expect(await pane.find({ type: 'Text', text: /\$0\.49 spent/ })).toBeTruthy()
     expect(await pane.find({ type: 'Text', text: /No marketing member/ })).toBeTruthy()
     expect(await pane.find({ type: 'Text', text: /\$0\.42/ })).toBeTruthy()           // per-member spend
+    expect(await pane.find({ type: 'Text', text: /skills: api-style/ })).toBeTruthy()
     expect(await pane.find({ type: 'Text', text: /today \$0\.10 of \$5\.00/ })).toBeTruthy()
     expect(await pane.find({ type: 'Text', text: /add export/ })).toBeTruthy()       // a background run
 

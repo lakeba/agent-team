@@ -60,5 +60,7 @@ a member or machine, edit `.team.toml` (or use the dashboard's Edit team), then 
 `agent-team doctor` to confirm it's reachable. `agent-team discover` finds `agent-team serve` nodes
 on the local network. Built-in roles: `lead`, `builder`, `devops`, `marketing`, `factcheck`,
 `security`, `qa`, `docs`; `owns = ["*"]` makes a member sign off every PR. Large projects use
-focused context automatically (`[project].context`).
+focused context automatically (`[project].context`). To give one member extra knowledge or house
+rules, add `skills = ["path/to/skill.md", "~/.claude/skills/<name>"]` to it: Markdown files or skill
+folders, added to its prompt after its role (`prompt` would replace the role prompt instead).
 Secrets never go in `.team.toml`: a provider names the environment variable that holds them.

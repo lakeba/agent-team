@@ -41,6 +41,9 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - A Claude Code side panel in the plugin (`/team-panel`, opened automatically in projects with a
   team): members with health marks, recent runs and spend, with Refresh, Check health and
   Start/Open dashboard buttons.
+- Skills per member: `skills = [...]` adds Markdown files or skill folders (a Claude Code
+  `SKILL.md` works as it is) to a member's prompt, after its role prompt. Checked by `doctor`,
+  editable and shown in the dashboard, shown in the panel and in every member's roster.
 - Spend limits: `[limits] per_run` and `per_day` (US dollars) stop a run before the next model call
   once an estimate reaches them; shown and editable in the dashboard, shown in the panel.
 - Focused context: `[project].context = "auto" | "focused" | "full"`. Large projects get a map of

@@ -26,7 +26,8 @@ def team_roster(team: Team) -> str:
         place = f"remote node {where.url}" if where.kind == "agent-http" else f"{where.kind} model {a.model}"
         desc = f" {a.description}" if a.description else ""
         owns = f" Owns: {', '.join(a.owns)}." if a.owns else ""
-        lines.append(f"- {a.name} ({a.role}, {place}).{desc}{owns}")
+        skills = f" Skills: {', '.join(_skill_names(team, a))}." if a.skills else ""
+        lines.append(f"- {a.name} ({a.role}, {place}).{desc}{owns}{skills}")
     return "\n".join(lines)
 
 
@@ -57,6 +58,17 @@ class Agent:
         return reply.text
 
 
+def _skill_names(team: Team, cfg: AgentConfig) -> list[str]:
+    from . import skills
+    names = []
+    for entry in cfg.skills:
+        try:
+            names.append(skills.load_one(team, entry).name)
+        except Exception:
+            names.append(entry)
+    return names
+
+
 def make(team: Team, cfg: AgentConfig, prompt_name: str | None = None, label_suffix: str = "",
          **fields) -> Agent:
     """Build an agent whose system prompt is its role prompt filled with team and project facts."""
@@ -68,7 +80,11 @@ def make(team: Team, cfg: AgentConfig, prompt_name: str | None = None, label_suf
         "test_command": team.project.test_command or "(none configured)",
         **fields,
     }
-    return Agent(team, cfg, _fill(template, values), label_suffix)
+    system = _fill(template, values)
+    if cfg.skills:
+        from . import skills
+        system = f"{system.rstrip()}\n\n{skills.render(skills.load(team, cfg))}"
+    return Agent(team, cfg, system, label_suffix)
 
 
 def _fill(template: str, values: dict) -> str:

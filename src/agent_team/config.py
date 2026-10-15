@@ -44,6 +44,7 @@ class AgentConfig:
     description: str = ""
     owns: list[str] = field(default_factory=list)   # path prefixes this agent must sign off
     prompt: str = ""                # optional path (relative to the project) to a custom prompt
+    skills: list[str] = field(default_factory=list)   # Markdown files or skill folders added to the prompt
     color: str = ""
 
 
@@ -157,6 +158,8 @@ def parse(data: dict, root: Path) -> Team:
             raise ConfigError(f"duplicate agent name {a.name!r}")
         if a.provider not in providers:
             raise ConfigError(f"agent {a.name!r} uses unknown provider {a.provider!r}")
+        if not isinstance(a.skills, list) or not all(isinstance(s, str) and s.strip() for s in a.skills):
+            raise ConfigError(f"agent {a.name!r}: skills is a list of file or folder paths")
         agents[a.name] = a
     if not agents:
         raise ConfigError("no [[agents]] defined")

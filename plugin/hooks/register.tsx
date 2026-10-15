@@ -239,11 +239,12 @@ export const register: Register = on => {
           <Text bold>Team</Text>
           {data.members.map(m => (
             <Text>
-              {mark(m.name)} {m.name} <Text dimColor>{m.role} · {m.kind === 'agent-http' ? `node ${m.url}` : m.model || m.kind} · {cost(m.name)}</Text>
+              {mark(m.name)} {m.name} <Text dimColor>{m.role} · {m.kind === 'agent-http' ? `node ${m.url}` : m.model || m.kind} · {cost(m.name)}{m.skills?.length ? ` · skills: ${m.skills.map(s => s.name).join(', ')}` : ''}</Text>
             </Text>
           ))}
           {checks === null && <Text dimColor>Press Check health to test every member.</Text>}
           {failing.map(([name, c]) => <Text dimColor>{name}: {c.status}</Text>)}
+          {data.members.filter(m => m.skills_problem).map(m => <Text dimColor>{m.name}: {m.skills_problem}</Text>)}
           {missing.length > 0 && <Text dimColor>No {missing.join(', ')} member: some workflows won't run.</Text>}
         </Box>
 

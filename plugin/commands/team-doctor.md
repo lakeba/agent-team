@@ -13,5 +13,6 @@ Check this project's agent-team.
      named by `api_key_env` isn't set on this machine. `agent-team discover` lists the nodes that
      answer on the local network, with their URLs.
 4. Also note any missing role a workflow needs (lead, builder, devops, marketing), and which
-   optional members `build` will use (qa, security, docs). If `[limits]` isn't set, mention that
+   optional members `build` will use (qa, security, docs). Report any member whose skills are
+   missing or too large (doctor lists them as FAILED). If `[limits]` isn't set, mention that
    spend limits are available.

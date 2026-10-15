@@ -20,6 +20,13 @@ Sentinel now appears in every prompt's roster, can join discussions
 `--parallel` to split one plan across every builder. The built-in `security`, `qa` and `docs` roles
 join `build` automatically; see [configuration.md](configuration.md#optional-roles-in-build).
 
+## Give a member skills (no code)
+
+`skills = ["team/skills/api-style.md", "~/.claude/skills/security-review"]` on a member adds those
+Markdown files (or skill folders with a `SKILL.md`) to its prompt, on top of its role. Use it for
+checklists, conventions and domain knowledge one member needs; see
+[configuration.md](configuration.md#skills).
+
 ## Add a role (no code)
 
 Use any role name and give the member a prompt file:

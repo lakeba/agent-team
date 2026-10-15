@@ -28,6 +28,10 @@ def cmd_doctor(args) -> int:
         failed += status.startswith("FAILED")
         owns = f" owns {', '.join(a.owns)}" if a.owns else ""
         ui.say(f"  {ui.label(a.name, a.role, a.color)}  {pcfg.kind}/{a.model or '-'}{owns}\n      {status}")
+    from . import skills
+    for name, problem in skills.problems(team).items():
+        failed += 1
+        ui.say(f"  {name}: FAILED: {problem}")
     for role in ("lead", "builder", "devops"):
         if not team.by_role(role, required=False):
             ui.warn(f"no {role!r} agent: the workflows that need one won't run")
