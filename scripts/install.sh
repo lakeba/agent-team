@@ -115,7 +115,7 @@ say "installed $("$VENV/bin/agent-team" --version)"
 if [ "$PLUGIN" = 1 ] && command -v claude >/dev/null 2>&1; then
   claude plugin marketplace add "$SRC" >/dev/null 2>&1 || true
   if claude plugin install agent-team@lakeba-agent-team --scope user >/dev/null 2>&1; then
-    say "Claude Code plugin installed: /team-init, /team-doctor, /team-plan, /team-build, /team-ship, /team-market"
+    say "Claude Code plugin installed: /team-init, /team-doctor, /team-plan, /team-build, /team-ship, /team-schedule, /team-market, /team-ui, /team-panel, /team-run"
   else
     warn "the Claude Code plugin is already installed or could not be installed; run /reload-plugins in open sessions."
   fi
