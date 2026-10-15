@@ -18,6 +18,9 @@ something missing must not fail: `agent-team ready` always exits 0 and reports w
 3. **Fix what's missing, with the user's go-ahead for each:**
    - No git repository: offer to run `git init -b main` and make a first commit of the current
      files (show which files; never commit secrets or `.env` files).
+   - No git identity (the checklist's "git identity"): commits would fail. Ask the user which name
+     and email to use and offer `git config --global user.name ...` / `user.email ...`, or only for
+     this repository without `--global`. Don't guess them.
    - No GitHub repository: offer to create one with `gh repo create <folder-name> --private --source . --push`
      (agent-team then reads the repo from `origin`; nothing to edit by hand).
      Private unless the user says otherwise. If `gh` isn't signed in, tell them to run
@@ -41,14 +44,16 @@ something missing must not fail: `agent-team ready` always exits 0 and reports w
    of every build and sign-off of every PR), Probe (QA: writes tests first) and Quill (docs).
    Then ask whether to set spend limits (`[limits] per_run`, `per_day` in US dollars); "No limits"
    is a fine answer.
-6. **Write the file:** `agent-team init` with `--ollama-url` and `--builder-provider` /
-   `--builder-model` from the answers. It detects the test command and the test-count pattern
+6. **Write the file:** `agent-team init` with `--ollama-url` and `--builder-provider` (`local` for
+   Ollama, `claude` for Claude) / `--builder-model` from the answers. `init` checks the file it
+   writes, so a successful run needs no repair. It detects the test command and the test-count pattern
    (Python, Jest, Vitest, Mocha, Node's built-in runner) and the test folder, and adds `.team/` and
    `.team.toml.bak` to `.gitignore`. Uncomment the optional members chosen and add any limits.
 7. **Make it specific to this project:** read the README, main source files, tests and CI, and
    propose concrete `guarantees` (the rules every change must keep) and `context_skip` entries
    (build output, vendored code, large assets). Check that `test_count_pattern` matches what the
-   test command prints; fix it if not. Show the changes and apply them when the user agrees.
+   test command prints; fix it if not. CI logs put a timestamp before every line, so the pattern
+   must not start with `^`. Show the changes and apply them when the user agrees.
 8. **Confirm:** run `agent-team doctor` and report the checklist and each member. If anything is
    still missing, say exactly which command fixes it. Remind the user that `.team.toml` holds no
    secrets and can be committed, and suggest `/team-plan` as a first step once everything is ✓.

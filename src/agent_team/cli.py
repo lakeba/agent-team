@@ -318,7 +318,8 @@ def main(argv: list[str] | None = None) -> int:
         return s
 
     s = add("init", cmd_init, "write a starter .team.toml for this project")
-    s.add_argument("--builder-provider", default="local", help="local (Ollama) or claude")
+    s.add_argument("--builder-provider", default="local", choices=["local", "ollama", "claude", "anthropic"],
+                   help="local/ollama (an Ollama server) or claude/anthropic")
     s.add_argument("--builder-model", default="", help="default: chosen from the models the Ollama server has")
     s.add_argument("--ollama-url", default="", help="Ollama on another machine, e.g. http://192.168.64.1:11434")
     s.add_argument("--force", action="store_true")

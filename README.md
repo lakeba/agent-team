@@ -123,5 +123,5 @@ MIT, see [LICENSE](LICENSE).
 
 ## Status
 
-Version 0.2.0. The workflows were proven on todo-py; see [ROADMAP.md](ROADMAP.md) for what's next
+Version 0.2.1. The workflows were proven on todo-py; see [ROADMAP.md](ROADMAP.md) for what's next
 and [CONTRIBUTING.md](CONTRIBUTING.md) to help.

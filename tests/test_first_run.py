@@ -13,7 +13,7 @@ from unittest import mock
 from agent_team import cli, keys, readiness
 from agent_team.workflows import init
 
-from helpers import project, quiet
+from helpers import load, project, quiet
 
 
 class KeysFileTests(unittest.TestCase):
@@ -135,7 +135,7 @@ class ReadinessTests(unittest.TestCase):
 
 class InitTests(unittest.TestCase):
     def test_node_runners_and_the_test_folder(self):
-        cases = {"node --test": "^(?:#|ℹ) tests", "vitest run": "passed", "mocha": "passing", "jest --ci": "total"}
+        cases = {"node --test": "(?:#|ℹ) tests", "vitest run": "passed", "mocha": "passing", "jest --ci": "total"}
         for script, expect in cases.items():
             root = Path(tempfile.mkdtemp())
             (root / "package.json").write_text(json.dumps({"scripts": {"test": script}}))
@@ -168,7 +168,47 @@ class InitTests(unittest.TestCase):
         self.assertIn('# owns = ["test/"]', text)
         self.assertIn(".team.toml.bak", (root / ".gitignore").read_text())
         from agent_team import config
-        self.assertEqual(config.load(root).project.test_count_pattern, "^(?:#|ℹ) tests (\\d+)")
+        self.assertEqual(config.load(root).project.test_count_pattern, "(?:#|ℹ) tests (\\d+)")
+
+
+class SecondRunFixes(unittest.TestCase):
+    def test_ready_checks_the_given_ollama_even_with_a_team(self):
+        root = project()
+        with mock.patch.object(readiness, "ollama_models", return_value=["m:1"]) as models:
+            names = [c.name for c in readiness.check(root, "http://10.37.129.2:11434")]
+        self.assertIn("Ollama at http://10.37.129.2:11434", names)
+        models.assert_any_call("http://10.37.129.2:11434")
+
+    def test_init_accepts_the_kind_and_writes_a_valid_file(self):
+        root = Path(tempfile.mkdtemp())
+        with mock.patch.object(readiness, "ollama_models", return_value=["qwen3.8:27b-mlx"]), quiet():
+            cli.main(["init", "-C", str(root), "--builder-provider", "ollama", "--ollama-url", "http://10.37.129.2:11434"])
+        from agent_team import config
+        team = config.load(root)
+        self.assertEqual(team.get("Forge").provider, "local")
+        self.assertEqual(team.providers["local"].url, "http://10.37.129.2:11434")
+
+    def test_node_pattern_matches_timestamped_ci_lines(self):
+        import re
+        root = Path(tempfile.mkdtemp())
+        (root / "package.json").write_text(json.dumps({"scripts": {"test": "node --test"}}))
+        rx = re.compile(init.detect(root)[1])
+        self.assertEqual(rx.search("2026-10-15T10:00:01.123Z # tests 3").group(1), "3")
+        self.assertEqual(rx.search("ℹ tests 12").group(1), "12")
+
+    def test_a_missing_git_identity_is_reported(self):
+        root = Path(tempfile.mkdtemp())
+        env = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1", "HOME": tempfile.mkdtemp()}
+        with mock.patch.dict(os.environ, env):
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            checks = {c.name: c for c in readiness.check(root)}
+        self.assertFalse(checks["git identity"].ok)
+        self.assertIn("git config --global user.name", checks["git identity"].fix)
+
+    def test_the_dashboard_knows_the_installed_version(self):
+        from agent_team.dashboard.server import team_info
+        info = team_info(load(project()))
+        self.assertIn("installed_version", info)
 
 
 if __name__ == "__main__":

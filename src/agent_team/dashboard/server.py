@@ -40,6 +40,16 @@ HEADERS = {
 }
 
 
+def installed_version() -> str:
+    """The agent-team version installed now, which differs from __version__ once this process is
+    older than an update (a dashboard started before the installer ran again)."""
+    try:
+        from importlib.metadata import version
+        return version("agent-team")
+    except Exception:
+        return __version__
+
+
 def team_info(team: config.Team) -> dict:
     from .. import skills as skills_mod
     skill_problems = skills_mod.problems(team)
@@ -58,7 +68,7 @@ def team_info(team: config.Team) -> dict:
         })
     pr = team.project
     return {
-        "version": __version__, "root": str(team.root),
+        "version": __version__, "installed_version": installed_version(), "root": str(team.root),
         "project": {"name": pr.name, "repo": pr.repo, "test_command": pr.test_command,
                     "guarantees": pr.guarantees, "context_skip": pr.context_skip},
         "members": members,

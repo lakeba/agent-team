@@ -41,6 +41,11 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - A Claude Code side panel in the plugin (`/team-panel`, opened automatically in projects with a
   team): members with health marks, recent runs and spend, with Refresh, Check health and
   Start/Open dashboard buttons.
+- 0.2.1, from the second VM run: `ready --ollama-url` checks that address even when a team file
+  exists; `init --builder-provider` accepts `ollama`/`anthropic` and refuses to leave a file the
+  CLI can't read; the checklist reports a missing git identity; Node's test-count pattern no
+  longer starts with `^` (CI logs put a timestamp first); the dashboard says when a newer
+  agent-team is installed than the one it runs.
 - Version 0.2.0 for the CLI and the plugin. The installer updates an installed plugin and says
   to `/reload-plugins` open sessions (they keep the commands they started with); the panel warns
   when the plugin and the CLI versions differ.

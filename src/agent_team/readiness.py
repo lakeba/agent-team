@@ -58,6 +58,13 @@ def check(root: Path, ollama_url: str = "") -> list[Check]:
     out.append(Check("git repository", git_ok, "yes" if git_ok else "this folder isn't a git repository",
                      "" if git_ok else "git init -b main && git add -A && git commit -m 'Initial commit'",
                      "build --pr, ship, plan"))
+    if git_ok:
+        name = _run(["git", "config", "user.name"], root)[1]
+        email = _run(["git", "config", "user.email"], root)[1]
+        ident_ok = bool(name and email)
+        out.append(Check("git identity", ident_ok, f"{name} <{email}>" if ident_ok else "no user.name / user.email set, so commits fail",
+                         "" if ident_ok else 'git config --global user.name "Your Name" && git config --global user.email "you@example.com"',
+                         "commits, build --pr"))
     gh = shutil.which("gh")
     gh_ok = bool(gh) and _run(["gh", "auth", "status"], root)[0] == 0
     out.append(Check("GitHub CLI", gh_ok,
@@ -114,8 +121,8 @@ def check(root: Path, ollama_url: str = "") -> list[Check]:
             p = team.providers[a.provider]
             if p.kind == "ollama":
                 servers.setdefault((p.url or "http://localhost:11434").rstrip("/"), []).append(a.model)
-    elif ollama_url:
-        servers[ollama_url.rstrip("/")] = []
+    if ollama_url:   # a server being considered (init): check it whether or not a team uses it yet
+        servers.setdefault(ollama_url.rstrip("/"), [])
     for url, models in servers.items():
         have = ollama_models(url)
         if have is None:

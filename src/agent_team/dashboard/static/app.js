@@ -85,6 +85,11 @@ function renderHeader() {
   if (t.project.repo) { link.textContent = t.project.repo; link.href = `https://github.com/${t.project.repo}`; }
   else { link.textContent = "no GitHub repo configured"; link.removeAttribute("href"); }
   document.getElementById("version").textContent = `agent-team ${t.version}`;
+  const stale = document.getElementById("stale");
+  if (t.installed_version && t.installed_version !== t.version) {
+    stale.textContent = `agent-team ${t.installed_version} is installed, but this dashboard is still ${t.version}. Stop it (Ctrl-C) and start it again to use the new version.`;
+    stale.hidden = false;
+  } else stale.hidden = true;
 }
 
 function healthSummary() {

@@ -110,7 +110,8 @@ TEST_DIRS = ("tests/", "test/", "__tests__/", "spec/")
 
 # package.json "test" script -> CI count regex, by the runner it names (first match wins).
 NODE_RUNNERS = [
-    ("node --test", r"^(?:#|ℹ) tests (\d+)"),       # node's built-in runner: TAP in CI, spec in a terminal
+    ("node --test", r"(?:#|ℹ) tests (\d+)"),        # node's built-in runner: TAP in CI, spec in a terminal
+                                                      # (no ^: CI logs put a timestamp before each line)
     ("vitest", r"Tests\s+(\d+) passed"),
     ("mocha", r"(\d+) passing"),
     ("jest", r"Tests:\s+(?:\d+ \w+, )*(\d+) total"),
@@ -168,11 +169,17 @@ def github_repo(root: Path) -> str:
     return m.group(1) if m else ""
 
 
+BUILDER_PROVIDERS = {"local": "local", "ollama": "local", "claude": "claude", "anthropic": "claude"}
+
+
 def run(root: Path, builder_provider: str = "local", builder_model: str = "", force: bool = False,
         ollama_url: str = "") -> Path:
     path = root / CONFIG_NAME
     if path.exists() and not force:
         raise SystemExit(f"{path} already exists (use --force to overwrite).")
+    if builder_provider not in BUILDER_PROVIDERS:
+        raise SystemExit(f"--builder-provider is local (Ollama) or claude, not {builder_provider!r}")
+    builder_provider = BUILDER_PROVIDERS[builder_provider]   # accept the kind ("ollama") as well as the name
     test_command, pattern = detect(root)
     from ..readiness import ollama_models
     ollama_url = (ollama_url or DEFAULT_OLLAMA).rstrip("/")
@@ -188,6 +195,12 @@ def run(root: Path, builder_provider: str = "local", builder_model: str = "", fo
         skip=", ".join(f'"{s}"' for s in skip), builder_provider=builder_provider, builder_model=builder_model,
         ollama_url=ollama_url, test_dir=test_dir(root)),
         encoding="utf-8")
+    from ..config import ConfigError, load
+    try:
+        load(root)   # never leave a file the CLI can't read
+    except ConfigError as e:
+        path.unlink()
+        raise SystemExit(f"init produced an invalid {CONFIG_NAME} ({e}); nothing was written. Please report this.")
     gitignore = root / ".gitignore"
     lines = gitignore.read_text(encoding="utf-8").splitlines() if gitignore.exists() else []
     missing = [x for x in (".team/", ".team.toml.bak") if x not in lines]
