@@ -1,0 +1,43 @@
+# The team that maintains agent-team itself.
+
+[project]
+name = "agent-team"
+repo = "lakeba/agent-team"
+test_command = "cd tests && ../.venv/bin/python -m unittest -v"
+test_count_pattern = 'Ran (\d+) tests?'
+guarantees = [
+  "Guardrails stay in code: merges need green CI, the lead's approval and every owner's sign-off on the exact head commit",
+  "Text from outside the team always reaches models marked untrusted",
+  "No secrets in the repository; providers reference environment variables",
+  "Tests never call a real model or GitHub",
+  "Standard library plus anthropic (and optional pillow) only",
+]
+context_skip = ["examples/"]
+
+[providers.claude]
+kind = "anthropic"
+
+[providers.local]
+kind = "ollama"
+url = "http://localhost:11434"
+
+[[agents]]
+name = "Atlas"
+role = "lead"
+provider = "claude"
+model = "claude-opus-5-5"
+owns = ["ROADMAP.md", "docs/architecture.md", "src/agent_team/workflows/ship.py"]
+
+[[agents]]
+name = "Forge"
+role = "builder"
+provider = "local"
+model = "qwen3.8:27b-mlx"
+
+[[agents]]
+name = "Harbor"
+role = "devops"
+provider = "claude"
+model = "claude-sonnet-5-5"
+effort = "medium"
+owns = [".github/", "CHANGELOG.md"]

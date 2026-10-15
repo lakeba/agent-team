@@ -1,0 +1,54 @@
+# The configuration of the team that built lakeba/todo-py: five members on two kinds of model.
+
+[project]
+name = "todo-py"
+repo = "lakeba/todo-py"
+test_command = "python3 -m unittest -v"
+test_count_pattern = 'Ran (\d+) tests?'
+guarantees = [
+  "Python standard library only",
+  "Writes are atomic (temp file + os.replace)",
+  "Errors go to stderr with a non-zero exit",
+  "A failed command never modifies the file",
+  "Tests never touch the real todos.json",
+]
+context_skip = ["site/", "deck/"]
+
+[project.marketing]
+brief = "BRIEF.md"
+site = "site/index.html"
+deck = "deck/index.html"
+
+[providers.claude]
+kind = "anthropic"
+
+[providers.local]
+kind = "ollama"
+url = "http://localhost:11434"
+
+[[agents]]
+name = "Atlas"
+role = "lead"
+provider = "claude"
+model = "claude-opus-5-5"
+owns = ["ROADMAP.md"]
+
+[[agents]]
+name = "Forge"
+role = "builder"
+provider = "local"
+model = "qwen3.8:27b-mlx"
+
+[[agents]]
+name = "Spark"
+role = "marketing"
+provider = "claude"
+model = "claude-sonnet-5-5"
+owns = ["BRIEF.md", "site/", "deck/"]
+
+[[agents]]
+name = "Harbor"
+role = "devops"
+provider = "claude"
+model = "claude-sonnet-5-5"
+effort = "medium"

@@ -1,0 +1,66 @@
+# A larger team spread across machines. Every provider below can live on a different host.
+
+[project]
+name = "web-app"
+repo = "acme/web-app"
+test_command = "npm test"
+test_count_pattern = 'Tests:\s+(?:\d+ \w+, )*(\d+) total'
+guarantees = ["No secrets in the repository", "Every API change has a test"]
+context_skip = ["node_modules/", ".next/", "public/"]
+
+[providers.claude]
+kind = "anthropic"
+
+[providers.studio]                 # a Mac Studio on the LAN running Ollama
+kind = "ollama"
+url = "http://studio.local:11434"
+
+[providers.vllm]                   # a Linux GPU server with an OpenAI-compatible endpoint
+kind = "openai"
+url = "http://gpu-01.internal:8000"
+api_key_env = "VLLM_API_KEY"
+
+[providers.lisa-laptop]            # a teammate's machine running `agent-team serve`
+kind = "agent-http"
+url = "http://10.0.0.42:8765"
+api_key_env = "LISA_NODE_TOKEN"
+
+[[agents]]
+name = "Atlas"
+role = "lead"
+provider = "claude"
+model = "claude-opus-5-5"
+owns = ["ROADMAP.md", "docs/architecture.md"]
+
+[[agents]]
+name = "Forge"
+role = "builder"
+provider = "studio"
+model = "qwen3.8:27b-mlx"
+
+[[agents]]
+name = "Anvil"                     # a second builder, used with `build --builder Anvil`
+role = "builder"
+provider = "vllm"
+model = "qwen3.8-flash-next"
+
+[[agents]]
+name = "Sentinel"
+role = "reviewer"
+provider = "lisa-laptop"
+description = "Security reviewer: authentication, secrets, input validation."
+owns = ["src/auth/", "src/middleware/"]
+
+[[agents]]
+name = "Spark"
+role = "marketing"
+provider = "claude"
+model = "claude-sonnet-5-5"
+owns = ["BRIEF.md", "site/", "deck/"]
+
+[[agents]]
+name = "Harbor"
+role = "devops"
+provider = "claude"
+model = "claude-sonnet-5-5"
+effort = "medium"
