@@ -27,7 +27,9 @@ once, let the user watch, verify, report, never bypass the guardrails).
      choose (the "context" entry)?
    - `git diff <default-branch>...<branch> --stat` and the actual diff for anything surprising;
    - the project's tests (`test_command` in `.team.toml`) pass on the branch;
-   - the PR exists on GitHub (`gh pr view`) and CI has started.
+   - the PR exists on GitHub (`gh pr view`) and CI has started. Its title comes from the plan's
+     heading, and the plan is in its description, not committed (unless the project already
+     tracks a PLAN.md).
 6. Report: the PR link, what changed, the lead's verdict and any non-blocking notes, and that the
    PR now waits for `/team-ship` (owner sign-offs, lead review, merge). If the lead did not
    approve, say what was blocking and don't open a PR yourself. If it stopped on a spend limit,

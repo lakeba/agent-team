@@ -25,7 +25,10 @@ once, let the user watch, verify, report, never bypass the guardrails).
    waiting on whom. If the same PR has gone round several shifts on non-blocking points, say so and
    ask the user how they want to proceed. Don't merge or edit anything yourself to get past a
    refusal.
-6. If the lead requested changes on a PR from the team's own branches, the next step is
+6. If the project has `release = "ask"` and the shift proposed a release, show the proposed
+   version and notes and ask the user whether to publish it. On a yes, run
+   `agent-team ship --release <version>`; never pass `--release` without their explicit approval.
+7. If the lead requested changes on a PR from the team's own branches, the next step is
    `/team-fix <number>`: a builder applies the review on that branch, and the following shift
    reviews it again.
-7. If the user wants shifts to run on their own, point them to `/team-schedule`.
+8. If the user wants shifts to run on their own, point them to `/team-schedule`.

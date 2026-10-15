@@ -141,3 +141,60 @@ class ReviewLoopTests(unittest.TestCase):
         self.assertIn("Atlas (lead review)", text)
         self.assertIn("Atlas (owner sign-off: NO)\nM3 must cover a missing file.", text)
         self.assertNotIn("Spark", text)
+
+
+class PullRequestTextTests(unittest.TestCase):
+    def test_titles_come_from_the_plan(self):
+        from agent_team.workflows.build import plan_title
+        self.assertEqual(plan_title("# Plan: Honour the API contract (M1)\nbody", "task"), "Honour the API contract (M1)")
+        self.assertEqual(plan_title("# PLAN.md\n## M1 — Honour the API contract", "task"), "M1 — Honour the API contract")
+        self.assertEqual(plan_title("no heading", "a short task"), "a short task")
+        self.assertTrue(plan_title("", "x" * 100).endswith("..."))
+
+    def test_plan_md_goes_in_the_description_not_the_commit(self):
+        from agent_team.workflows import build
+        root = project(files={"app.js": "1\n"})
+        (root / ".team.toml").write_text((root / ".team.toml").read_text().replace('repo = ""', 'repo = "acme/app"'))
+        (root / ".gitignore").write_text(".team/\n")
+        origin = tempfile.mkdtemp()
+        git(origin, "init", "-q", "--bare", "-b", "main")
+        for args in (["init", "-q", "-b", "main"], ["config", "user.email", "t@t"], ["config", "user.name", "t"],
+                     ["add", "-A"], ["commit", "-qm", "init"], ["remote", "add", "origin", origin],
+                     ["push", "-q", "origin", "main"], ["checkout", "-qb", "team/x"]):
+            git(root, *args)
+        (root / "PLAN.md").write_text("# Plan: Faster app\n- do it\n")
+        (root / "app.js").write_text("2\n")
+        created = []
+        with mock.patch.object(github, "gh", lambda *a, **k: created.append(a) or "https://x/pull/9\n"), quiet():
+            build.open_pull_request(load(root), "make the app faster please", ["PLAN.md", "app.js"], "Atlas", "Forge")
+        self.assertEqual(git(root, "show", "--name-only", "--format=", "HEAD").split(), ["app.js"])
+        args = created[0]
+        self.assertEqual(args[args.index("--title") + 1], "Faster app")
+        self.assertIn("<summary>The plan (Atlas)</summary>", args[args.index("--body") + 1])
+
+
+class ReleasePolicyTests(unittest.TestCase):
+    def test_ask_is_valid_and_round_trips(self):
+        from agent_team import config_io
+        root = project()
+        (root / ".team.toml").write_text((root / ".team.toml").read_text().replace('guarantees =', 'release = "ask"\nguarantees ='))
+        team = load(root)
+        self.assertEqual(team.project.release, "ask")
+        self.assertIn('release = "ask"', config_io.render(config_io.to_data(team)))
+        (root / ".team.toml").write_text((root / ".team.toml").read_text().replace('release = "ask"', 'release = "maybe"'))
+        from agent_team.config import ConfigError
+        with self.assertRaises(ConfigError):
+            load(root)
+
+    def test_a_proposal_is_read_back_and_jobs_carry_the_approval(self):
+        from agent_team import jobs
+        from agent_team.workflows.ship import release_proposal
+        root = project()
+        self.assertIsNone(release_proposal(root))
+        (root / ".team").mkdir(exist_ok=True)
+        (root / ".team/release-proposal.json").write_text('{"version": "0.2.0", "notes": "x", "by": "Harbor"}')
+        self.assertEqual(release_proposal(root)["version"], "0.2.0")
+        self.assertEqual(jobs.argv_for("ship", {"release": "0.2.0"})[-2:], ["--release", "0.2.0"])
+        with self.assertRaises(jobs.JobError):
+            jobs.argv_for("ship", {"release": "0.2.0; rm -rf"})
+

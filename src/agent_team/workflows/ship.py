@@ -132,7 +132,19 @@ def repo_state(team: Team) -> str:
     return "\n".join(out)
 
 
-def run(team: Team, max_steps: int = 30) -> None:
+PROPOSAL = "release-proposal.json"
+
+
+def release_proposal(root) -> dict | None:
+    """The release the devops shift proposed and the owners haven't approved yet, if any."""
+    path = Path(root) / files.LOG_DIR / PROPOSAL
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
     repo, root, pattern = team.project.repo, team.root, team.project.test_count_pattern
     if not repo:
         raise SystemExit("[project].repo is not set.")
@@ -327,6 +339,14 @@ def run(team: Team, max_steps: int = 30) -> None:
             return "REFUSED: version must look like 1.2.3"
         if github.gh("release", "view", f"v{version}", "-R", repo, check=False):
             return f"REFUSED: v{version} already exists."
+        if team.project.release == "ask" and version != approved_release:
+            proposal = {"version": version, "notes": notes, "at": usage.now(), "by": devops_cfg.name}
+            Path(root, files.LOG_DIR).mkdir(exist_ok=True)
+            Path(root, files.LOG_DIR, PROPOSAL).write_text(json.dumps(proposal, indent=1), encoding="utf-8")
+            act(f"proposed release v{version} for the owners to approve")
+            return (f"NOT RELEASED: this project's owners approve releases ([project].release = \"ask\"). "
+                    f"Your proposal for v{version} is recorded; it is released when they run "
+                    f"`agent-team ship --release {version}`. Say so in your summary.")
         head = github.head_sha(repo)
         ok, why = github.wait_for_commit_ci(repo, head, minutes=15)
         if not ok:
@@ -342,6 +362,7 @@ def run(team: Team, max_steps: int = 30) -> None:
             head = result
         github.gh("release", "create", f"v{version}", "-R", repo, "--target", head, "--title", f"v{version}",
                   "--notes", notes)
+        Path(root, files.LOG_DIR, PROPOSAL).unlink(missing_ok=True)
         act(f"released v{version} at {head[:10]}")
         return f"released v{version} at {head[:10]}"
 
@@ -386,6 +407,14 @@ def run(team: Team, max_steps: int = 30) -> None:
 
     ui.heading(f"{devops_cfg.name}'s shift on {repo}")
     state = repo_state(team)
+    if team.project.release == "ask":
+        pending = release_proposal(root)
+        state = (f"# Releases\nThis project's owners approve releases. "
+                 + (f"They approved v{approved_release} for this shift: release it with create_release."
+                    if approved_release else
+                    "Propose one with create_release when it's worth it; it is recorded, not published.")
+                 + (f" Pending proposal: v{pending['version']}." if pending and not approved_release else "")
+                 + f"\n\n{state}")
     handover = _last_summary(log.path)
     if handover:
         state = f"# Your handover notes from the previous shift\n\n{handover}\n\n{state}"

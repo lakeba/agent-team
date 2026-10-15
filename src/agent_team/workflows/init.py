@@ -23,6 +23,7 @@ guarantees = [
 ]
 context_skip = [{skip}]               # path prefixes never sent to the models
 context_limit = 200000
+release = "ask"                       # ask: the devops shift proposes releases, you approve them; auto: it releases
 
 [project.marketing]
 brief = "BRIEF.md"

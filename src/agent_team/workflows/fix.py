@@ -124,7 +124,12 @@ def run(team: Team, number: int, rounds: int = 2, lead: str = "", builder: str =
             _discard(team, touched)
             return False
 
-        paths = sorted(touched)
+        # The team's working PLAN.md never goes into a PR unless the project already tracks one.
+        tracked_plan = bool(github.git(team.root, "ls-files", "--", "PLAN.md").strip())
+        paths = sorted(p for p in touched if p != "PLAN.md" or tracked_plan)
+        if not paths:
+            ui.heading("Not pushed: the only change was to the team's PLAN.md.")
+            return False
         github.git(team.root, "add", "--", *paths)
         github.git(team.root, "commit", "-q", "-m", f"Address review feedback on #{number}",
                    "-m", f"Fixed by {builder_cfg.name}, checked by {lead_cfg.name} (agent-team fix).")

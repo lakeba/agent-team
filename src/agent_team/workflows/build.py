@@ -226,19 +226,40 @@ def _security_review(team: Team, members: list[AgentConfig], task: str, touched:
     return "\n\n".join(found)
 
 
+def plan_title(plan: str, task: str) -> str:
+    """A short PR title: PLAN.md's first heading, without a "Plan:" prefix; else the task."""
+    for line in plan.splitlines():
+        m = re.match(r"^#{1,3}\s+(.+?)\s*#*\s*$", line)
+        if m:
+            title = re.sub(r"^(?:PLAN(?:\.md)?|Plan)\s*[:\-–—]\s*", "", m.group(1)).strip(" `*")
+            if title and title.lower() not in ("plan", "plan.md"):
+                return title if len(title) <= 72 else title[:69] + "..."
+    return task if len(task) <= 72 else task[:69] + "..."
+
+
 def open_pull_request(team: Team, task: str, paths: list[str], lead: str, builder: str) -> str:
     if not team.project.repo:
         raise SystemExit("[project].repo is not set, so no pull request can be opened.")
     branch = github.git(team.root, "rev-parse", "--abbrev-ref", "HEAD").strip()
     if branch in ("main", "master"):
         raise SystemExit("Refusing to commit to the default branch; use --branch.")
+    plan_path = team.root / "PLAN.md"
+    plan = plan_path.read_text(encoding="utf-8") if plan_path.exists() else ""
+    # PLAN.md is the team's working note: it goes in the PR description, not into the project,
+    # unless the project already keeps a PLAN.md under version control.
+    if "PLAN.md" in paths and not github.git(team.root, "ls-files", "--", "PLAN.md").strip():
+        paths = [p for p in paths if p != "PLAN.md"]
+    if not paths:
+        raise SystemExit("The build changed no project files, so there is nothing to open a PR with.")
     github.git(team.root, "add", "--", *paths)
-    title = task if len(task) <= 70 else task[:67] + "..."
+    title = plan_title(plan, task)
     github.git(team.root, "commit", "-q", "-m", title, "-m",
-               f"Planned by {lead}, built by {builder} (agent-team).")
+               f"{task}\n\nPlanned by {lead}, built by {builder} (agent-team).")
     github.git(team.root, "push", "-q", "-u", "origin", branch)
+    plan_section = (f"\n\n<details><summary>The plan ({lead})</summary>\n\n{plan.strip()[:50_000]}\n\n</details>"
+                    if plan.strip() else "")
     body = (f"{task}\n\nPlanned by {lead}, built by {builder}; the lead approved the result and the "
-            f"project's tests ran each round.\n\nFiles: {', '.join(f'`{p}`' for p in paths)}\n\n"
+            f"project's tests ran each round.\n\nFiles: {', '.join(f'`{p}`' for p in paths)}{plan_section}\n\n"
             "Opened by agent-team. The devops shift reviews, gets sign-offs and merges.")
     url = github.gh("pr", "create", "-R", team.project.repo, "--head", branch, "--title", title,
                     "--body", body).strip()

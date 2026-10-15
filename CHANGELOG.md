@@ -41,6 +41,10 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - A Claude Code side panel in the plugin (`/team-panel`, opened automatically in projects with a
   team): members with health marks, recent runs and spend, with Refresh, Check health and
   Start/Open dashboard buttons.
+- 0.2.5: `[project].release = "ask"` makes the devops shift propose releases instead of
+  publishing them; approve with `agent-team ship --release X.Y.Z`, or the dashboard's or panel's
+  Approve button (`init` writes `ask`). Build PRs are titled from the plan's heading, and the plan
+  goes in the PR description instead of being committed as PLAN.md.
 - 0.2.4: the devops shift creates a label that doesn't exist yet instead of failing on it, and
   gets the repository's clone URL as a verified fact. The lead's approval of a commit counts as
   its sign-off for paths it owns, so it never gives two verdicts on one commit. Re-reviews see

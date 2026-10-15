@@ -21,7 +21,7 @@ It grew out of todo-py, a small command-line app this team planned, built, marke
 | Fix | `agent-team fix 12` | When the lead requests changes on a PR, a builder applies the review on that PR's branch, the lead confirms the blocking points are addressed, and it pushes; the next shift reviews the new commit. |
 | Market | `agent-team market` | The marketing member writes a brief, a website and a pitch deck; a fact-checker checks claims and the lead reviews with screenshots. |
 | Set up | `agent-team setup --license "MIT, copyright 2026 Lakeba"` | The devops member drafts README, CONTRIBUTING, CHANGELOG, CI and templates. |
-| Ship | `agent-team ship` | One devops shift on GitHub: triage, owner sign-offs, lead review, merge, release, feedback digest. `agent-team schedule --every 6h` runs shifts unattended, never two at once. |
+| Ship | `agent-team ship` | One devops shift on GitHub: triage, owner sign-offs, lead review, merge, release (or, with `release = "ask"`, a release proposal you approve with `ship --release X.Y.Z`), feedback digest. `agent-team schedule --every 6h` runs shifts unattended, never two at once. |
 | Dashboard | `agent-team ui` | A page on this machine: the team and whether each member is reachable, every run with each member's verdicts, estimated costs per member, day and run, and the GitHub state. Edit members, connections, guarantees and prices there, add a machine with a guided wizard, and review the diff before saving. Start runs there and follow their output live. |
 
 Guardrails are enforced in code, not left to the models. A PR merges only when CI is green, the
@@ -125,5 +125,5 @@ MIT, see [LICENSE](LICENSE).
 
 ## Status
 
-Version 0.2.4. The workflows were proven on todo-py; see [ROADMAP.md](ROADMAP.md) for what's next
+Version 0.2.5. The workflows were proven on todo-py; see [ROADMAP.md](ROADMAP.md) for what's next
 and [CONTRIBUTING.md](CONTRIBUTING.md) to help.

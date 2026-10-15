@@ -40,6 +40,11 @@ HEADERS = {
 }
 
 
+def _release_proposal(root):
+    from ..workflows.ship import release_proposal
+    return release_proposal(root)
+
+
 def installed_version() -> str:
     """The agent-team version installed now, which differs from __version__ once this process is
     older than an update (a dashboard started before the installer ran again)."""
@@ -72,6 +77,8 @@ def team_info(team: config.Team) -> dict:
         "project": {"name": pr.name, "repo": pr.repo, "test_command": pr.test_command,
                     "guarantees": pr.guarantees, "context_skip": pr.context_skip},
         "members": members,
+        "release_policy": pr.release,
+        "release_proposal": _release_proposal(team.root),
         "missing_roles": {r: why for r, why in roles_needed.items() if not team.by_role(r, required=False)},
         "roster": team_roster(team),
     }

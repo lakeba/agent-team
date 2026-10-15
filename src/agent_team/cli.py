@@ -115,7 +115,7 @@ def cmd_ship(args) -> int:
 
     def once():
         with schedule.lock(Path(args.project).resolve(), "ship"):
-            ship.run(_team(args), args.max_steps)
+            ship.run(_team(args), args.max_steps, args.release)
     if args.every:
         try:
             every = schedule.parse_every(args.every)
@@ -159,6 +159,7 @@ def cmd_schedule(args) -> int:
 def status_data(team: config.Team, with_health: bool = False, recent: int = 8) -> dict:
     """A compact snapshot for the Claude panel and scripts: team, recent runs, spend, optional health."""
     from . import budget, jobs, logs, readiness, schedule, usage
+    from .workflows import ship
     from .dashboard.server import health, team_info
     info = team_info(team)
     runs = logs.parse(team.root)
@@ -172,6 +173,8 @@ def status_data(team: config.Team, with_health: bool = False, recent: int = 8) -
                   "limits": {"per_run": team.limits.per_run, "per_day": team.limits.per_day}},
         "health": health(team)["members"] if with_health else None,
         "schedule": schedule.show(team.root),
+        "release_policy": team.project.release,
+        "release_proposal": ship.release_proposal(team.root),
         "attention": [{"name": c.name, "detail": c.detail, "fix": c.fix}
                       for c in readiness.check(team.root) if not c.ok],
         "jobs": [{k: j.get(k) for k in ("id", "workflow", "status", "started", "params")} for j in jobs.list_jobs(team.root, 5)],
@@ -195,6 +198,10 @@ def cmd_status(args) -> int:
     day_limit = f" of ${sp['limits']['per_day']:.2f}" if sp["limits"]["per_day"] else ""
     ui.say(f"\n  {data['run_count']} runs logged; estimated spend ${sp['total']['cost']:.2f} "
            f"(today ${sp['today']:.2f}{day_limit})")
+    if data["release_proposal"]:
+        v = data["release_proposal"]["version"]
+        ui.say(f"\n  Release v{v} proposed by {data['release_proposal'].get('by', 'devops')}: "
+               f"approve with  agent-team ship --release {v}")
     for r in data["runs"][:5]:
         ui.say(f"  - {r['workflow']:<8} {r['title'][:60]}  ({r['outcome'] or '—'})")
     return 0
@@ -209,7 +216,8 @@ def cmd_jobs(args) -> int:
             if not args.target:
                 raise jobs.JobError("say which workflow: doctor, build, discuss, market or ship")
             params = {k: v for k, v in {"task": args.task, "topic": args.topic, "branch": args.branch,
-                                        "pr": args.pr, "parallel": args.parallel, "number": args.number}.items() if v}
+                                        "pr": args.pr, "parallel": args.parallel, "number": args.number,
+                                        "release": args.release}.items() if v}
             job = jobs.start(root, args.target, params)
             if args.json:
                 print(_json.dumps(job))
@@ -361,6 +369,8 @@ def main(argv: list[str] | None = None) -> int:
     s = add("ship", cmd_ship, "run one devops shift: triage, sign-offs, reviews, merges, releases")
     s.add_argument("--max-steps", type=int, default=30)
     s.add_argument("--every", default="", help="keep running a shift this often, e.g. 6h (Ctrl-C stops)")
+    s.add_argument("--release", default="", metavar="X.Y.Z",
+                   help='approve releasing this version in this shift (for [project].release = "ask")')
     s = add("schedule", cmd_schedule, "run devops shifts on a schedule with the system scheduler")
     s.add_argument("--every", default="", help="how often, e.g. 30m, 6h, 1d (omit to show the schedule)")
     s.add_argument("--workflow", default="ship", choices=["ship", "doctor"])
@@ -378,6 +388,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--pr", action="store_true", help="for build")
     s.add_argument("--parallel", action="store_true", help="for build")
     s.add_argument("--number", type=int, default=0, help="for fix: the pull request number")
+    s.add_argument("--release", default="", help="for ship: approve releasing this version")
     s.add_argument("--json", action="store_true")
     s = sub.add_parser("keys", help="API keys and tokens in agent-team's own keys file (values are never shown)")
     s.add_argument("action", nargs="?", default="list", choices=["list", "set", "remove"])

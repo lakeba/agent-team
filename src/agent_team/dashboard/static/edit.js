@@ -129,6 +129,8 @@ function renderEditor(el) {
       field("Test count pattern", text(pr, "test_count_pattern", { placeholder: "Ran (\\d+) tests?" }), "A regex with one group, matched in CI logs"),
       field("Guarantees (one per line)", list(pr, "guarantees", { rows: 5 }), "The lead holds every change to these"),
       field("Never send these paths (one per line)", list(pr, "context_skip", { rows: 3 }), "Build output, vendored code, large assets"),
+      field("Releases", select(pr, "release", [["auto", "The devops shift releases on its own"], ["ask", "It proposes; I approve each release"]], { allowBlank: true }),
+        "Who decides when a version ships"),
       field("Context", select(pr, "context", [["auto", "Auto: focused when the project is large"], ["focused", "Focused: the lead picks files"], ["full", "Full: every file, every time"]], { allowBlank: true }),
         "What each prompt includes")));
 

@@ -60,7 +60,13 @@ def argv_for(workflow: str, params: dict) -> list[str]:
     if workflow == "doctor":
         return ["doctor"]
     if workflow == "ship":
-        return ["ship", "--max-steps", number("max_steps", 30, 1, 100)]
+        argv = ["ship", "--max-steps", number("max_steps", 30, 1, 100)]
+        release = p.get("release", "")
+        if release:
+            if not isinstance(release, str) or not re.fullmatch(r"\d+\.\d+\.\d+", release):
+                raise JobError("release must look like 1.2.3")
+            argv += ["--release", release]
+        return argv
     if workflow == "market":
         return ["market", "--rounds", number("rounds", 3, 1, 10)]
     if workflow == "discuss":

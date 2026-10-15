@@ -8,7 +8,7 @@ import type { Health, Job, Snapshot } from '../types'
 
 // Keep equal to plugin.json's version and the CLI's (a test checks): a mismatch means one of
 // them wasn't updated, and the panel says so.
-const PLUGIN_VERSION = '0.2.4'
+const PLUGIN_VERSION = '0.2.5'
 const PANE = 'agent-team'
 const TITLE = 'agent-team'
 const snapshot = atom({ plugin: 'agent-team', key: 'snapshot' } as const, null)
@@ -86,12 +86,13 @@ async function refresh($: EngineInterface, withHealth = false): Promise<boolean>
 
 // A background run: the same workflow as in a terminal, started through the login shell so it has
 // the API keys from the person's profile. It keeps going if this session ends.
-async function startJob($: EngineInterface, workflow: string, text = ''): Promise<string> {
+async function startJob($: EngineInterface, workflow: string, text = '', release = ''): Promise<string> {
   const cli = await findCli($)
   if (!cli) return 'The agent-team CLI is not installed.'
   const cwd = await $.session.cwd()
   const extra = workflow === 'build' ? ['--task', text] : workflow === 'discuss' ? ['--topic', text]
-    : workflow === 'fix' ? ['--number', text.replace(/^#/, '')] : []
+    : workflow === 'fix' ? ['--number', text.replace(/^#/, '')]
+    : workflow === 'ship' && release ? ['--release', release] : []
   const argv = await loginShell($, [cli, 'jobs', 'start', workflow, '--json', '-C', cwd, ...extra].map(shellQuote).join(' '))
   await update($, busy, () => `Starting ${workflow}…`)
   try {
@@ -109,6 +110,18 @@ async function stopJob($: EngineInterface, id: string): Promise<void> {
   if (!cli) return
   await $.process.run([cli, 'jobs', 'stop', id, '-C', await $.session.cwd()], { timeoutMs: 15000 }).catch(() => undefined)
   await refresh($)
+}
+
+async function approveRelease($: EngineInterface, version: string): Promise<void> {
+  let answer = ''
+  try {
+    answer = await $.ui.ask(`Publish v${version} on GitHub? A devops shift releases it (CI must be green on main).`,
+                            [`Release v${version}`, 'Not now'])
+  } catch {
+    return
+  }
+  if (answer !== `Release v${version}`) return
+  void $.ui.toast(await startJob($, 'ship', '', version))
 }
 
 async function startShift($: EngineInterface): Promise<void> {
@@ -257,6 +270,13 @@ export const register: Register = on => {
             ! This plugin is {PLUGIN_VERSION} and the agent-team CLI is {data.version}. Rerun the installer, then
             /reload-plugins (or start a new session).
           </Text>
+        )}
+        {data.release_proposal && (
+          <Box flexDirection="column">
+            <Text bold>Release v{data.release_proposal.version} is waiting for your approval</Text>
+            <Button label={`Approve v${data.release_proposal.version}`} hotkey="a"
+                    onPress={() => void approveRelease($, data.release_proposal!.version)} />
+          </Box>
         )}
         {(data.attention ?? []).length > 0 && (
           <Box flexDirection="column">

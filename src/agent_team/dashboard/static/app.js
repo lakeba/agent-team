@@ -131,6 +131,18 @@ function renderOverview() {
         : h("div", { class: "note" }, gh ? gh.reason : "loading…")),
   ));
 
+  if (t.release_proposal) {
+    const v = t.release_proposal.version;
+    el.append(h("div", { class: "card notice" }, h("h3", {}, `Release v${v} is waiting for your approval`),
+      h("p", { class: "secondary" }, `${t.release_proposal.by || "The devops member"} proposed it; releases need your approval in this project.`),
+      h("pre", { class: "diff" }, t.release_proposal.notes || ""),
+      h("div", { class: "actions" }, h("button", { type: "button", class: "primary", onclick: async () => {
+        if (!confirm(`Start a devops shift that publishes v${v} on GitHub?`)) return;
+        try { await postJSON("/api/jobs/start", { workflow: "ship", params: { release: v } }); toast(`Started a shift to release v${v}; follow it under Runs.`); }
+        catch (e) { toast(e.message); }
+      } }, `Approve and release v${v}`))));
+  }
+
   if (Object.keys(t.missing_roles).length) {
     el.append(h("div", { class: "card notice" }, h("h3", {}, "Roles missing from the team"),
       h("p", { class: "secondary" }, "Some workflows need a member with these roles:"),
