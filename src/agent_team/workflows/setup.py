@@ -2,7 +2,7 @@
 them against the code and the lead reviews until approved. Nothing is pushed."""
 from __future__ import annotations
 
-from .. import agent, files, ui
+from .. import agent, context, files, ui
 from ..config import Team
 
 ALLOWED = ("README.md", "LICENSE", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "SECURITY.md", "CHANGELOG.md",
@@ -29,7 +29,7 @@ Never invent maintainers, emails, URLs or badges. Everything must match the real
 def run(team: Team, rounds: int = 3, license_name: str = "") -> bool:
     devops_cfg, lead_cfg = team.by_role("devops"), team.by_role("lead")
     fc_cfg = team.by_role("factcheck", required=False) or team.by_role("builder")
-    code = files.snapshot(team.root, skip=tuple(team.project.context_skip), limit=team.project.context_limit)
+    code = context.for_topic(team)
     task = task_text(team, license_name)
     writer = agent.make(team, devops_cfg, "builder", file_format=files.FILE_FORMAT)
     lead = agent.make(team, lead_cfg, "lead", file_format=files.FILE_FORMAT)

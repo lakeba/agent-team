@@ -7,6 +7,11 @@ test_command = "npm test"
 test_count_pattern = 'Tests:\s+(?:\d+ \w+, )*(\d+) total'
 guarantees = ["No secrets in the repository", "Every API change has a test"]
 context_skip = ["node_modules/", ".next/", "public/"]
+context = "auto"                   # focused context once the project is too big to send whole
+
+[limits]
+per_run = 5.0                      # US dollars
+per_day = 25.0
 
 [providers.claude]
 kind = "anthropic"
@@ -39,17 +44,31 @@ provider = "studio"
 model = "qwen3.8:27b-mlx"
 
 [[agents]]
-name = "Anvil"                     # a second builder, used with `build --builder Anvil`
+name = "Anvil"                     # a second builder: `build --parallel` splits work across both
 role = "builder"
 provider = "vllm"
 model = "qwen3.8-flash-next"
 
 [[agents]]
 name = "Sentinel"
-role = "reviewer"
+role = "security"                  # reviews every approved build; signs off every PR
 provider = "lisa-laptop"
 description = "Security reviewer: authentication, secrets, input validation."
-owns = ["src/auth/", "src/middleware/"]
+owns = ["*"]
+
+[[agents]]
+name = "Probe"
+role = "qa"                        # writes the tests for each plan before the builders start
+provider = "claude"
+model = "claude-sonnet-5-5"
+owns = ["tests/", "src/__tests__/"]
+
+[[agents]]
+name = "Quill"
+role = "docs"                      # updates the docs after each approved build
+provider = "claude"
+model = "claude-haiku-5-5"
+owns = ["README.md", "docs/", "CHANGELOG.md"]
 
 [[agents]]
 name = "Spark"

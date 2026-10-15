@@ -14,7 +14,7 @@ import tomllib
 from dataclasses import asdict, fields
 from pathlib import Path
 
-from .config import CONFIG_NAME, AgentConfig, ConfigError, ProjectConfig, ProviderConfig, Team, parse
+from .config import CONFIG_NAME, AgentConfig, ConfigError, LimitsConfig, ProjectConfig, ProviderConfig, Team, parse
 
 HEADER = ("# agent-team configuration. Docs: https://github.com/lakeba/agent-team/blob/main/docs/configuration.md\n"
           "# Secrets never go here: providers name the environment variable that holds them.\n")
@@ -90,7 +90,9 @@ def to_data(team: Team) -> dict:
     agents = [{k: v for k, v in asdict(a).items()
                if k in ("name", "role", "provider") or v != getattr(agent_defaults, k)}
               for a in team.agents.values()]
-    return {"project": project, "providers": providers, "pricing": dict(team.pricing), "agents": agents}
+    limits = {k: v for k, v in asdict(team.limits).items() if v}
+    return {"project": project, "providers": providers, "pricing": dict(team.pricing), "limits": limits,
+            "agents": agents}
 
 
 def render(data: dict) -> str:
@@ -101,6 +103,9 @@ def render(data: dict) -> str:
         parts += ["", "[project.marketing]", *_lines(marketing)]
     for name, p in (data.get("providers") or {}).items():
         parts += ["", f"[providers.{_key(name)}]", *_lines(p)]
+    limits = {k: v for k, v in (data.get("limits") or {}).items() if v}
+    if limits:
+        parts += ["", "[limits]", *_lines(limits)]
     for model, price in (data.get("pricing") or {}).items():
         parts += ["", f"[pricing.{_key(model)}]", *_lines(price, skip_empty=False)]
     for a in data.get("agents") or []:
@@ -136,7 +141,14 @@ def clean(data: dict) -> dict:
         project["context_skip"] = [g.strip() for g in project["context_skip"] if isinstance(g, str) and g.strip()]
     pricing = {str(m): {k: v for k, v in (p or {}).items() if k in ("input", "output", "cache_read", "cache_write")}
                for m, p in (data.get("pricing") or {}).items()}
-    return {"project": project, "providers": providers, "pricing": pricing, "agents": agents}
+    limits = {}
+    for k, v in (data.get("limits") or {}).items():
+        if k in {f.name for f in fields(LimitsConfig)} and v not in (None, ""):
+            try:
+                limits[k] = float(v)
+            except (TypeError, ValueError):
+                raise ConfigError(f"[limits].{k} must be a number of US dollars") from None
+    return {"project": project, "providers": providers, "pricing": pricing, "limits": limits, "agents": agents}
 
 
 def plan_change(root: Path, data: dict) -> dict:

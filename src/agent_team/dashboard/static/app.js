@@ -68,6 +68,7 @@ async function load() {
   render();
   // Slow sources fill in when they arrive.
   getJSON("/api/health").then(v => { state.health = v; render(); }).catch(e => { state.health = { error: e.message }; render(); });
+  if (typeof loadJobs === "function") loadJobs();
   getJSON("/api/github").then(v => { state.github = v; render(); }).catch(e => { state.github = { available: false, reason: e.message }; render(); });
   document.getElementById("refreshed").textContent = "Updated " + new Date().toLocaleTimeString();
 }
@@ -94,6 +95,12 @@ function healthSummary() {
   return bad ? status("bad", `${bad} of ${all.length} unreachable`) : status("good", `all ${all.length} reachable`);
 }
 
+function spendNote(total) {
+  const u = state.usage || {}, lim = u.limits || {};
+  const today = u.today != null ? `today ${fmtUsd(u.today)}${lim.per_day ? " of " + fmtUsd(lim.per_day) : ""}` : "";
+  return [today, `${fmtInt(total.calls)} calls`].filter(Boolean).join(" · ");
+}
+
 function renderOverview() {
   const el = document.getElementById("overview");
   el.replaceChildren();
@@ -111,7 +118,7 @@ function renderOverview() {
     h("div", { class: "card tile" }, h("div", { class: "label" }, "Runs logged"),
       h("div", { class: "value" }, runs.length), h("div", { class: "note" }, runs[0] ? `latest: ${runs[0].workflow}` : "none yet")),
     h("div", { class: "card tile" }, h("div", { class: "label" }, "Estimated spend"),
-      h("div", { class: "value" }, fmtUsd(total.cost)), h("div", { class: "note" }, `${fmtInt(total.calls)} model calls recorded`)),
+      h("div", { class: "value" }, fmtUsd(total.cost)), h("div", { class: "note" }, spendNote(total))),
     h("div", { class: "card tile" }, h("div", { class: "label" }, "GitHub"),
       gh && gh.available
         ? [h("div", { class: "value" }, `${gh.open_prs.length} PRs`),
@@ -181,6 +188,7 @@ function renderTeam() {
 function renderRuns() {
   const el = document.getElementById("runs");
   el.replaceChildren();
+  if (typeof renderLauncher === "function") el.append(renderLauncher());
   if (!state.runs || state.runs.error) return el.append(errorCard("runs", state.runs && state.runs.error));
   const runs = state.runs.runs;
   const workflows = ["all", ...new Set(runs.map(r => r.workflow))];

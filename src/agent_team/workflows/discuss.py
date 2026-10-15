@@ -2,7 +2,7 @@
 the outcome to ROADMAP.md (updating it, never discarding what has shipped)."""
 from __future__ import annotations
 
-from .. import agent, files, ui
+from .. import agent, context, files, ui
 from ..config import Team
 
 PERSPECTIVES = {
@@ -30,8 +30,7 @@ def run(team: Team, topic: str, members: list[str] | None = None, turns: int = 1
         cfgs.insert(0, lead_cfg)
     if len(cfgs) < 2:
         raise SystemExit("A discussion needs at least two members.")
-    project_files = files.snapshot(team.root, skip=tuple(team.project.context_skip),
-                                   limit=team.project.context_limit)
+    project_files = context.for_topic(team)
     people = [agent.make(team, c, "discuss", topic=topic, files=project_files,
                          perspective=c.description or PERSPECTIVES.get(c.role, f"Your role: {c.role}."))
               for c in cfgs]

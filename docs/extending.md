@@ -16,7 +16,9 @@ owns = ["src/auth/"]
 
 Sentinel now appears in every prompt's roster, can join discussions
 (`agent-team discuss "..." --members Atlas,Forge,Sentinel`), and must sign off any PR that touches
-`src/auth/`. A second builder works the same way: `agent-team build "..." --builder Anvil`.
+`src/auth/`. A second builder works the same way: `agent-team build "..." --builder Anvil`, or
+`--parallel` to split one plan across every builder. The built-in `security`, `qa` and `docs` roles
+join `build` automatically; see [configuration.md](configuration.md#optional-roles-in-build).
 
 ## Add a role (no code)
 
@@ -24,15 +26,15 @@ Use any role name and give the member a prompt file:
 
 ```toml
 [[agents]]
-name = "Scribe"
-role = "docs"
+name = "Babel"
+role = "localisation"
 provider = "claude"
 model = "claude-sonnet-5-5"
-prompt = "team/scribe.md"
-owns = ["docs/"]
+prompt = "team/babel.md"
+owns = ["locales/"]
 ```
 
-`team/scribe.md` may use `{name}`, `{role}`, `{project}`, `{repo}`, `{roster}`, `{guarantees}`,
+`team/babel.md` may use `{name}`, `{role}`, `{project}`, `{repo}`, `{roster}`, `{guarantees}`,
 `{owns}` and `{test_command}`.
 
 ## Add a machine
@@ -40,7 +42,12 @@ owns = ["docs/"]
 - Another machine with Ollama: add a provider with `kind = "ollama"` and its `url`.
 - A GPU server with vLLM, LM Studio or llama.cpp: `kind = "openai"` and its `url`.
 - Anything else, or a machine that should keep its own credentials: run `agent-team serve` there
-  and add `kind = "agent-http"`. See [remote-agents.md](remote-agents.md).
+  and add `kind = "agent-http"`. See [remote-agents.md](remote-agents.md); `agent-team discover`
+  finds such nodes on the local network.
+
+Every kind can be the devops member: Claude runs `ship` on the Anthropic tool runner, and Ollama,
+OpenAI-compatible servers and remote nodes run it through the same tools with their own tool
+calling (`tool_loop.py`). Pick a model that is good at tool use.
 
 ## Add a provider kind (code)
 

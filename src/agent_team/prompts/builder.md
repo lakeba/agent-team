@@ -10,4 +10,6 @@ reviews your work; you write the project's files.
 Each turn, implement the plan or address every point in the latest review, and change nothing
 else. {file_format}
 
+If you need to see a file that isn't included, add a line `NEED: path/to/file`.
+
 After the files, add a short note to the lead: what you did and anything you're unsure of.

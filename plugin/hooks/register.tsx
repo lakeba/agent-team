@@ -4,7 +4,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Health, Snapshot } from '../types'
+import type { Health, Job, Snapshot } from '../types'
 
 const PANE = 'agent-team'
 const TITLE = 'agent-team'
@@ -15,6 +15,8 @@ const error = atom({ plugin: 'agent-team', key: 'error' } as const, '')
 const dashboard = atom({ plugin: 'agent-team', key: 'dashboard' } as const, '')
 
 let cliPath: string | null | undefined   // undefined: not looked for yet; null: not installed
+let poll: { cancel: () => void } | null = null   // refreshes while a background run is going
+const RUNNABLE = ['build', 'discuss', 'ship', 'market', 'doctor']
 
 async function findCli($: EngineInterface): Promise<string | null> {
   if (cliPath !== undefined) return cliPath
@@ -64,6 +66,12 @@ async function refresh($: EngineInterface, withHealth = false): Promise<boolean>
     await update($, snapshot, () => data)
     if (data.health) await update($, health, () => data.health)
     await update($, error, () => '')
+    const running = (data.jobs ?? []).some(j => j.status === 'running')
+    if (running && !poll) poll = $.clock.every(5000, () => void refresh($))
+    if (!running && poll) {
+      poll.cancel()
+      poll = null
+    }
     return true
   } catch (err) {
     await update($, error, () => `Couldn't read the team: ${String(err)}`)
@@ -71,6 +79,44 @@ async function refresh($: EngineInterface, withHealth = false): Promise<boolean>
   } finally {
     await update($, busy, () => '')
   }
+}
+
+// A background run: the same workflow as in a terminal, started through the login shell so it has
+// the API keys from the person's profile. It keeps going if this session ends.
+async function startJob($: EngineInterface, workflow: string, text = ''): Promise<string> {
+  const cli = await findCli($)
+  if (!cli) return 'The agent-team CLI is not installed.'
+  const cwd = await $.session.cwd()
+  const extra = workflow === 'build' ? ['--task', text] : workflow === 'discuss' ? ['--topic', text] : []
+  const argv = await loginShell($, [cli, 'jobs', 'start', workflow, '--json', '-C', cwd, ...extra].map(shellQuote).join(' '))
+  await update($, busy, () => `Starting ${workflow}…`)
+  try {
+    const r = await $.process.run(argv, { timeoutMs: 30000 })
+    if (r.exitCode !== 0) return lastLine(r.stderr) || `Couldn't start ${workflow}.`
+    await refresh($)
+    return `Started ${workflow} in the background; the panel follows it.`
+  } finally {
+    await update($, busy, () => '')
+  }
+}
+
+async function stopJob($: EngineInterface, id: string): Promise<void> {
+  const cli = await findCli($)
+  if (!cli) return
+  await $.process.run([cli, 'jobs', 'stop', id, '-C', await $.session.cwd()], { timeoutMs: 15000 }).catch(() => undefined)
+  await refresh($)
+}
+
+async function startShift($: EngineInterface): Promise<void> {
+  let answer = ''
+  try {
+    answer = await $.ui.ask('Start a devops shift? It acts on GitHub (comments, merges, releases) within the team\'s rules.',
+                            ['Start the shift', 'Not now'])
+  } catch {
+    return   // dismissed
+  }
+  if (answer !== 'Start the shift') return
+  void $.ui.toast(await startJob($, 'ship'))
 }
 
 async function openDashboard($: EngineInterface): Promise<void> {
@@ -119,6 +165,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const started = await next(e)
     await $.command.register({ name: 'team-panel', description: "Show the project's agent-team in a side panel" })
+    await $.command.register({ name: 'team-run', description: 'Start an agent-team run in the background: build <task>, discuss <topic>, ship, market or doctor' })
     // Open the panel by itself only where the project has a team.
     if (e.isInteractive && (await refresh($))) void $.ui.open({ id: PANE, title: TITLE })
     return started
@@ -128,6 +175,17 @@ export const register: Register = on => {
     await $.ui.open({ id: PANE, title: TITLE })
     const ok = await refresh($)
     return { text: ok ? 'agent-team panel opened.' : 'agent-team panel opened; see it for what is missing.' }
+  })
+
+  on('command.run', { command: 'team-run' }, async ($, e) => {
+    const [workflow = '', ...rest] = e.args.trim().split(/\s+/)
+    const text = rest.join(' ')
+    if (!RUNNABLE.includes(workflow)) return { text: `Usage: /team-run ${RUNNABLE.join(' | ')} [task or topic]` }
+    if ((workflow === 'build' || workflow === 'discuss') && !text) {
+      return { text: `/team-run ${workflow} needs ${workflow === 'build' ? 'a task' : 'a topic'}.` }
+    }
+    await $.ui.open({ id: PANE, title: TITLE })
+    return { text: await startJob($, workflow, text) }
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
@@ -142,6 +200,7 @@ export const register: Register = on => {
       <Box flexDirection="row" gap={1}>
         <Button label="Refresh" hotkey="r" onPress={() => void refresh($)} />
         <Button label="Check health" hotkey="h" onPress={() => void refresh($, true)} />
+        <Button label="Start a shift" hotkey="s" onPress={() => void startShift($)} />
         <Button label={url ? 'Open dashboard' : 'Start dashboard'} hotkey="d" variant="primary"
                 onPress={() => void openDashboard($)} />
       </Box>
@@ -162,25 +221,45 @@ export const register: Register = on => {
     }
     const failing = Object.entries(checks ?? {}).filter(([, c]) => !c.ok)
     const missing = Object.keys(data.missing_roles)
+    const jobs: Job[] = data.jobs ?? []
+    const cost = (name: string): string => `$${(data.spend.by_agent?.[name]?.cost ?? 0).toFixed(2)}`
+    const limits = data.spend.limits
+    const today = data.spend.today === undefined ? ''
+      : ` · today $${data.spend.today.toFixed(2)}${limits?.per_day ? ` of $${limits.per_day.toFixed(2)}` : ''}`
 
     return (
       <Box flexDirection="column" gap={1}>
         <Box flexDirection="column">
           <Text bold>{data.project.name}</Text>
-          <Text dimColor>{data.project.repo || 'no GitHub repo'} · {data.members.length} members · ${data.spend.total.cost.toFixed(2)} spent</Text>
+          <Text dimColor>{data.project.repo || 'no GitHub repo'} · {data.members.length} members · ${data.spend.total.cost.toFixed(2)} spent{today}</Text>
+          {data.schedule && <Text dimColor>Shifts run {data.schedule.every ? `every ${Math.round(data.schedule.every / 60)} min` : 'on a schedule'}</Text>}
         </Box>
 
         <Box flexDirection="column">
           <Text bold>Team</Text>
           {data.members.map(m => (
             <Text>
-              {mark(m.name)} {m.name} <Text dimColor>{m.role} · {m.kind === 'agent-http' ? `node ${m.url}` : m.model || m.kind}</Text>
+              {mark(m.name)} {m.name} <Text dimColor>{m.role} · {m.kind === 'agent-http' ? `node ${m.url}` : m.model || m.kind} · {cost(m.name)}</Text>
             </Text>
           ))}
           {checks === null && <Text dimColor>Press Check health to test every member.</Text>}
           {failing.map(([name, c]) => <Text dimColor>{name}: {c.status}</Text>)}
           {missing.length > 0 && <Text dimColor>No {missing.join(', ')} member: some workflows won't run.</Text>}
         </Box>
+
+        {jobs.length > 0 && (
+          <Box flexDirection="column">
+            <Text bold>Background runs</Text>
+            {jobs.map(j => (
+              <Box flexDirection="row" gap={1}>
+                <Text>
+                  {j.status === 'running' ? '…' : j.status === 'succeeded' ? '✓' : '✕'} {j.workflow} <Text dimColor>{j.status}{j.params.task || j.params.topic ? ` · ${(j.params.task || j.params.topic || '').slice(0, 40)}` : ''}</Text>
+                </Text>
+                {j.status === 'running' && <Button label="Stop" onPress={() => void stopJob($, j.id)} />}
+              </Box>
+            ))}
+          </Box>
+        )}
 
         <Box flexDirection="column">
           <Text bold>Recent runs <Text dimColor>({data.run_count})</Text></Text>

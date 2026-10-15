@@ -24,13 +24,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 from pathlib import Path
 
-from .. import __version__, config, config_io, logs, providers, usage
+from .. import __version__, config, config_io, jobs, logs, providers, usage
 from ..agent import team_roster
 
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/app.css": ("app.css", "text/css; charset=utf-8"),
-          "/edit.js": ("edit.js", "text/javascript; charset=utf-8")}
+          "/edit.js": ("edit.js", "text/javascript; charset=utf-8"),
+          "/runs.js": ("runs.js", "text/javascript; charset=utf-8")}
 HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
     "X-Content-Type-Options": "nosniff",
@@ -96,6 +97,8 @@ def usage_info(team: config.Team) -> dict:
         d["cost"] = round(d["cost"] + price.cost(e), 4)
     summary["by_day"] = dict(sorted(by_day.items()))
     summary["recorded_calls"] = len(entries)
+    summary["today"] = by_day.get(usage.now()[:10], {}).get("cost", 0.0)
+    summary["limits"] = {"per_run": team.limits.per_run, "per_day": team.limits.per_day}
     return summary
 
 
@@ -187,6 +190,16 @@ def make_handler(root: Path, port: int, token: str | None = None):
                     return self._json(usage_info(team))
                 if path == "/api/github":
                     return self._json(github_cache.get(team))
+                if path == "/api/jobs":
+                    return self._json({"jobs": jobs.list_jobs(team.root)})
+                if path.startswith("/api/jobs/"):
+                    query = dict(q.split("=", 1) for q in self.path.partition("?")[2].split("&") if "=" in q)
+                    try:
+                        offset = int(query.get("offset", "0"))
+                    except ValueError:
+                        offset = 0
+                    job_id = path.removeprefix("/api/jobs/")
+                    return self._json({**jobs.get(team.root, job_id), **jobs.output(team.root, job_id, offset)})
                 if path == "/api/session":
                     # Readable only by pages from this origin: no CORS headers are ever sent.
                     return self._json({"token": session_token})
@@ -195,6 +208,8 @@ def make_handler(root: Path, port: int, token: str | None = None):
                     return self._json({"data": config_io.to_data(team), "sha": _sha(text),
                                        "has_comments": any(l.lstrip().startswith("#") and not l.startswith("# agent-team configuration")
                                                            and not l.startswith("# Secrets never") for l in text.splitlines())})
+            except jobs.JobError as e:
+                return self._json({"error": str(e)}, 404)
             except Exception as e:  # keep the dashboard up and say what failed
                 return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
             return self._json({"error": "not found"}, 404)
@@ -229,7 +244,15 @@ def make_handler(root: Path, port: int, token: str | None = None):
                     return self._json({"token": secrets.token_urlsafe(32)})
                 if path == "/api/test-provider":
                     return self._json(_test_provider(body))
-            except config.ConfigError as e:
+                if path == "/api/discover":
+                    from .. import discovery
+                    return self._json({"nodes": discovery.discover(1.5)})
+                if path == "/api/jobs/start":
+                    config.load(root)   # refuse to start anything on a broken config
+                    return self._json(jobs.start(root, str(body.get("workflow", "")), body.get("params") or {}))
+                if path == "/api/jobs/stop":
+                    return self._json(jobs.stop(root, str(body.get("id", ""))))
+            except (config.ConfigError, jobs.JobError) as e:
                 return self._json({"error": str(e)}, 422)
             except Exception as e:
                 return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
@@ -266,7 +289,7 @@ def serve(project: Path, port: int = 8790, open_browser: bool = True) -> None:
     team = config.load(project)   # fail early with a clear config error
     httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(team.root, port))
     url = f"http://127.0.0.1:{httpd.server_address[1]}/"
-    print(f"agent-team dashboard for {team.project.name}: {url}  (read-only; Ctrl-C to stop)", flush=True)
+    print(f"agent-team dashboard for {team.project.name}: {url}  (Ctrl-C to stop; runs started here keep going)", flush=True)
     if open_browser:
         threading.Timer(0.5, webbrowser.open, args=(url,)).start()
     try:

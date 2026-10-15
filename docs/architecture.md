@@ -46,7 +46,8 @@ blocks, written by `files.write_files`, which refuses paths outside the project 
 allowed prefixes. Every run is logged to `.team/logs/<workflow>.md` in the project.
 
 `ship` is different: the devops member drives it with tool use, and the tools are the only way it
-can act. The rules that matter (`merge_blockers`, `is_changelog_rename`) are small pure functions
+can act. With Claude it runs on the Anthropic SDK's tool runner; with any other provider it runs on
+`tool_loop.py`, which uses that provider's `complete_tools`. The rules that matter (`merge_blockers`, `is_changelog_rename`) are small pure functions
 with their own tests.
 
 ## Records
@@ -70,3 +71,17 @@ the page's session token and a same-origin request, and are refused if the file 
 - Text from outside the team is wrapped in `<untrusted>` and the prompts say to treat it as data.
 - Secrets never go into `.team.toml`: providers name the environment variable that holds them.
   `.env*` files and the config itself are never sent to a model.
+
+## Cost, context and running unattended
+
+- `budget.py` checks `[limits]` before every model call from the usage records, so no workflow
+  can run past a spend limit. Remote nodes report the model they ran, so their cost is real.
+- `context.py` decides what each prompt includes. Large projects get a map of all files and the
+  lead's chosen subset instead of everything; `FILE:` lines widen it during a run.
+- `build` runs builders in parallel threads when the plan has parts, each limited to its own
+  paths; their streamed output is buffered per thread so it never interleaves.
+- `schedule.py` runs shifts on the system scheduler (launchd or cron) behind a lock in `.team/`,
+  so two shifts never overlap. `jobs.py` runs any workflow in the background for the dashboard
+  and the Claude panel, with its output in `.team/jobs/`.
+- `discovery.py` lets nodes answer UDP probes so teams can find them on the local network.
+

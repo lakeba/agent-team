@@ -13,7 +13,7 @@ import anthropic
 import httpx2
 
 from .. import ui
-from .base import Provider, ProviderError, Reply, register
+from .base import Provider, ProviderError, Reply, ToolCall, register
 
 # Models that accept the server-side refusal fallback (`fallbacks: "default"`).
 _FALLBACK_MODELS = ("claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5")
@@ -104,6 +104,35 @@ class AnthropicProvider(Provider):
             finally:
                 done.set()
                 ui.say(ui.RESET, end="")
+
+    supports_tools = True
+
+    def complete_tools(self, system, messages, tools, *, model, effort, label):
+        """The neutral tool conversation in Anthropic's shape (used by remote nodes serving Claude)."""
+        out: list[dict] = []
+        for m in messages:
+            if m["role"] == "assistant":
+                blocks = [{"type": "text", "text": m["content"]}] if m.get("content") else []
+                blocks += [{"type": "tool_use", "id": c["id"], "name": c["name"], "input": c["arguments"]}
+                           for c in m.get("tool_calls") or []]
+                out.append({"role": "assistant", "content": blocks or [{"type": "text", "text": "(no text)"}]})
+            elif m["role"] == "tool":
+                block = {"type": "tool_result", "tool_use_id": m["tool_call_id"], "content": m["content"]}
+                if out and out[-1]["role"] == "user" and isinstance(out[-1]["content"], list):
+                    out[-1]["content"].append(block)   # results of one turn's calls go in one user turn
+                else:
+                    out.append({"role": "user", "content": [block]})
+            else:
+                out.append({"role": "user", "content": m["content"]})
+        ui.say(f"\n--- {label} ({model}) is working...")
+        extra = {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"} if model.startswith(_FALLBACK_MODELS) else {}
+        response = self.client.beta.messages.create(model=model, max_tokens=16000, system=system, messages=out,
+                                                    tools=tools, output_config={"effort": effort}, **extra)
+        text = "".join(b.text for b in response.content if b.type == "text")
+        calls = [ToolCall(id=b.id, name=b.name, arguments=dict(b.input)) for b in response.content if b.type == "tool_use"]
+        if text.strip():
+            ui.say(text)
+        return Reply(text=text, content=text, usage=usage_of(response), tool_calls=calls)
 
     def check(self, model):
         try:

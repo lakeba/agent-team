@@ -8,7 +8,8 @@ this machine; the caller only needs the URL and the bearer token.
 
 Endpoints:
     GET  /v1/info   -> {"node", "provider", "model", "version"}
-    POST /v1/turn   {"system", "messages": [{"role", "content"}], "effort"?} -> {"text", "usage"}
+    POST /v1/turn   {"system", "messages": [{"role", "content"}], "effort"?, "tools"?}
+                    -> {"text", "tool_calls", "usage"}   (with tools, messages may include tool results)
 """
 from __future__ import annotations
 
@@ -63,17 +64,27 @@ def make_handler(provider, model: str, token: str, node: str):
             try:
                 req = json.loads(self.rfile.read(length))
                 system, messages = str(req["system"]), list(req["messages"])
-                if not messages or any(m.get("role") not in ("user", "assistant") for m in messages):
-                    raise ValueError("messages must be user/assistant turns")
+                tools = req.get("tools")
+                roles = ("user", "assistant", "tool") if tools else ("user", "assistant")
+                if not messages or any(m.get("role") not in roles for m in messages):
+                    raise ValueError("messages must be " + "/".join(roles) + " turns")
+                if tools is not None and (not isinstance(tools, list) or not all(isinstance(t, dict) and "name" in t for t in tools)):
+                    raise ValueError("tools must be a list of {name, description, input_schema}")
             except (ValueError, KeyError, TypeError) as e:
                 return self._send(400, {"error": f"bad request: {e}"})
             with lock:
                 try:
-                    reply = provider.complete(system, messages, model=model,
-                                              effort=str(req.get("effort", "high")), label=f"node {node}")
+                    effort = str(req.get("effort", "high"))
+                    if tools:
+                        reply = provider.complete_tools(system, messages, tools, model=model, effort=effort,
+                                                        label=f"node {node}")
+                    else:
+                        reply = provider.complete(system, messages, model=model, effort=effort, label=f"node {node}")
                 except Exception as e:  # report to the caller instead of dropping the connection
                     return self._send(502, {"error": f"{type(e).__name__}: {e}"})
-            self._send(200, {"text": reply.text, "usage": reply.usage or {}})
+            self._send(200, {"text": reply.text,
+                             "tool_calls": [{"id": c.id, "name": c.name, "arguments": c.arguments} for c in reply.tool_calls],
+                             "usage": {**(reply.usage or {}), "kind": provider.kind, "model": model}})
 
         def log_message(self, fmt, *args):
             ui.say(f"  [{self.address_string()}] {fmt % args}")
@@ -82,7 +93,7 @@ def make_handler(provider, model: str, token: str, node: str):
 
 
 def serve(kind: str, model: str, host: str = "127.0.0.1", port: int = 8765, url: str = "",
-          token_env: str = "AGENT_TEAM_TOKEN", api_key_env: str = "", node: str = "") -> None:
+          token_env: str = "AGENT_TEAM_TOKEN", api_key_env: str = "", node: str = "", announce: bool = True) -> None:
     token = os.environ.get(token_env, "")
     if len(token) < 16:
         raise SystemExit(f"Set {token_env} to a random token of at least 16 characters "
@@ -95,6 +106,11 @@ def serve(kind: str, model: str, host: str = "127.0.0.1", port: int = 8765, url:
     if host not in ("127.0.0.1", "localhost", "::1"):
         ui.warn("listening beyond this machine: put it behind a VPN, SSH tunnel or HTTPS proxy, "
                 "since the token travels in plain HTTP")
+        if announce:
+            from . import discovery
+            if discovery.start_responder(node, kind, model, port):
+                ui.say(f"  answering discovery on UDP {discovery.PORT} (teams find it with `agent-team discover`; "
+                       "--no-announce to stop)")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

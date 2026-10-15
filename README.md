@@ -17,16 +17,17 @@ built, marketed and released (v1.0.0 and v1.0.1).
 | Workflow | Command | What happens |
 |---|---|---|
 | Discuss | `agent-team discuss "next features"` | Members talk in turn until they all agree; the lead updates `ROADMAP.md`. |
-| Build | `agent-team build "task" --branch x --pr` | The lead writes `PLAN.md`, a builder implements it, tests run each round, the lead reviews until approved, then a PR opens. |
+| Build | `agent-team build "task" --branch x --pr` | The lead writes `PLAN.md`, builders implement it (in parallel with `--parallel`), tests run each round, the lead reviews until approved, then a PR opens. Optional QA, security and docs members write tests first, review the result and update the docs. |
 | Market | `agent-team market` | The marketing member writes a brief, a website and a pitch deck; a fact-checker checks claims and the lead reviews with screenshots. |
 | Set up | `agent-team setup --license "MIT, copyright 2026 Lakeba"` | The devops member drafts README, CONTRIBUTING, CHANGELOG, CI and templates. |
-| Ship | `agent-team ship` | One devops shift on GitHub: triage, owner sign-offs, lead review, merge, release, feedback digest. |
-| Dashboard | `agent-team ui` | A page on this machine: the team and whether each member is reachable, every run with each member's verdicts, estimated costs per member, day and run, and the GitHub state. Edit members, connections, guarantees and prices there, add a machine with a guided wizard, and review the diff before saving. |
+| Ship | `agent-team ship` | One devops shift on GitHub: triage, owner sign-offs, lead review, merge, release, feedback digest. `agent-team schedule --every 6h` runs shifts unattended, never two at once. |
+| Dashboard | `agent-team ui` | A page on this machine: the team and whether each member is reachable, every run with each member's verdicts, estimated costs per member, day and run, and the GitHub state. Edit members, connections, guarantees and prices there, add a machine with a guided wizard, and review the diff before saving. Start runs there and follow their output live. |
 
 Guardrails are enforced in code, not left to the models. A PR merges only when CI is green, the
 lead approved the exact head commit, and every member who owns a changed path signed off that
 same commit. Releases need green CI on `main` and a CHANGELOG entry. Text from outside the team
-always reaches the models marked as untrusted.
+always reaches the models marked as untrusted. Spend limits in `.team.toml` stop any run before it
+costs more than you allow, and large projects get a focused context instead of every file.
 
 ## Install
 
@@ -68,7 +69,9 @@ Then, in any project: `/team-init`, `/team-doctor`, `/team-plan`, `/team-build <
 `/team-ship`, `/team-market` and `/team-ui`. Claude runs the workflow where you can watch it, checks the
 result, and reports back. In projects with a `.team.toml`, the plugin also opens an agent-team side
 panel (or run `/team-panel`): the team, each member's health, recent runs and spend, with buttons to
-refresh, check health and start the dashboard. The commands need the `agent-team` CLI on your `PATH`.
+refresh, check health, start a devops shift and start the dashboard, plus background runs you can
+stop. `/team-run build <task>` (or `discuss <topic>`, `ship`, `market`, `doctor`) starts a run in
+the background and the panel follows it. The commands need the `agent-team` CLI on your `PATH`.
 
 ## Documentation
 

@@ -29,6 +29,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - `agent-team ui` and `/team-ui`: a dashboard on 127.0.0.1 with the team and each
   member's reachability, a timeline of runs with verdicts, sign-offs, files and GitHub actions,
   and estimated costs per member, model, day and run.
+- Per-member costs count remote nodes by the model they actually ran (a node serving Claude was
+  previously counted as free). The panel and `agent-team status` show spend per member.
 - Token usage per model call is recorded to `.team/usage.jsonl` (all providers, remote nodes and
   the devops tool loop), with cost estimates from a price table that `[pricing]` can override.
 - The dashboard edits the team: members, connections (with a connection test), guarantees and
@@ -39,5 +41,22 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - A Claude Code side panel in the plugin (`/team-panel`, opened automatically in projects with a
   team): members with health marks, recent runs and spend, with Refresh, Check health and
   Start/Open dashboard buttons.
+- Spend limits: `[limits] per_run` and `per_day` (US dollars) stop a run before the next model call
+  once an estimate reaches them; shown and editable in the dashboard, shown in the panel.
+- Focused context: `[project].context = "auto" | "focused" | "full"`. Large projects get a map of
+  all files and the lead's chosen subset; `FILE:` / `NEED:` lines widen it during a run.
+- `build --parallel`: the lead splits the plan into parts with separate paths and every builder
+  works on its part at the same time.
+- New roles used by `build`: `qa` (tests first), `security` (reviews approved changes; a NO sends
+  them back) and `docs` (updates the docs after approval); `--skip` leaves any out. `owns = ["*"]`
+  makes a member sign off every pull request.
+- Scheduled shifts: `agent-team schedule --every 6h` (launchd on macOS, cron elsewhere) and
+  `ship --every 6h`; a lock in `.team/` means two shifts never overlap.
+- Background runs: `agent-team jobs` (start, stop, log), the dashboard's "Start a run" with live
+  output, and the panel's "Start a shift" and `/team-run`.
+- Network discovery: nodes on `--host 0.0.0.0` answer UDP probes; `agent-team discover` and the
+  dashboard's Add a machine list them.
+- Tool use for every provider kind: Ollama, OpenAI-compatible servers and remote nodes can be the
+  devops member; remote nodes pass tool calls through `/v1/turn`.
 - Run logs carry timestamp markers, so headings inside agents' replies are never mistaken for
   structure.

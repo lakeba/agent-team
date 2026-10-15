@@ -42,6 +42,8 @@ report. The team does the work; you don't do it for them unless the user asks yo
 - `/team-market`: brief, website and pitch deck, reviewed with screenshots; opens a PR.
 - `/team-ui`: open the dashboard, where the team can also be edited.
 - `/team-panel`: show the team, health, recent runs and spend in a side panel.
+- `/team-run <build task | discuss topic | ship | market | doctor>`: start a run in the
+  background; the panel follows it. For runs the user wants to watch here, use the commands above.
 
 ## Growing the team
 

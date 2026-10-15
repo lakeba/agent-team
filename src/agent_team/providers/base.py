@@ -5,7 +5,7 @@ with `@register("your-kind")`. See docs/extending.md.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from .. import config
@@ -32,10 +32,18 @@ def build(cfg: ProviderConfig, secret: str = "") -> "Provider":
 
 
 @dataclass
+class ToolCall:
+    id: str
+    name: str
+    arguments: dict
+
+
+@dataclass
 class Reply:
     text: str
     content: Any        # what to append to the conversation as the assistant turn
     usage: dict | None = None   # tokens reported by the provider: input, output, cache_read, cache_write
+    tool_calls: list[ToolCall] = field(default_factory=list)
 
 
 class ProviderError(RuntimeError):
@@ -52,6 +60,18 @@ class Provider:
     def complete(self, system: str, messages: list[dict], *, model: str, effort: str,
                  label: str) -> Reply:
         raise NotImplementedError
+
+    supports_tools = False
+
+    def complete_tools(self, system: str, messages: list[dict], tools: list[dict], *, model: str,
+                       effort: str, label: str) -> Reply:
+        """One step of a tool-using conversation, for members that act through tools (devops).
+
+        `tools` are {"name", "description", "input_schema"}. `messages` use one neutral shape:
+        {"role": "user", "content"}, {"role": "assistant", "content", "tool_calls": [{"id", "name",
+        "arguments"}]} and {"role": "tool", "tool_call_id", "name", "content"}.
+        """
+        raise ProviderError(f"{self.kind} providers can't use tools")
 
     def check(self, model: str) -> str:
         """Cheap reachability check for `agent-team doctor`. Returns a short status line."""

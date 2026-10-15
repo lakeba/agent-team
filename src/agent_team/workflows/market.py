@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import time
 
-from .. import agent, files, screenshots, ui
+from .. import agent, context, files, screenshots, ui
 from ..config import Team
 
 
@@ -42,9 +42,9 @@ def run(team: Team, rounds: int = 3, reuse_brief: bool = False) -> bool:
     skip, limit = tuple(team.project.context_skip), team.project.context_limit
     marketing_dirs = tuple(p for p in owned if p.endswith("/"))
 
-    code = files.snapshot(team.root, skip=skip + marketing_dirs, limit=limit)
+    code = context.for_topic(team, skip_extra=marketing_dirs)
     spark = agent.make(team, mk_cfg, "marketing", deliverables=deliverables(m), file_format=files.FILE_FORMAT,
-                       files=files.snapshot(team.root, skip=skip, limit=limit))
+                       files=context.for_topic(team, {rel for rel, _ in files.project_files(team.root, only=owned)}))
     lead = agent.make(team, lead_cfg, "review_marketing", deliverables=deliverables(m), files=code)
     checker = agent.make(team, fc_cfg, "factcheck", files=code)
     log = files.Log(team.root, "market", "Marketing")

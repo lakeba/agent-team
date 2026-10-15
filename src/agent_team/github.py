@@ -98,15 +98,25 @@ def release_test_counts(repo: str, pattern: str, limit: int = 3) -> str:
     return "; ".join(out) or "no releases yet"
 
 
-def main_snapshot(root: str | Path, skip: tuple[str, ...] = (), limit: int = 200_000, ref: str = "origin/main") -> str:
-    """Project files exactly as on `ref`, whatever branch the local checkout is on."""
+def main_snapshot(root: str | Path, skip: tuple[str, ...] = (), limit: int = 200_000, ref: str = "origin/main",
+                  focus: list[str] | None = None) -> str:
+    """Project files exactly as on `ref`, whatever branch the local checkout is on. If they don't
+    fit in `limit` and `focus` is given, only the focus files (those a PR changes) plus a map."""
     git(root, "fetch", "-q", "origin")
     archive = subprocess.run(["git", "-C", str(root), "archive", "--format=tar", ref],
                              capture_output=True, check=True, timeout=180).stdout
     with tempfile.TemporaryDirectory() as tmp:
         with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
             tar.extractall(tmp, filter="data")
-        return files.snapshot(tmp, skip=skip, limit=limit)
+        try:
+            return files.snapshot(tmp, skip=skip, limit=limit)
+        except files.SnapshotTooLarge:
+            if focus is None:
+                raise
+            keep = set(focus) | {p for p in ("README.md", "CHANGELOG.md") if Path(tmp, p).is_file()}
+            body = files.snapshot(tmp, skip=skip, limit=limit, paths=keep)
+            return (f"(The project is too large to send whole: the files this PR changes, as on main, "
+                    f"then a map of all files.)\n\n{body}\n\n# Project map\n{files.overview(tmp, skip=skip)[:18_000]}")
 
 
 def changed_files(repo: str, pr: int) -> list[str]:

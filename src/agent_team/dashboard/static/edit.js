@@ -4,7 +4,7 @@
 // Uses h(), status() and getJSON() from app.js.
 
 const edit = { on: false, draft: null, sha: null, hasComments: false, token: null, review: null, wizard: null };
-const ROLES = ["lead", "builder", "devops", "marketing", "factcheck", "reviewer"];
+const ROLES = ["lead", "builder", "devops", "marketing", "factcheck", "reviewer", "security", "qa", "docs"];
 const KINDS = { anthropic: "Claude (Anthropic API)", ollama: "Ollama", openai: "OpenAI-compatible server", "agent-http": "agent-team node" };
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 
@@ -25,6 +25,7 @@ async function startEditing() {
   const cfg = await getJSON("/api/config");
   edit.draft = JSON.parse(JSON.stringify(cfg.data));
   edit.draft.pricing = edit.draft.pricing || {};
+  edit.draft.limits = edit.draft.limits || {};
   edit.sha = cfg.sha; edit.hasComments = cfg.has_comments; edit.on = true; edit.review = null; edit.wizard = null;
   renderTeam();
 }
@@ -125,7 +126,16 @@ function renderEditor(el) {
       field("Test command", text(pr, "test_command", { placeholder: "e.g. npm test" })),
       field("Test count pattern", text(pr, "test_count_pattern", { placeholder: "Ran (\\d+) tests?" }), "A regex with one group, matched in CI logs"),
       field("Guarantees (one per line)", list(pr, "guarantees", { rows: 5 }), "The lead holds every change to these"),
-      field("Never send these paths (one per line)", list(pr, "context_skip", { rows: 3 }), "Build output, vendored code, large assets")));
+      field("Never send these paths (one per line)", list(pr, "context_skip", { rows: 3 }), "Build output, vendored code, large assets"),
+      field("Context", select(pr, "context", [["auto", "Auto: focused when the project is large"], ["focused", "Focused: the lead picks files"], ["full", "Full: every file, every time"]], { allowBlank: true }),
+        "What each prompt includes")));
+
+  // Spend limits
+  const money = key => { const el = h("input", { type: "number", step: "0.5", min: "0", value: d.limits[key] ?? "", placeholder: "no limit" });
+    el.addEventListener("input", () => { if (el.value === "" || Number(el.value) === 0) delete d.limits[key]; else d.limits[key] = Number(el.value); markDirty(); }); return el; };
+  const limits = h("div", { class: "card" }, h("h2", {}, "Spend limits"),
+    h("p", { class: "muted small" }, "A run stops before the next model call once an estimate reaches a limit. US dollars; leave blank for no limit."),
+    h("div", { class: "form-grid" }, field("Per run", money("per_run")), field("Per day (UTC)", money("per_day"))));
 
   // Pricing
   const pricing = h("div", { class: "card" }, h("div", { class: "section-head" }, h("h2", {}, "Prices"),
@@ -141,7 +151,7 @@ function renderEditor(el) {
       h("button", { type: "button", class: "danger", onclick: () => { delete d.pricing[model]; markDirty(); renderTeam(); } }, "Remove")));
   });
 
-  el.append(members, provs, project, pricing);
+  el.append(members, provs, project, limits, pricing);
 }
 
 async function review() {
@@ -219,6 +229,22 @@ function renderWizard() {
     w.kind !== "ollama" ? field("Key variable on this Mac", envIn, w.kind === "agent-http" ? "Holds the node's token here" : "Only if the server needs a key") : null));
 
   if (w.kind === "agent-http") {
+    const found = h("div", { class: "found" });
+    const showFound = () => {
+      found.replaceChildren();
+      if (w.found === undefined) return;
+      if (w.found === null) return found.append(status("pending", "looking…"));
+      if (!w.found.length) return found.append(h("p", { class: "muted small" }, "No nodes answered. A node answers when started with --host 0.0.0.0 on this network (and its firewall allows UDP 8766)."));
+      found.append(h("ul", { class: "found-list" }, w.found.map(n => h("li", {},
+        h("strong", {}, n.node), ` ${n.url} · ${n.provider}/${n.model} `,
+        h("button", { type: "button", onclick: () => { w.url = n.url; w.name = w.name || n.node.toLowerCase().replace(/[^a-z0-9-]+/g, "-"); renderTeam(); } }, "Use")))));
+    };
+    box.append(h("div", { class: "actions" }, h("button", { type: "button", onclick: async () => {
+      w.found = null; showFound();
+      try { w.found = (await postJSON("/api/discover", {})).nodes; } catch (e) { w.found = []; toast(e.message); }
+      showFound();
+    } }, "Find nodes on this network"), found));
+    showFound();
     const steps = h("div", { class: "steps" });
     if (!w.token) {
       steps.append(h("button", { type: "button", onclick: async () => {

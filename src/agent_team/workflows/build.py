@@ -1,14 +1,43 @@
-"""build: the lead plans a task, a builder implements it, tests run, the lead reviews until approved.
+"""build: the lead plans a task, builders implement it, tests run, the lead reviews until approved.
+
+Optional members join in when the team has them (skip any with --skip):
+  * qa: writes tests for the plan before anyone builds, so the builders work to them;
+  * security: reviews the result once the lead approves; a NO sends it back for another round;
+  * docs: updates the README, docs and changelog after approval.
+With --parallel and more than one builder, the lead splits the plan into parts, each owned by
+one builder, and the builders work on their parts at the same time.
 
 With --branch/--pr it also creates the branch, commits only the files the team wrote, pushes,
 and opens the pull request for the devops shift to review.
 """
 from __future__ import annotations
 
+import re
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 
-from .. import agent, files, github, ui
-from ..config import Team
+from .. import agent, context, files, github, ui
+from ..config import AgentConfig, Team
+
+TEST_PREFIXES = ("tests/", "test/", "spec/", "__tests__/", "test_")
+DOC_PREFIXES = ("README", "docs/", "CHANGELOG.md", "CONTRIBUTING.md")
+PART_RE = re.compile(r"^PART:\s*([^|\n]+?)\s*\|\s*([^|\n]*?)\s*\|\s*(.+?)\s*$", re.M)
+OPTIONAL = ("qa", "security", "docs")
+
+PARALLEL_NOTE = """
+The team has {count} builders who will work at the same time: {names}. After PLAN.md, add one
+line per builder assigning a part, with the path prefixes that builder alone may change:
+PART: <builder name> | <path prefixes, comma-separated> | <what this builder does>
+Parts must not share files. Shared files (for example a common module) belong to one part."""
+
+
+@dataclass
+class Part:
+    builder: AgentConfig
+    prefixes: tuple[str, ...] = ()       # empty: may change anything (a single builder)
+    what: str = ""
+    worker: agent.Agent | None = field(default=None, repr=False)
 
 
 def run_tests(team: Team) -> str:
@@ -23,11 +52,31 @@ def run_tests(team: Team) -> str:
         return f"\n\n## Test output (`{cmd}`)\nTimed out after 600 seconds."
 
 
+def parse_parts(team: Team, text: str, builders: list[AgentConfig]) -> list[Part]:
+    """The PART lines of a plan, for builders that exist, with non-overlapping prefixes."""
+    by_name = {b.name.lower(): b for b in builders}
+    parts, claimed = [], set()
+    for name, prefixes, what in PART_RE.findall(files.strip_files(text)):
+        b = by_name.get(name.strip().lower())
+        pre = tuple(p.strip().strip("`") for p in prefixes.split(",") if p.strip())
+        if not b or not pre or b.name in claimed:
+            continue
+        if any(x.startswith(y) or y.startswith(x) for p in parts for x in p.prefixes for y in pre):
+            ui.warn(f"part for {b.name} overlaps another part's paths; ignored")
+            continue
+        claimed.add(b.name)
+        parts.append(Part(b, pre, what.strip()))
+    return parts
+
+
 def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "",
-        branch: str = "", open_pr: bool = False) -> bool:
+        branch: str = "", open_pr: bool = False, parallel: bool = False, skip: tuple[str, ...] = ()) -> bool:
     lead_cfg = team.get(lead) if lead else team.by_role("lead")
-    builder_cfg = team.get(builder) if builder else team.by_role("builder")
-    skip, limit = tuple(team.project.context_skip), team.project.context_limit
+    builders = [team.get(builder)] if builder else team.all_by_role("builder")
+    if not builders:
+        team.by_role("builder")   # raises the standard "no agent with role" error
+    parallel = parallel and len(builders) > 1
+    extra = {r: ([] if r in skip else team.all_by_role(r)) for r in OPTIONAL}
 
     if branch:
         if github.git(team.root, "status", "--porcelain", "--untracked-files=no").strip():
@@ -36,52 +85,145 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
         ui.action(f"created branch {branch}")
 
     planner = agent.make(team, lead_cfg, "lead", file_format=files.FILE_FORMAT)
-    worker = agent.make(team, builder_cfg, "builder", file_format=files.FILE_FORMAT)
     log = files.Log(team.root, "build", f"Build: {task}")
     touched: set[str] = set()
 
     ui.heading(f"Build: {task}")
-    current = files.snapshot(team.root, skip=skip, limit=limit)
-    plan = planner.turn(f"Task: {task}\n\nWrite PLAN.md for {builder_cfg.name}.\n\n# Current project files\n\n{current}")
+    focus = context.choose(team, planner, task)
+    if focus.focused:
+        ui.action(f"focused context: {len(focus.paths)} files chosen by {lead_cfg.name}")
+        log.record(f"{lead_cfg.name}: context", "Files chosen: " + ", ".join(sorted(focus.paths)))
+
+    ask = f"Task: {task}\n\nWrite PLAN.md for {', '.join(b.name for b in builders) if parallel else builders[0].name}."
+    if parallel:
+        ask += PARALLEL_NOTE.format(count=len(builders), names=", ".join(b.name for b in builders))
+    plan = planner.turn(f"{ask}\n\n# Current project files\n\n{focus.render()}")
     written = files.write_files(team.root, plan, allowed=("PLAN.md",))
     if "PLAN.md" not in written:   # a plan sent as plain text instead of a <file> block
         (team.root / "PLAN.md").write_text(files.strip_files(plan).strip() + "\n", encoding="utf-8")
         written = ["PLAN.md"]
     touched.update(written)
+    focus.add(written)
+    focus.add_from_reply(plan)
     log.record(f"{lead_cfg.name}: plan", plan, written)
+
+    parts = parse_parts(team, plan, builders) if parallel else []
+    if parallel and len(parts) < 2:
+        ui.warn("the plan didn't split into parts for two or more builders; one builder will do it all")
+        parts = []
+    parts = parts or [Part(builders[0])]
+    for part in parts:
+        suffix = f" · part: {', '.join(part.prefixes)}" if part.prefixes else ""
+        part.worker = agent.make(team, part.builder, "builder", file_format=files.FILE_FORMAT, label_suffix=suffix)
+    if len(parts) > 1:
+        ui.action("parts: " + "; ".join(f"{p.builder.name} → {', '.join(p.prefixes)}" for p in parts))
+
+    for qa_cfg in extra["qa"]:
+        allowed = tuple(qa_cfg.owns) or TEST_PREFIXES
+        qa = agent.make(team, qa_cfg, "qa", file_format=files.FILE_FORMAT, test_paths=", ".join(allowed))
+        reply = qa.turn(f"Task: {task}\n\nWrite the tests for PLAN.md before the builders start.\n\n"
+                        f"# Current project files\n\n{focus.render()}")
+        written = files.write_files(team.root, reply, allowed=allowed)
+        touched.update(written)
+        focus.add(written)
+        log.record(f"{qa_cfg.name}: tests first", reply, written)
 
     note = f"Task: {task}\n\nStart building from PLAN.md."
     approved = False
     for rnd in range(1, rounds + 1):
         ui.heading(f"=========== Round {rnd}/{rounds} ===========")
-        build = worker.turn(f"{note}\n\n# Current project files\n\n{files.snapshot(team.root, skip=skip, limit=limit)}")
-        written = files.write_files(team.root, build)
-        touched.update(written)
-        log.record(f"{builder_cfg.name}: round {rnd}", build, written)
+        results = _build_round(team, parts, note, focus)
+        round_written: list[str] = []
+        for part, (reply, written) in zip(parts, results):
+            touched.update(written)
+            focus.add(written)
+            focus.add_from_reply(reply)
+            round_written += written
+            log.record(f"{part.builder.name}: round {rnd}", reply, written)
         tests = run_tests(team)
         if tests:
             ui.say(tests)
             log.record(f"Tests: round {rnd}", tests)
 
+        messages = "\n\n".join(f"# {p.builder.name}'s message (round {rnd})\n\n{files.strip_files(r)}"
+                               for p, (r, _) in zip(parts, results))
         review = planner.turn(
-            f"# {builder_cfg.name}'s message (round {rnd})\n\n{files.strip_files(build)}"
-            f"\n\nFiles written this round: {', '.join(written) or 'none'}"
-            f"\n\n# Current project files\n\n{files.snapshot(team.root, skip=skip, limit=limit)}{tests}")
+            f"{messages}\n\nFiles written this round: {', '.join(round_written) or 'none'}"
+            f"\n\n# Current project files\n\n{focus.render()}{tests}")
         plan_files = files.write_files(team.root, review, allowed=("PLAN.md",))
         touched.update(plan_files)
+        focus.add_from_reply(review)
         log.record(f"{lead_cfg.name}: review {rnd}", review, plan_files)
-        if files.last_marker(files.VERDICT_RE, review) == "APPROVED":
-            approved = True
-            ui.heading(f"{lead_cfg.name} approved after {rnd} round(s).")
-            break
-        note = f"# {lead_cfg.name}'s review\n\n{review}{tests}"
+        if files.last_marker(files.VERDICT_RE, review) != "APPROVED":
+            note = f"# {lead_cfg.name}'s review\n\n{review}{tests}"
+            continue
+
+        findings = _security_review(team, extra["security"], task, touched, log)
+        if findings:
+            ui.heading(f"{lead_cfg.name} approved, but the security review found problems.")
+            note = f"# Security review (the lead had approved; fix these)\n\n{findings}{tests}"
+            continue
+        approved = True
+        ui.heading(f"{lead_cfg.name} approved after {rnd} round(s).")
+        break
     else:
         ui.heading(f"Stopped after {rounds} rounds without approval.")
 
+    if approved:
+        for docs_cfg in extra["docs"]:
+            allowed = tuple(docs_cfg.owns) or DOC_PREFIXES
+            writer = agent.make(team, docs_cfg, "docs", file_format=files.FILE_FORMAT, doc_paths=", ".join(allowed))
+            changed = files.snapshot(team.root, paths=set(touched), limit=team.project.context_limit)
+            docs = context.for_topic(team, {rel for rel, _ in files.project_files(team.root, only=allowed)})
+            reply = writer.turn(f"Task that was just built and approved: {task}\n\n# Files the team changed\n\n"
+                                f"{changed}\n\n# Current documentation\n\n{docs}")
+            written = files.write_files(team.root, reply, allowed=allowed)
+            touched.update(written)
+            log.record(f"{docs_cfg.name}: docs", reply, written)
+
     if approved and open_pr:
-        open_pull_request(team, task, sorted(touched), lead_cfg.name, builder_cfg.name)
+        names = ", ".join(p.builder.name for p in parts)
+        open_pull_request(team, task, sorted(touched), lead_cfg.name, names)
     ui.say(f"Log: {log.path}")
     return approved
+
+
+def _build_round(team: Team, parts: list[Part], note: str, focus: context.Focus) -> list[tuple[str, list[str]]]:
+    current = focus.render()
+
+    def one(part: Part) -> tuple[str, list[str]]:
+        scope = (f"\n\nYour part: {part.what}\nYou may change only paths starting with: "
+                 f"{', '.join(part.prefixes)}. Other builders are working on the rest at the same time."
+                 if part.prefixes else "")
+        reply = part.worker.turn(f"{note}{scope}\n\n# Current project files\n\n{current}")
+        return reply, files.write_files(team.root, reply, allowed=part.prefixes or None)
+
+    if len(parts) == 1:
+        return [one(parts[0])]
+
+    def buffered(part: Part):
+        with ui.buffered():
+            return one(part)
+    with ThreadPoolExecutor(max_workers=len(parts)) as pool:
+        return list(pool.map(buffered, parts))
+
+
+def _security_review(team: Team, members: list[AgentConfig], task: str, touched: set[str], log) -> str:
+    """Each security member checks the changed files; returns the findings of any NO, else ""."""
+    if not members or not touched:
+        return ""
+    changed = files.snapshot(team.root, paths=set(touched), limit=team.project.context_limit)
+    found = []
+    for cfg in members:
+        reviewer = agent.make(team, cfg, "security")
+        reply = reviewer.turn(f"Task: {task}\n\nThe lead has approved these changes. Review them.\n\n"
+                              f"# Files changed in this build\n\n{changed}")
+        yes = files.last_marker(files.SIGNOFF_RE, reply) == "YES"
+        log.record(f"{cfg.name}: security review", reply)
+        ui.action(f"{cfg.name} {'signed off' if yes else 'found problems'}")
+        if not yes:
+            found.append(f"## {cfg.name}\n{reply}")
+    return "\n\n".join(found)
 
 
 def open_pull_request(team: Team, task: str, paths: list[str], lead: str, builder: str) -> str:

@@ -57,11 +57,13 @@ def strip_files(text: str) -> str:
     return FILE_RE.sub("[file omitted]", text)
 
 
-def snapshot(root: str | Path, *, only: tuple[str, ...] = (), skip: tuple[str, ...] = (),
-             limit: int = 200_000) -> str:
-    """Text files under `root` as <file> blocks, for a prompt."""
+class SnapshotTooLarge(ValueError):
+    pass
+
+
+def project_files(root: str | Path, *, only: tuple[str, ...] = (), skip: tuple[str, ...] = ()):
+    """(relative path, absolute path) of every text file a prompt may include."""
     root = Path(root)
-    parts = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(d for d in dirnames if d not in ALWAYS_SKIP_DIRS and not
                              (d.startswith(".") and d != ".github"))
@@ -73,16 +75,42 @@ def snapshot(root: str | Path, *, only: tuple[str, ...] = (), skip: tuple[str, .
             if name.startswith(".env") or name in {".team.toml", ".npmrc", ".pypirc"} or name.endswith((".png", ".jpg", ".jpeg", ".gif", ".ico",
                                                         ".woff", ".woff2", ".lock", ".pyc")):
                 continue
-            try:
-                with open(os.path.join(dirpath, name), encoding="utf-8") as f:
-                    parts.append(f'<file path="{rel}">\n{f.read()}</file>')
-            except (UnicodeDecodeError, OSError):
-                continue
+            yield rel, os.path.join(dirpath, name)
+
+
+def snapshot(root: str | Path, *, only: tuple[str, ...] = (), skip: tuple[str, ...] = (),
+             limit: int = 200_000, paths: set[str] | None = None) -> str:
+    """Text files under `root` as <file> blocks, for a prompt. `paths` keeps exactly those files."""
+    parts = []
+    for rel, full in project_files(root, only=only, skip=skip):
+        if paths is not None and rel not in paths:
+            continue
+        try:
+            with open(full, encoding="utf-8") as f:
+                parts.append(f'<file path="{rel}">\n{f.read()}</file>')
+        except (UnicodeDecodeError, OSError):
+            continue
     text = "\n\n".join(parts) or "(no files yet)"
     if len(text) > limit:
-        raise ValueError(f"project snapshot is {len(text):,} characters, over the {limit:,} limit. "
-                         "Narrow it with [project].context_skip, or raise context_limit.")
+        raise SnapshotTooLarge(f"project snapshot is {len(text):,} characters, over the {limit:,} limit. "
+                               "Narrow it with [project].context_skip, raise context_limit, or set "
+                               "[project].context = \"focused\".")
     return text
+
+
+def overview(root: str | Path, *, skip: tuple[str, ...] = (), max_entries: int = 4000) -> str:
+    """Every file a prompt could include, one per line with its size: a map of the project."""
+    lines = []
+    for rel, full in project_files(root, skip=skip):
+        try:
+            size = os.path.getsize(full)
+        except OSError:
+            continue
+        lines.append(f"{rel}  ({size:,} bytes)")
+        if len(lines) >= max_entries:
+            lines.append(f"... (more files not listed; first {max_entries} shown)")
+            break
+    return "\n".join(lines) or "(no files yet)"
 
 
 class Log:

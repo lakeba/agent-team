@@ -20,7 +20,7 @@ from pathlib import Path
 import anthropic
 from anthropic import beta_tool
 
-from .. import agent, files, github, ui, usage
+from .. import agent, budget, files, github, ui, usage
 from ..config import Team
 
 SIGNATURE = "\n\n— {name}, devops agent for this repo (automated)"
@@ -172,7 +172,8 @@ def run(team: Team, max_steps: int = 30) -> None:
         info, owners = pr_head(number), team.owners_of(github.changed_files(repo, number))
         if not owners:
             return "No sign-offs needed: the PR changes no owned paths."
-        sha, results, main_files = info["headRefOid"], [], github.main_snapshot(root, skip, limit)
+        sha, results = info["headRefOid"], []
+        main_files = github.main_snapshot(root, skip, limit, focus=None if team.project.context == "full" else github.changed_files(repo, number))
         for member, paths in owners.items():
             cfg = team.get(member)
             reviewer = agent.make(team, cfg, "signoff", files=main_files, label_suffix=f" · PR #{number} sign-off")
@@ -204,7 +205,8 @@ def run(team: Team, max_steps: int = 30) -> None:
         owners = team.owners_of(github.changed_files(repo, number))
         status = {m: ("YES for this commit" if signoffs.get((number, m)) == sha else "MISSING for this commit")
                   for m in owners}
-        reviewer = agent.make(team, lead_cfg, "review_pr", files=github.main_snapshot(root, skip, limit),
+        main_files = github.main_snapshot(root, skip, limit, focus=None if team.project.context == "full" else github.changed_files(repo, number))
+        reviewer = agent.make(team, lead_cfg, "review_pr", files=main_files,
                               label_suffix=f" · PR #{number} review")
         review = reviewer.turn(
             f"{devops_cfg.name}'s note:\n{note}\n\nCI all green: {green_summary[0]} ({green_summary[1]})\n"
@@ -323,16 +325,21 @@ def run(team: Team, max_steps: int = 30) -> None:
         state = f"# Your handover notes from the previous shift\n\n{handover}\n\n{state}"
 
     provider = team.providers[devops_cfg.provider]
-    if provider.kind != "anthropic":
-        raise SystemExit(f"The devops agent needs tool use; give {devops_cfg.name} an anthropic provider.")
-    client = anthropic.Anthropic(api_key=team.secret(provider)) if team.secret(provider) else anthropic.Anthropic()
     system = agent.make(team, devops_cfg, "devops").system
+    first = f"Start your shift. Current state:\n\n{state}"
+    if provider.kind != "anthropic":   # Ollama, OpenAI-compatible or a remote node: the generic tool loop
+        from .. import tool_loop
+        summary = tool_loop.run(team, devops_cfg, system, tools, first, max_steps)
+        log.record(f"{devops_cfg.name}: shift summary", summary)
+        ui.heading(f"Shift over. Log: {log.path}")
+        return
+    client = anthropic.Anthropic(api_key=team.secret(provider)) if team.secret(provider) else anthropic.Anthropic()
     runner = client.beta.messages.tool_runner(
         model=devops_cfg.model, max_tokens=16000, tools=tools, system=system,
         output_config={"effort": devops_cfg.effort}, max_iterations=max_steps,
         **({"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"}
            if devops_cfg.model.startswith(("claude-fable-5-1", "claude-opus-5", "claude-sonnet-5-5")) else {}),
-        messages=[{"role": "user", "content": f"Start your shift. Current state:\n\n{state}"}])
+        messages=[{"role": "user", "content": first}])
     final = None
     for message in runner:
         final = message
@@ -343,6 +350,7 @@ def run(team: Team, max_steps: int = 30) -> None:
                 ui.say(f"\n{ui.label(devops_cfg.name, 'devops', devops_cfg.color)}: {block.text}")
             elif block.type == "tool_use":
                 ui.say(f"  → {block.name}({json.dumps(block.input)[:140]})")
+        budget.check(team)
     summary = "".join(b.text for b in final.content if b.type == "text") if final else ""
     log.record(f"{devops_cfg.name}: shift summary", summary)
     ui.heading(f"Shift over. Log: {log.path}")

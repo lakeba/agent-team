@@ -4,7 +4,7 @@ from __future__ import annotations
 from importlib import resources
 from pathlib import Path
 
-from . import providers, ui, usage
+from . import budget, providers, ui, usage
 from .config import AgentConfig, Team
 
 
@@ -45,11 +45,15 @@ class Agent:
     def turn(self, content) -> str:
         if not self.provider.supports_images and not isinstance(content, str):
             content = providers.base.to_text(content)
+        budget.check(self.team)
         self.messages.append({"role": "user", "content": content})
         reply = self.provider.complete(self.system, self.messages, model=self.cfg.model,
                                        effort=self.cfg.effort, label=self.label)
         self.messages.append({"role": "assistant", "content": reply.content})
-        usage.record(self.team.root, self.cfg.name, self.provider.kind, self.cfg.model, reply.usage)
+        # A remote node reports the model it really ran, so its member is priced correctly.
+        u = dict(reply.usage or {})
+        kind, model = u.pop("kind", "") or self.provider.kind, u.pop("model", "") or self.cfg.model
+        usage.record(self.team.root, self.cfg.name, kind, model, u)
         return reply.text
 
 

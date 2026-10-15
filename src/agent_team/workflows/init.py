@@ -73,6 +73,32 @@ role = "devops"
 provider = "claude"
 model = "claude-sonnet-5-5"
 effort = "medium"
+
+# Optional members. Uncomment any of them; `build` uses them automatically (skip with --skip).
+# [[agents]]                          # reviews every approved build; a NO sends it back
+# name = "Sentinel"
+# role = "security"
+# provider = "claude"
+# model = "claude-sonnet-5-5"
+# owns = ["*"]                        # "*": must also sign off every pull request
+
+# [[agents]]                          # writes the tests for a plan before anyone builds it
+# name = "Probe"
+# role = "qa"
+# provider = "claude"
+# model = "claude-sonnet-5-5"
+# owns = ["tests/"]
+
+# [[agents]]                          # updates README, docs/ and CHANGELOG.md after approval
+# name = "Quill"
+# role = "docs"
+# provider = "claude"
+# model = "claude-haiku-5-5"
+
+# Spend limits in US dollars; a run stops before the next model call once it reaches one.
+# [limits]
+# per_run = 5.0
+# per_day = 20.0
 '''
 
 DETECT = [  # (marker file, test command, CI count regex)

@@ -49,6 +49,10 @@ def set_run(run_id: str) -> None:
     _current_run["id"] = run_id
 
 
+def current_run() -> str:
+    return _current_run["id"]
+
+
 def record(root: Path, agent: str, kind: str, model: str, usage: dict | None) -> None:
     if not usage:
         return

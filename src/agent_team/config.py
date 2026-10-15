@@ -15,7 +15,7 @@ CONFIG_NAME = ".team.toml"
 
 # Roles the built-in workflows understand. Any other role is allowed: such agents can join
 # discussions and sign off the paths they own, using their own prompt file.
-KNOWN_ROLES = {"lead", "builder", "devops", "marketing", "factcheck", "reviewer"}
+KNOWN_ROLES = {"lead", "builder", "devops", "marketing", "factcheck", "reviewer", "security", "qa", "docs"}
 
 # Filled by providers.register(); kinds are validated against it once providers are imported.
 PROVIDER_KINDS: set[str] = set()
@@ -56,7 +56,14 @@ class ProjectConfig:
     guarantees: list[str] = field(default_factory=list)
     context_skip: list[str] = field(default_factory=list)   # path prefixes hidden from prompts
     context_limit: int = 200_000    # max characters of project files sent in one prompt
+    context: str = "auto"           # full | focused | auto (focused when the whole project is too big)
     marketing: dict = field(default_factory=dict)
+
+
+@dataclass
+class LimitsConfig:
+    per_run: float = 0.0            # US dollars; 0 means no limit
+    per_day: float = 0.0            # US dollars, per UTC day, across every run in this project
 
 
 @dataclass
@@ -66,6 +73,7 @@ class Team:
     providers: dict[str, ProviderConfig]
     agents: dict[str, AgentConfig]
     pricing: dict = field(default_factory=dict)   # model -> {input, output, cache_read?, cache_write?}
+    limits: LimitsConfig = field(default_factory=LimitsConfig)
 
     def by_role(self, role: str, required: bool = True) -> AgentConfig | None:
         found = [a for a in self.agents.values() if a.role == role]
@@ -86,7 +94,7 @@ class Team:
         """Agent name -> the given paths that agent owns (and so must sign off)."""
         out: dict[str, list[str]] = {}
         for agent in self.agents.values():
-            hits = [p for p in paths if any(p == o or p.startswith(o) for o in agent.owns)]
+            hits = [p for p in paths if any(o == "*" or p == o or p.startswith(o) for o in agent.owns)]
             if hits:
                 out[agent.name] = hits
         return out
@@ -130,6 +138,8 @@ def parse(data: dict, root: Path) -> Team:
     if "project" not in data:
         raise ConfigError("missing [project] table")
     project = _take(dict(data["project"]), ProjectConfig, "[project]")
+    if project.context not in ("full", "focused", "auto"):
+        raise ConfigError(f"[project].context: use full, focused or auto, not {project.context!r}")
 
     providers = {}
     for name, table in (data.get("providers") or {}).items():
@@ -155,4 +165,7 @@ def parse(data: dict, root: Path) -> Team:
         bad = set(table) - {"input", "output", "cache_read", "cache_write"}
         if bad or not all(isinstance(v, (int, float)) for v in table.values()):
             raise ConfigError(f"[pricing.\"{model}\"]: use numeric input, output, cache_read, cache_write (USD per million tokens)")
-    return Team(root=root, project=project, providers=providers, agents=agents, pricing=pricing)
+    limits = _take(dict(data.get("limits") or {}), LimitsConfig, "[limits]")
+    if not all(isinstance(v, (int, float)) and v >= 0 for v in (limits.per_run, limits.per_day)):
+        raise ConfigError("[limits]: per_run and per_day are US dollars (0 or more; 0 means no limit)")
+    return Team(root=root, project=project, providers=providers, agents=agents, pricing=pricing, limits=limits)
