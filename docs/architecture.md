@@ -54,8 +54,12 @@ with their own tests.
 Each workflow appends to `.team/logs/<workflow>.md`; every run and entry heading carries a
 timestamp marker, so `logs.py` can rebuild the timeline (older logs without markers still parse).
 Every model call appends a line to `.team/usage.jsonl` (member, model, tokens, run), which
-`usage.py` turns into cost estimates. `agent-team ui` (`dashboard/`) serves both, read-only, on
-127.0.0.1 with a strict Content-Security-Policy and a Host check, and never returns secret values.
+`usage.py` turns into cost estimates. `agent-team ui` (`dashboard/`) serves both on 127.0.0.1 with
+a strict Content-Security-Policy and a Host check, and never returns secret values. It can also
+edit `.team.toml` through `config_io.py`, which renders the file, validates it by reading it back
+as the CLI does, shows the diff, and saves atomically with a `.team.toml.bak` backup. Writes need
+the page's session token and a same-origin request, and are refused if the file changed on disk.
+`agent-team status --json` gives the same summary to the Claude Code side panel (`plugin/hooks/`).
 
 ## Trust model
 

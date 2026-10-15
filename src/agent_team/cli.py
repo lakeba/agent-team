@@ -75,6 +75,40 @@ def cmd_ship(args) -> int:
     return 0
 
 
+def status_data(team: config.Team, with_health: bool = False, recent: int = 8) -> dict:
+    """A compact snapshot for the Claude panel and scripts: team, recent runs, spend, optional health."""
+    from . import logs, usage
+    from .dashboard.server import health, team_info
+    info = team_info(team)
+    runs = logs.parse(team.root)
+    spend = usage.summarize(usage.load(team.root), team.pricing)
+    return {
+        **{k: info[k] for k in ("version", "root", "project", "members", "missing_roles")},
+        "runs": [{k: r[k] for k in ("workflow", "title", "started", "outcome")} for r in runs[:recent]],
+        "run_count": len(runs),
+        "spend": {"total": spend["total"], "by_agent": spend["by_agent"]},
+        "health": health(team)["members"] if with_health else None,
+    }
+
+
+def cmd_status(args) -> int:
+    import json as _json
+    team = _team(args)
+    data = status_data(team, args.health)
+    if args.json:
+        print(_json.dumps(data, default=str))
+        return 0
+    ui.heading(f"{data['project']['name']} ({data['project']['repo'] or 'no GitHub repo'})")
+    for m in data["members"]:
+        h = data["health"] and data["health"].get(m["name"])
+        mark = "" if h is None else (" ✓" if h["ok"] else " ✕ " + h["status"])
+        ui.say(f"  {m['name']:<10} {m['role']:<10} {m['kind']}/{m['model'] or '-'}{mark}")
+    ui.say(f"\n  {data['run_count']} runs logged; estimated spend ${data['spend']['total']['cost']:.2f}")
+    for r in data["runs"][:5]:
+        ui.say(f"  - {r['workflow']:<8} {r['title'][:60]}  ({r['outcome'] or '—'})")
+    return 0
+
+
 def cmd_ui(args) -> int:
     from .dashboard.server import serve as serve_ui
     try:
@@ -128,7 +162,10 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--license", default="", help='e.g. "MIT, copyright 2026 Lakeba"')
     s = add("ship", cmd_ship, "run one devops shift: triage, sign-offs, reviews, merges, releases")
     s.add_argument("--max-steps", type=int, default=30)
-    s = add("ui", cmd_ui, "open a read-only dashboard: team, health, runs and costs")
+    s = add("status", cmd_status, "summarise the team, recent runs and spend (--json for scripts)")
+    s.add_argument("--json", action="store_true")
+    s.add_argument("--health", action="store_true", help="also check every member is reachable")
+    s = add("ui", cmd_ui, "open the dashboard: team, health, runs, costs, and editing the team")
     s.add_argument("--port", type=int, default=8790)
     s.add_argument("--no-open", action="store_true", help="don't open a browser")
     s = sub.add_parser("serve", help="serve a model on this machine as a remote team member")

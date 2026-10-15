@@ -1,16 +1,21 @@
-"""`agent-team ui`: a read-only dashboard for a project's team, served on this machine only.
+"""`agent-team ui`: the team's dashboard, served on this machine only.
 
 Pages are static files; data comes from a small JSON API that re-reads `.team.toml`, the run logs
-and the usage file on every request, so it always shows the current state. Nothing in it writes.
+and the usage file on every request, so it always shows the current state.
 
-Safety: it binds to 127.0.0.1, answers only requests whose Host is that address (no DNS
-rebinding), allows GET only, sends a strict Content-Security-Policy, and never returns secrets:
-providers show the *name* of their key variable and whether it is set, never its value.
+Safety: it binds to 127.0.0.1 and answers only requests whose Host is that address (no DNS
+rebinding); pages get a strict Content-Security-Policy; secrets are never returned (providers show
+the *name* of their key variable and whether it is set, never its value). The only writes are to
+`.team.toml`, through POST endpoints that require the session token (which other sites can't read:
+no CORS), a same-origin Origin header and a JSON body; every save is validated by reading it back
+as the CLI would, refused if the file changed meanwhile, and leaves a `.team.toml.bak` backup.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import secrets
 import threading
 import time
 import webbrowser
@@ -19,12 +24,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 from pathlib import Path
 
-from .. import __version__, config, logs, providers, usage
+from .. import __version__, config, config_io, logs, providers, usage
 from ..agent import team_roster
 
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
-          "/app.css": ("app.css", "text/css; charset=utf-8")}
+          "/app.css": ("app.css", "text/css; charset=utf-8"),
+          "/edit.js": ("edit.js", "text/javascript; charset=utf-8")}
 HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
     "X-Content-Type-Options": "nosniff",
@@ -128,8 +134,17 @@ def _github(team: config.Team) -> dict:
             "main": {"sha": head[:10], "ci": f"{run['status']} {run['conclusion'] or ''}".strip() if run else "no CI run"}}
 
 
-def make_handler(root: Path, port: int):
+MAX_BODY = 1024 * 1024
+
+
+def _sha(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def make_handler(root: Path, port: int, token: str | None = None):
     allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
+    allowed_origins = {f"http://{h}" for h in allowed_hosts}
+    session_token = token or secrets.token_urlsafe(32)
     github_cache = _GitHubCache()
 
     class Handler(BaseHTTPRequestHandler):
@@ -172,19 +187,79 @@ def make_handler(root: Path, port: int):
                     return self._json(usage_info(team))
                 if path == "/api/github":
                     return self._json(github_cache.get(team))
+                if path == "/api/session":
+                    # Readable only by pages from this origin: no CORS headers are ever sent.
+                    return self._json({"token": session_token})
+                if path == "/api/config":
+                    text = (team.root / config.CONFIG_NAME).read_text(encoding="utf-8")
+                    return self._json({"data": config_io.to_data(team), "sha": _sha(text),
+                                       "has_comments": any(l.lstrip().startswith("#") and not l.startswith("# agent-team configuration")
+                                                           and not l.startswith("# Secrets never") for l in text.splitlines())})
             except Exception as e:  # keep the dashboard up and say what failed
                 return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
             return self._json({"error": "not found"}, 404)
 
-        def _refuse(self):
-            self._json({"error": "this dashboard is read-only"}, 405)
+        def do_POST(self):
+            if self.headers.get("Host", "") not in allowed_hosts:
+                return self._json({"error": "unexpected Host header"}, 421)
+            if self.headers.get("Origin") not in allowed_origins:
+                return self._json({"error": "cross-origin request refused"}, 403)
+            if not secrets.compare_digest(self.headers.get("X-Agent-Team-Token", ""), session_token):
+                return self._json({"error": "missing or wrong session token; reload the page"}, 403)
+            if not self.headers.get("Content-Type", "").startswith("application/json"):
+                return self._json({"error": "send JSON"}, 415)
+            length = int(self.headers.get("Content-Length") or 0)
+            if length <= 0 or length > MAX_BODY:
+                return self._json({"error": f"body must be 1..{MAX_BODY} bytes"}, 413)
+            try:
+                body = json.loads(self.rfile.read(length))
+            except ValueError:
+                return self._json({"error": "invalid JSON"}, 400)
+            path = self.path.split("?", 1)[0]
+            try:
+                if path == "/api/config/preview":
+                    return self._json(config_io.plan_change(root, body.get("data")))
+                if path == "/api/config/save":
+                    cfg_path = config.find_config(root)
+                    current = cfg_path.read_text(encoding="utf-8")
+                    if body.get("sha") != _sha(current):
+                        return self._json({"error": f"{config.CONFIG_NAME} changed on disk since this page loaded it; reload and redo your edit"}, 409)
+                    return self._json(config_io.save(cfg_path.parent, body.get("data"), expected_old=current))
+                if path == "/api/node-token":
+                    return self._json({"token": secrets.token_urlsafe(32)})
+                if path == "/api/test-provider":
+                    return self._json(_test_provider(body))
+            except config.ConfigError as e:
+                return self._json({"error": str(e)}, 422)
+            except Exception as e:
+                return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
+            return self._json({"error": "not found"}, 404)
 
-        do_POST = do_PUT = do_PATCH = do_DELETE = _refuse
+        def _refuse(self):
+            self._json({"error": "method not allowed"}, 405)
+
+        do_PUT = do_PATCH = do_DELETE = _refuse
 
         def log_message(self, fmt, *args):
             pass   # quiet: the terminal stays readable
 
     return Handler
+
+
+def _test_provider(body: dict) -> dict:
+    """Check a provider the person is about to add, before it's saved. Secrets come from this
+    dashboard's own environment (the variable named), never from the request."""
+    p = body.get("provider") or {}
+    kind = str(p.get("kind", ""))
+    if kind not in config.PROVIDER_KINDS:
+        raise config.ConfigError(f"unknown kind {kind!r}")
+    cfg = config.ProviderConfig(name="test", kind=kind, url=str(p.get("url", "")),
+                                api_key_env=str(p.get("api_key_env", "")))
+    secret = os.environ.get(cfg.api_key_env, "") if cfg.api_key_env else ""
+    status = providers.build(cfg, secret).check(str(body.get("model", "")))
+    note = ("" if not cfg.api_key_env or secret else
+            f"{cfg.api_key_env} isn't set in the environment this dashboard was started from.")
+    return {"ok": not status.startswith("FAILED"), "status": status, "note": note}
 
 
 def serve(project: Path, port: int = 8790, open_browser: bool = True) -> None:

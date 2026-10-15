@@ -150,9 +150,12 @@ function renderTeam() {
   el.replaceChildren();
   const t = state.team;
   if (!t || t.error) return el.append(errorCard("the team", t && t.error));
+  if (typeof edit !== "undefined" && edit.on) return renderEditor(el);
   const health = state.health && state.health.members;
   el.append(h("div", { class: "filters" }, h("span", { class: "secondary" }, `${t.members.length} members`), healthSummary(),
-    state.health && state.health.checked_at ? h("span", { class: "muted small" }, `checked ${fmtWhen(state.health.checked_at)}`) : null));
+    state.health && state.health.checked_at ? h("span", { class: "muted small" }, `checked ${fmtWhen(state.health.checked_at)}`) : null,
+    h("span", { class: "spacer" }),
+    h("button", { type: "button", class: "primary", onclick: () => startEditing().catch(e => alert(e.message)) }, "Edit team")));
   el.append(h("div", { class: "grid cards" }, t.members.map(m => {
     const hm = health && health[m.name];
     const where = m.kind === "agent-http" ? `remote node ${m.url}` : m.url ? `${m.kind} at ${m.url}` : m.kind;
@@ -276,5 +279,9 @@ try {
   const saved = localStorage.getItem("agent-team-tab");
   if (saved) document.querySelector(`[role=tab][data-tab="${saved}"]`)?.click();
 } catch (_) {}
-document.getElementById("refresh").addEventListener("click", load);
+document.getElementById("refresh").addEventListener("click", () => {
+  if (typeof edit !== "undefined" && edit.on && !confirm("Refreshing discards your unsaved edits. Continue?")) return;
+  if (typeof edit !== "undefined") { edit.on = false; edit.draft = null; }
+  load();
+});
 load();

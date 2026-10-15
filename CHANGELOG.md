@@ -26,10 +26,18 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
   environment, `agent-team` on the `PATH`, the Claude Code plugin), with `--ref`, `--no-plugin`,
   `--force` and `--uninstall`. Works with the private repository through `gh`.
 - MIT licence, and complete package metadata (licence, classifiers, project URLs).
-- `agent-team ui` and `/team-ui`: a read-only dashboard on 127.0.0.1 with the team and each
+- `agent-team ui` and `/team-ui`: a dashboard on 127.0.0.1 with the team and each
   member's reachability, a timeline of runs with verdicts, sign-offs, files and GitHub actions,
   and estimated costs per member, model, day and run.
 - Token usage per model call is recorded to `.team/usage.jsonl` (all providers, remote nodes and
   the devops tool loop), with cost estimates from a price table that `[pricing]` can override.
+- The dashboard edits the team: members, connections (with a connection test), guarantees and
+  prices; an "Add a machine" wizard with token generation and the commands for both machines.
+  Every save shows a diff, is validated by reading it back, and backs up to `.team.toml.bak`.
+  Writes need a per-session token and a same-origin request, and refuse a file changed on disk.
+- `agent-team status [--json] [--health]`: the team, missing roles, recent runs and spend.
+- A Claude Code side panel in the plugin (`/team-panel`, opened automatically in projects with a
+  team): members with health marks, recent runs and spend, with Refresh, Check health and
+  Start/Open dashboard buttons.
 - Run logs carry timestamp markers, so headings inside agents' replies are never mistaken for
   structure.

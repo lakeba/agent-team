@@ -154,8 +154,9 @@ class DashboardServerTests(unittest.TestCase):
     def test_wrong_host_is_refused(self):
         self.assertEqual(self.get("/api/team", host="evil.example:80")[0], 421)
 
-    def test_read_only(self):
-        for method in ("POST", "PUT", "DELETE"):
+    def test_writes_without_the_session_token_are_refused(self):
+        self.assertEqual(self.get("/api/config/save", method="POST")[0], 403)
+        for method in ("PUT", "DELETE"):
             self.assertEqual(self.get("/api/team", method=method)[0], 405)
 
     def test_health_runs_usage_and_github(self):

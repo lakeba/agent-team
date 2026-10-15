@@ -40,6 +40,8 @@ report. The team does the work; you don't do it for them unless the user asks yo
 - `/team-build <task>`: the lead plans, a builder implements, tests run, the lead reviews; opens a PR.
 - `/team-ship`: one devops shift: triage, sign-offs, lead review, merges, releases.
 - `/team-market`: brief, website and pitch deck, reviewed with screenshots; opens a PR.
+- `/team-ui`: open the dashboard, where the team can also be edited.
+- `/team-panel`: show the team, health, recent runs and spend in a side panel.
 
 ## Growing the team
 

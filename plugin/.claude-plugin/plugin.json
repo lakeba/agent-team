@@ -1,7 +1,7 @@
 {
   "name": "agent-team",
   "version": "0.1.0",
-  "description": "Drive your agent-team (lead, builder, marketing, devops on any model or machine) from Claude Code: plan a roadmap, build features as PRs, run devops shifts, and make marketing material.",
+  "description": "Drive your agent-team (lead, builder, marketing, devops on any model or machine) from Claude Code: plan a roadmap, build features as PRs, run devops shifts, make marketing material, and watch the team in a side panel.",
   "author": {
     "name": "Lakeba"
   },
@@ -14,5 +14,6 @@
     "release",
     "ollama"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "types": "./types/index.d.ts"
 }
