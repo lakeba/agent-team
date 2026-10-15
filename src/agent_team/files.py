@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 from pathlib import Path
 
 from . import ui, usage
@@ -23,6 +24,9 @@ STATUS_RE = re.compile(r"^STATUS:\s*(AGREE|CONTINUE|OK|ISSUES)\s*$", re.M)
 LOG_DIR = ".team"
 ALWAYS_SKIP_DIRS = {".git", ".team", "node_modules", "__pycache__", ".venv", "venv", "dist", "build",
                     ".next", ".shots", ".pytest_cache", ".mypy_cache"}
+# Build output that only counts as noise next to a project file (Node packages keep source in bin/).
+DOTNET_OUTPUT_DIRS = {"bin", "obj"}
+DOTNET_PROJECTS = (".csproj", ".fsproj", ".vbproj")
 
 
 def last_marker(regex: re.Pattern, text: str) -> str:
@@ -61,15 +65,31 @@ class SnapshotTooLarge(ValueError):
     pass
 
 
+def git_ignored(root: Path) -> tuple[str, ...]:
+    """Paths under `root` that git ignores (folders end in /), so build output such as target/ never
+    reaches a prompt. Empty when `root` isn't in a git repository."""
+    try:
+        r = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--others", "--ignored",
+                            "--exclude-standard", "--directory"], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return ()
+    return tuple(p for p in r.stdout.split("\0") if p) if r.returncode == 0 else ()
+
+
 def project_files(root: str | Path, *, only: tuple[str, ...] = (), skip: tuple[str, ...] = ()):
     """(relative path, absolute path) of every text file a prompt may include."""
     root = Path(root)
+    ignored = git_ignored(root)
+    ignored_files, ignored_dirs = {p for p in ignored if not p.endswith("/")}, tuple(p for p in ignored if p.endswith("/"))
     for dirpath, dirnames, filenames in os.walk(root):
+        dotnet = any(n.endswith(DOTNET_PROJECTS) for n in filenames)
         dirnames[:] = sorted(d for d in dirnames if d not in ALWAYS_SKIP_DIRS and not
-                             (d.startswith(".") and d != ".github"))
+                             (d.startswith(".") and d != ".github") and not (dotnet and d in DOTNET_OUTPUT_DIRS))
         for name in sorted(filenames):
             rel = os.path.relpath(os.path.join(dirpath, name), root).replace(os.sep, "/")
             if (only and not rel.startswith(only)) or (skip and rel.startswith(skip)):
+                continue
+            if rel in ignored_files or (ignored_dirs and rel.startswith(ignored_dirs)):
                 continue
             # Never send secrets files or the team config itself.
             if name.startswith(".env") or name in {".team.toml", ".npmrc", ".pypirc"} or name.endswith((".png", ".jpg", ".jpeg", ".gif", ".ico",

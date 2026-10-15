@@ -1,4 +1,5 @@
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -25,6 +26,44 @@ class InitTests(unittest.TestCase):
         root = Path(tempfile.mkdtemp())
         (root / "test_x.py").write_text("")
         self.assertEqual(init.detect(root)[0], "python3 -m unittest -v")
+
+    def test_detects_dotnet_solution_and_its_test_count(self):
+        root = Path(tempfile.mkdtemp())
+        (root / "App.slnx").write_text("<Solution />")
+        (root / "package.json").write_text(json.dumps({"scripts": {"test": "jest"}}))   # tooling only
+        cmd, pattern = init.detect(root)
+        self.assertEqual(cmd, "dotnet test")
+        rx = re.compile(pattern)
+        self.assertEqual(rx.search("2026-10-15T01:02:03Z Passed!  - Failed:     0, Passed:     3, Skipped:     0").group(1), "3")
+        self.assertEqual(rx.search("Failed!  - Failed:     1, Passed:    12, Skipped:     0").group(1), "12")
+        self.assertEqual(rx.search("  succeeded: 7").group(1), "7")
+
+    def test_detects_a_nested_dotnet_project(self):
+        root = Path(tempfile.mkdtemp())
+        (root / "src/App").mkdir(parents=True)
+        (root / "src/App/App.csproj").write_text("<Project />")
+        self.assertEqual(init.detect(root)[0], "dotnet test")
+
+    def test_dotnet_init_ignores_build_output_and_finds_the_test_project(self):
+        root = Path(tempfile.mkdtemp())
+        (root / "App.sln").write_text("")
+        (root / "App.Tests").mkdir()
+        with quiet():
+            init.run(root)
+        team = config.load(root)
+        self.assertEqual(team.project.test_command, "dotnet test")
+        self.assertIn('owns = ["App.Tests/"]', (root / ".team.toml").read_text())
+        ignore = (root / ".gitignore").read_text().splitlines()
+        self.assertIn("bin/", ignore)
+        self.assertIn("obj/", ignore)
+
+    def test_dotnet_gitignore_is_left_alone(self):
+        root = Path(tempfile.mkdtemp())
+        (root / "App.sln").write_text("")
+        (root / ".gitignore").write_text("[Bb]in/\n[Oo]bj/\n")
+        with quiet():
+            init.run(root)
+        self.assertNotIn("# .NET build output", (root / ".gitignore").read_text())
 
     def test_refuses_to_overwrite(self):
         root = Path(tempfile.mkdtemp())

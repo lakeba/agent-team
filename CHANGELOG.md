@@ -41,6 +41,13 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - A Claude Code side panel in the plugin (`/team-panel`, opened automatically in projects with a
   team): members with health marks, recent runs and spend, with Refresh, Check health and
   Start/Open dashboard buttons.
+- 0.2.6: .NET out of the box. `init` detects a solution or project file (`*.sln`, `*.slnx`,
+  `*.csproj`, also nested as `src/App/App.csproj`) and writes `dotnet test` with a test-count
+  pattern for its summary line, finds an `App.Tests/` test project for the QA member, and adds
+  `bin/` and `obj/` to `.gitignore`. Prompts never include files git ignores, nor `bin/` and
+  `obj/` next to a .NET project file, so build output (`obj/`, Cargo's `target/`) no longer
+  fills the context. The readiness checklist says when the test command's program isn't on the
+  `PATH` (with a hint for a `dotnet-install` SDK in `~/.dotnet`).
 - 0.2.5: `[project].release = "ask"` makes the devops shift propose releases instead of
   publishing them; approve with `agent-team ship --release X.Y.Z`, or the dashboard's or panel's
   Approve button (`init` writes `ask`). Build PRs are titled from the plan's heading, and the plan

@@ -1,6 +1,7 @@
 """The first minutes on a new machine: the keys file, the readiness checklist and a smarter init."""
 import json
 import os
+import re
 import stat
 import subprocess
 import tempfile
@@ -103,6 +104,11 @@ class ReadinessTests(unittest.TestCase):
         self.assertFalse(checks["team file"].ok)
         self.assertIn(f"gh repo create {root.name} --private", checks["GitHub repo"].fix)
         self.assertIn("agent-team keys set ANTHROPIC_API_KEY", checks["key ANTHROPIC_API_KEY"].fix)
+
+    def test_a_test_command_that_cannot_run(self):
+        c = {c.name: c for c in readiness.check(project(test_command="no-such-runner-xyz test"))}["test command"]
+        self.assertFalse(c.ok)
+        self.assertIn("no-such-runner-xyz isn't on the PATH", c.detail)
 
     def test_a_remote_ollama_and_its_models(self):
         server = FakeOllama(["qwen3.8:27b-mlx"])

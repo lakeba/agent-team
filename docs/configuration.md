@@ -9,9 +9,9 @@
 | `name` | required | Project name used in prompts. |
 | `repo` | `""` | `owner/name` on GitHub. Needed by `build --pr` and `ship`. |
 | `test_command` | `""` | Shell command run in the project after each build round. |
-| `test_count_pattern` | `Ran (\d+) tests?` | Regex with one group, matched against CI log lines to read the test count. Empty disables it. |
+| `test_count_pattern` | `Ran (\d+) tests?` | Regex with one group, matched against CI log lines to read the test count. Empty disables it. `init` picks one for the test command it detects (pytest, Jest, Vitest, Mocha, `node --test`, Cargo, `dotnet test`). |
 | `guarantees` | `[]` | Rules the lead enforces in every plan and review. |
-| `context_skip` | `[]` | Path prefixes never sent to the models (build output, vendored code, large assets). |
+| `context_skip` | `[]` | Path prefixes never sent to the models (vendored code, large assets). Files git ignores are never sent either, nor `bin/` and `obj/` next to a .NET project file, so build output listed in `.gitignore` needs no entry. |
 | `context_limit` | `200000` | Maximum characters of project files in one prompt. Raising it costs tokens; prefer `context_skip`. |
 | `release` | `auto` | Who decides when a version ships. `auto`: the devops shift releases on its own when merged changes are worth it. `ask`: it proposes a release (version and notes) and you approve it with `agent-team ship --release X.Y.Z`, the dashboard's Approve button or the panel's. `agent-team init` writes `ask`. |
 | `context` | `auto` | What prompts include. `full`: every file, every time (fails when that's over `context_limit`). `focused`: the lead sees a map of the project and picks the files a task needs; members can ask for more with `FILE: path` lines. `auto`: full when it fits, focused when it doesn't. |

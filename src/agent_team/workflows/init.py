@@ -108,6 +108,11 @@ effort = "medium"
 DEFAULT_OLLAMA = "http://localhost:11434"
 DEFAULT_MODEL = "qwen3.8:27b-mlx"
 TEST_DIRS = ("tests/", "test/", "__tests__/", "spec/")
+# `dotnet test` summary lines: VSTest prints "Passed!  - Failed: 0, Passed: 12, ...", the
+# Microsoft.Testing.Platform runner prints "succeeded: 12".
+DOTNET = ("dotnet test", r"(?:Passed:|succeeded:)\s+(\d+)")
+DOTNET_SOLUTIONS = ("*.sln", "*.slnx")
+DOTNET_PROJECTS = ("*.csproj", "*.fsproj", "*.vbproj")
 
 # package.json "test" script -> CI count regex, by the runner it names (first match wins).
 NODE_RUNNERS = [
@@ -127,7 +132,18 @@ DETECT = [  # (marker file, test command, CI count regex)
 ]
 
 
+def is_dotnet(root: Path, nested: bool = True) -> bool:
+    """A .NET project: a solution or project file at the top, or (nested) a project file a few
+    folders down, as in src/App/App.csproj."""
+    globs = DOTNET_SOLUTIONS + DOTNET_PROJECTS
+    if any(any(root.glob(g)) for g in globs):
+        return True
+    return nested and any(any(root.glob(f"{d}{g}")) for d in ("*/", "*/*/") for g in DOTNET_PROJECTS)
+
+
 def detect(root: Path) -> tuple[str, str]:
+    if is_dotnet(root, nested=False):   # a solution at the top wins over a package.json for tooling
+        return DOTNET
     for marker, cmd, pattern in DETECT:
         if (root / marker).exists():
             if marker == "package.json":
@@ -137,6 +153,8 @@ def detect(root: Path) -> tuple[str, str]:
                 script = scripts["test"]
                 pattern = next((p for runner, p in NODE_RUNNERS if runner in script), pattern)
             return cmd, pattern
+    if is_dotnet(root):
+        return DOTNET
     if any(root.glob("test_*.py")) or any(root.glob("tests/test_*.py")):
         return "python3 -m unittest -v", r"Ran (\d+) tests?"
     return "", r"Ran (\d+) tests?"
@@ -144,7 +162,10 @@ def detect(root: Path) -> tuple[str, str]:
 
 def test_dir(root: Path) -> str:
     """The folder the project keeps its tests in (what a QA member may write to)."""
-    return next((d for d in TEST_DIRS if (root / d.rstrip("/")).is_dir()), "tests/")
+    found = next((d for d in TEST_DIRS if (root / d.rstrip("/")).is_dir()), "")
+    if not found:   # .NET keeps each test project in its own folder: App.Tests/, App.UnitTests/
+        found = next((f"{p.name}/" for p in sorted(root.iterdir()) if p.is_dir() and p.name.endswith((".Tests", ".UnitTests"))), "")
+    return found or "tests/"
 
 
 def choose_model(models: list[str] | None, wanted: str = "") -> tuple[str, str]:
@@ -206,8 +227,13 @@ def run(root: Path, builder_provider: str = "local", builder_model: str = "", fo
     lines = gitignore.read_text(encoding="utf-8").splitlines() if gitignore.exists() else []
     missing = [x for x in (".team/", ".team.toml.bak") if x not in lines]
     if missing:
-        gitignore.write_text("\n".join(lines + ["", "# agent-team logs, runs and the dashboard's backup", *missing]).lstrip() + "\n",
-                             encoding="utf-8")
+        lines += ["", "# agent-team logs, runs and the dashboard's backup", *missing]
+    have = {x.strip().strip("/").lower() for x in lines}
+    build_output = [f"{d}/" for d in ("bin", "obj") if is_dotnet(root) and not have & {d, f"[{d[0]}{d[0].upper()}]{d[1:]}".lower()}]
+    if build_output:
+        lines += ["", "# .NET build output", *build_output]
+    if missing or build_output:
+        gitignore.write_text("\n".join(lines).lstrip() + "\n", encoding="utf-8")
     ui.action(f"wrote {path} (test command: {test_command or 'none detected'}; repo: {github_repo(root) or 'none'})")
     if note:
         ui.say(f"Builder model: {note}.")

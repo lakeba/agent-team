@@ -84,6 +84,18 @@ def check(root: Path, ollama_url: str = "") -> list[Check]:
         out.append(Check("team file", False, "none yet" if missing else str(e),
                          "agent-team init (or /team-init)" if missing else f"fix {CONFIG_NAME}"))
 
+    # The test command's program, which build runs after every round.
+    cmd = team.project.test_command.split() if team else []
+    if cmd:
+        prog = next((w for w in cmd if "=" not in w), cmd[0])   # skip leading VAR=value assignments
+        found = shutil.which(prog)
+        hint = (" (installed with dotnet-install? add ~/.dotnet to PATH in ~/.profile)"
+                if prog == "dotnet" and (Path.home() / ".dotnet" / "dotnet").exists() else "")
+        out.append(Check("test command", bool(found), f"{team.project.test_command} ({found})" if found
+                         else f"{prog} isn't on the PATH, so `{team.project.test_command}` can't run{hint}",
+                         "" if found else f"install {prog}, or set [project].test_command in {CONFIG_NAME}",
+                         "build, fix"))
+
     repo = team.project.repo if team else ""
     if repo:
         out.append(Check("GitHub repo", True, repo))

@@ -47,11 +47,13 @@ something missing must not fail: `agent-team ready` always exits 0 and reports w
 6. **Write the file:** `agent-team init` with `--ollama-url` and `--builder-provider` (`local` for
    Ollama, `claude` for Claude) / `--builder-model` from the answers. `init` checks the file it
    writes, so a successful run needs no repair. It detects the test command and the test-count pattern
-   (Python, Jest, Vitest, Mocha, Node's built-in runner) and the test folder, and adds `.team/` and
-   `.team.toml.bak` to `.gitignore`. Uncomment the optional members chosen and add any limits.
+   (Python, Jest, Vitest, Mocha, Node's built-in runner, Go, Cargo, .NET's `dotnet test`) and the
+   test folder (`tests/`, or a .NET `App.Tests/` project), and adds `.team/` and `.team.toml.bak` to
+   `.gitignore` (and `bin/`, `obj/` for .NET). Uncomment the optional members chosen and add any limits.
 7. **Make it specific to this project:** read the README, main source files, tests and CI, and
    propose concrete `guarantees` (the rules every change must keep) and `context_skip` entries
-   (build output, vendored code, large assets). Check that `test_count_pattern` matches what the
+   (vendored code, large assets; files git ignores are never sent, so build output in `.gitignore`
+   needs no entry). Check that `test_count_pattern` matches what the
    test command prints; fix it if not. CI logs put a timestamp before every line, so the pattern
    must not start with `^`. Show the changes and apply them when the user agrees.
 8. **Confirm:** run `agent-team doctor` and report the checklist and each member. If anything is

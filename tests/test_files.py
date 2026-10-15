@@ -1,3 +1,4 @@
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -61,6 +62,30 @@ class SnapshotTests(unittest.TestCase):
     def test_limit(self):
         with self.assertRaisesRegex(ValueError, "over the 10 limit"):
             files.snapshot(self.root, limit=10)
+
+
+class BuildOutputTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+
+    def make(self, *rels):
+        for rel in rels:
+            (self.root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / rel).write_text("content", encoding="utf-8")
+
+    def listed(self):
+        return sorted(rel for rel, _ in files.project_files(self.root))
+
+    def test_git_ignored_paths_never_reach_a_prompt(self):
+        self.make("src/main.rs", "target/debug/out.d", "notes", "notes-public.md", ".gitignore")
+        (self.root / ".gitignore").write_text("target/\nnotes\n")
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        self.assertEqual(self.listed(), [".gitignore", "notes-public.md", "src/main.rs"])
+
+    def test_dotnet_bin_and_obj_are_skipped_without_a_gitignore(self):
+        self.make("src/App/App.csproj", "src/App/Program.cs", "src/App/bin/Debug/App.deps.json",
+                  "src/App/obj/project.assets.json", "tools/bin/cli.js")
+        self.assertEqual(self.listed(), ["src/App/App.csproj", "src/App/Program.cs", "tools/bin/cli.js"])
 
 
 class MarkerTests(unittest.TestCase):
