@@ -120,3 +120,21 @@ class DiscussTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DiscussFeedbackTests(unittest.TestCase):
+    def setUp(self):
+        helpers.reset()
+
+    def test_the_devops_digest_reaches_the_discussion(self):
+        root = project(files={".team/FEEDBACK.md": "# Digest\n- Users want CSV export.\n"})
+        SCRIPTS["Atlas"].extend(["Export first.\nSTATUS: AGREE", '<file path="ROADMAP.md">\n# Roadmap\n</file>'])
+        SCRIPTS["Forge"].append("Fine.\nSTATUS: AGREE")
+        with quiet():
+            discuss.run(load(root), "next features", turns=2)
+        system = CALLS[0]["system"]
+        self.assertIn("<untrusted>\n# Digest\n- Users want CSV export.", system)
+
+    def test_no_digest_yet(self):
+        team = load(project())
+        self.assertIn("No digest yet", discuss.feedback_digest(team))

@@ -2,7 +2,7 @@
 the outcome to ROADMAP.md (updating it, never discarding what has shipped)."""
 from __future__ import annotations
 
-from .. import agent, context, files, ui
+from .. import agent, context, files, github, ui
 from ..config import Team
 
 PERSPECTIVES = {
@@ -23,6 +23,16 @@ rather than starting over: keep what has shipped (marked as shipped, with its ve
 Deferred list current, and add the new milestones after it."""
 
 
+def feedback_digest(team: Team) -> str:
+    """The devops member's latest digest of what developers ask for (.team/FEEDBACK.md), so the
+    roadmap answers it. It summarises issues and PRs written by outsiders, so it arrives marked."""
+    path = team.root / files.LOG_DIR / "FEEDBACK.md"
+    if not path.exists():
+        return "(No digest yet: a devops shift writes one.)"
+    text = path.read_text(encoding="utf-8").strip()[:12_000]
+    return github.untrusted(text) if text else "(The digest is empty.)"
+
+
 def run(team: Team, topic: str, members: list[str] | None = None, turns: int = 12) -> bool:
     lead_cfg = team.by_role("lead")
     cfgs = [team.get(m) for m in members] if members else [lead_cfg, team.by_role("builder")]
@@ -31,7 +41,7 @@ def run(team: Team, topic: str, members: list[str] | None = None, turns: int = 1
     if len(cfgs) < 2:
         raise SystemExit("A discussion needs at least two members.")
     project_files = context.for_topic(team)
-    people = [agent.make(team, c, "discuss", topic=topic, files=project_files,
+    people = [agent.make(team, c, "discuss", topic=topic, files=project_files, feedback=feedback_digest(team),
                          perspective=c.description or PERSPECTIVES.get(c.role, f"Your role: {c.role}."))
               for c in cfgs]
     log = files.Log(team.root, "discuss", f"Discussion: {topic}")

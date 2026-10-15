@@ -13,6 +13,8 @@ once, let the user watch, verify, report, never bypass the guardrails).
 2. Make sure the working tree is clean (if not, tell the user and stop), switch to the default
    branch, update it (`git pull --ff-only`), then create a branch `team/roadmap-<yyyymmdd>`.
 3. Run, where the user can watch: `agent-team discuss "<topic>" [--members ...]`
+   The members see Harbor's latest feedback digest (`.team/FEEDBACK.md`, written by `/team-ship`);
+   if there isn't one yet, mention that a shift first would give the discussion real input.
 4. When it finishes, read the end of `.team/logs/discuss.md` and `git diff -- ROADMAP.md`.
    Check the roadmap against reality before trusting it: is anything listed as "next" already
    shipped (look at the CHANGELOG, recent merged PRs and releases)? Did the members' agreement

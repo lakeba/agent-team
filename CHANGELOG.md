@@ -41,6 +41,9 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - A Claude Code side panel in the plugin (`/team-panel`, opened automatically in projects with a
   team): members with health marks, recent runs and spend, with Refresh, Check health and
   Start/Open dashboard buttons.
+- 0.2.3: `discuss` reads the devops member's feedback digest (`.team/FEEDBACK.md`, marked as
+  untrusted), so roadmap discussions answer what developers ask for. Before, the digest was
+  written every shift but never reached the planning.
 - 0.2.2: `agent-team fix <PR>` (and `/team-fix`, `/team-run fix`, the dashboard's "Fix a pull
   request"): a builder applies the lead's requested changes on an open PR's branch, the lead
   confirms, and it pushes; never to forks, nothing pushed without the lead's confirmation. The
