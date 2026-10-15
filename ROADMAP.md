@@ -2,8 +2,8 @@
 
 ## Next
 
-1. **Claude Code plugin.** Slash commands (`/team-plan`, `/team-build`, `/team-ship`,
-   `/team-market`) so the team can be driven from any project in the Claude app.
+1. **Claude Code plugin** (first version done: `plugin/`). Next: use it on a second project and
+   refine the commands from what happens there.
 2. **First real projects.** Onboard a second codebase (for example a Next.js app) and fix what
    generalising from todo-py missed.
 3. **Scheduled shifts.** Run `agent-team ship` on a schedule, with a lock so two shifts never

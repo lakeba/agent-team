@@ -71,7 +71,8 @@ class OllamaProvider(Provider):
             names = [m["name"] for m in _get_json(f"{self.url}/api/tags")["models"]]
         except Exception as e:
             return f"FAILED: can't reach Ollama at {self.url} ({e})"
-        return f"ok (Ollama at {self.url})" if model in names else f"FAILED: {model!r} not pulled at {self.url}"
+        return (f"ok (Ollama at {self.url}, model {model} is pulled)" if model in names
+                else f"FAILED: {model!r} is not pulled at {self.url} (run: ollama pull {model})")
 
 
 @register("openai")

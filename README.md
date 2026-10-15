@@ -44,6 +44,20 @@ cd ~/code/my-project
 
 Then edit `.team.toml`: set the project's guarantees, adjust the team, and run a workflow.
 
+### Use it from Claude Code
+
+Install the plugin once, at the prompt of a Claude Code session:
+
+```
+/plugin install agent-team --marketplace lakeba/agent-team
+```
+
+Then, in any project: `/team-init`, `/team-doctor`, `/team-plan`, `/team-build <task>`,
+`/team-ship` and `/team-market`. Claude runs the workflow where you can watch it, checks the
+result, and reports back. The commands need the `agent-team` CLI on your `PATH` (for example
+`ln -s ~/agent-team/.venv/bin/agent-team ~/.local/bin/agent-team`). The repository is private, so
+`git` on your machine must be able to read it.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md): providers, agents, workflows and how they fit.

@@ -1,0 +1,14 @@
+{
+  "name": "lakeba-agent-team",
+  "description": "Lakeba's agent-team: a configurable team of AI agents for your projects.",
+  "owner": {
+    "name": "Lakeba"
+  },
+  "plugins": [
+    {
+      "name": "agent-team",
+      "source": "./plugin",
+      "description": "Drive your agent-team from Claude Code: /team-plan, /team-build, /team-ship, /team-market."
+    }
+  ]
+}
