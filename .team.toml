@@ -1,4 +1,5 @@
-# The team that maintains agent-team itself.
+# agent-team configuration. Docs: https://github.com/lakeba/agent-team/blob/main/docs/configuration.md
+# Secrets never go here: providers name the environment variable that holds them.
 
 [project]
 name = "agent-team"
@@ -15,10 +16,6 @@ guarantees = [
 ]
 context_skip = ["examples/"]
 
-[limits]
-per_run = 5.0
-per_day = 25.0
-
 [providers.claude]
 kind = "anthropic"
 
@@ -26,12 +23,21 @@ kind = "anthropic"
 kind = "ollama"
 url = "http://localhost:11434"
 
+[limits]
+per_run = 5.0
+per_day = 25.0
+
 [[agents]]
 name = "Atlas"
 role = "lead"
 provider = "claude"
 model = "claude-opus-5-5"
-owns = ["ROADMAP.md", "docs/architecture.md", "src/agent_team/workflows/ship.py", "src/agent_team/budget.py"]
+owns = [
+  "ROADMAP.md",
+  "docs/architecture.md",
+  "src/agent_team/workflows/ship.py",
+  "src/agent_team/budget.py",
+]
 
 [[agents]]
 name = "Forge"
@@ -46,3 +52,16 @@ provider = "claude"
 model = "claude-sonnet-5-5"
 effort = "medium"
 owns = [".github/", "CHANGELOG.md"]
+
+[[agents]]
+name = "Rosie"
+role = "marketing"
+provider = "claude"
+model = "claude-sonnet-5-5"
+
+[[agents]]
+role = "qa"
+provider = "claude"
+name = "Darshan"
+model = "claude-sonnet-5-5"
+effort = "medium"
