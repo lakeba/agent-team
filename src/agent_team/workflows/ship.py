@@ -45,6 +45,21 @@ def is_changelog_rename(changed_lines: list[str], paths: list[str], version: str
             and re.fullmatch(rf"\+## \[{re.escape(version)}\] - \d{{4}}-\d{{2}}-\d{{2}}", changed_lines[1]) is not None)
 
 
+def ensure_labels(repo: str, names: list[str]) -> list[str]:
+    """Create any of these labels the repository doesn't have yet; returns the ones created."""
+    if not names:
+        return []
+    existing = {l["name"].lower() for l in github.gh_json("label", "list", "-R", repo, "--limit", "500",
+                                                          "--json", "name") or []}
+    created = []
+    for name in names:
+        if name.lower() not in existing and len(name) <= 50:
+            github.gh("label", "create", name, "-R", repo, "--description", "Added by the agent-team devops shift",
+                      check=False)
+            created.append(name)
+    return created
+
+
 def repo_state(team: Team) -> str:
     repo, pattern = team.project.repo, team.project.test_count_pattern
     j = github.gh_json
@@ -58,7 +73,9 @@ def repo_state(team: Team) -> str:
     run = github.run_for_commit(repo, head)
     changelog = github.gh("api", f"repos/{repo}/contents/CHANGELOG.md", "-H",
                           "Accept: application/vnd.github.raw", check=False)
-    out = [f"# Repository {repo}", f"Recent releases: {json.dumps(releases)}",
+    out = [f"# Repository {repo}",
+           f"Clone URL (verified by the team's tooling): https://github.com/{repo}.git",
+           f"Recent releases: {json.dumps(releases)}",
            f"Recently merged PRs: {json.dumps(merged)}",
            f"main head: {head[:10]}, CI on it: {run and run['status'] + ' ' + str(run['conclusion'])}",
            f"Test counts for released versions (verified by the team's tooling from CI logs): "
@@ -136,6 +153,8 @@ def run(team: Team, max_steps: int = 30) -> None:
             add: Labels to add (may be empty).
             remove: Labels to remove (may be empty).
         """
+        add = [l.strip() for l in add if l.strip()][:10]
+        created = ensure_labels(repo, add)
         args = ["issue", "edit", str(number), "-R", repo]
         for label in add:
             args += ["--add-label", label]
@@ -143,8 +162,8 @@ def run(team: Team, max_steps: int = 30) -> None:
             args += ["--remove-label", label]
         if add or remove:
             github.gh(*args)
-        act(f"labels on #{number}: +{add} -{remove}")
-        return "done"
+        act(f"labels on #{number}: +{add} -{remove}" + (f" (created {created})" if created else ""))
+        return "done" + (f"; created the new labels {created}" if created else "")
 
     @beta_tool
     def close_issue(number: int, reason: str, comment_text: str) -> str:

@@ -3,7 +3,7 @@
 import { expect, test } from 'claude-code/testing'
 
 const STATUS = {
-  version: '0.2.3',
+  version: '0.2.4',
   root: '/work/todo-py',
   project: { name: 'todo-py', repo: 'lakeba/todo-py' },
   members: [
@@ -33,7 +33,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     on('command.register', async (_$, e) => ({ value: { command: e.name } }))
     on('ui.open', async () => ({ value: { isPlaced: true as const } }))
     on('process.run', async (_$, e) => {
-      if (e.argv.includes('--version')) return result(0, 'agent-team 0.2.3')
+      if (e.argv.includes('--version')) return result(0, 'agent-team 0.2.4')
       if (e.argv.join(' ').includes('status')) return result(0, JSON.stringify(STATUS))
       return result(1, '', 'unexpected command')
     })
@@ -66,7 +66,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     on('command.register', async (_$, e) => ({ value: { command: e.name } }))
     on('ui.open', async () => ({ value: { isPlaced: true as const } }))
     on('process.run', async (_$, e) => {
-      if (e.argv.includes('--version')) return result(0, 'agent-team 0.2.3')
+      if (e.argv.includes('--version')) return result(0, 'agent-team 0.2.4')
       return result(1, '', 'Config error: no .team.toml found in /work/other or its parents; run `agent-team init`')
     })
 
@@ -86,7 +86,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     on('ui.open', async () => ({ value: { isPlaced: true as const } }))
     on('process.run', async (_$, e) => {
       const line = e.argv.join(' ')
-      if (e.argv.includes('--version')) return result(0, 'agent-team 0.2.3')
+      if (e.argv.includes('--version')) return result(0, 'agent-team 0.2.4')
       if (line.includes('jobs') && line.includes('start')) {
         started.push([...e.argv])
         return result(0, '{"id": "build-20261015T000000-abcdef"}')

@@ -41,6 +41,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - A Claude Code side panel in the plugin (`/team-panel`, opened automatically in projects with a
   team): members with health marks, recent runs and spend, with Refresh, Check health and
   Start/Open dashboard buttons.
+- 0.2.4: the devops shift creates a label that doesn't exist yet instead of failing on it, and
+  gets the repository's clone URL as a verified fact.
 - 0.2.3: `discuss` reads the devops member's feedback digest (`.team/FEEDBACK.md`, marked as
   untrusted), so roadmap discussions answer what developers ask for. Before, the digest was
   written every shift but never reached the planning.

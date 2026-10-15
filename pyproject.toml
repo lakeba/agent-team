@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-team"
-version = "0.2.3"
+version = "0.2.4"
 description = "A configurable team of AI agents (any model, any machine) that plans, builds, reviews, markets and ships a software project through GitHub."
 readme = "README.md"
 requires-python = ">=3.11"

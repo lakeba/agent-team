@@ -63,3 +63,21 @@ class HandoverTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LabelTests(unittest.TestCase):
+    def test_missing_labels_are_created_before_use(self):
+        from unittest import mock
+        from agent_team import github
+        from agent_team.workflows import ship
+        calls = []
+
+        def gh(*args, **kw):
+            calls.append(args)
+            return ""
+        with mock.patch.object(github, "gh_json", return_value=[{"name": "bug"}, {"name": "Needs-Triage"}]), \
+             mock.patch.object(github, "gh", gh):
+            created = ship.ensure_labels("acme/app", ["bug", "needs-triage", "changes-requested"])
+        self.assertEqual(created, ["changes-requested"])
+        self.assertEqual([c[:3] for c in calls], [("label", "create", "changes-requested")])
+        self.assertEqual(ship.ensure_labels("acme/app", []), [])
