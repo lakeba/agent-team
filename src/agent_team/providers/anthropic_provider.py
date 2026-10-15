@@ -139,10 +139,11 @@ class AnthropicProvider(Provider):
             return f"ok ({self.client.models.retrieve(model).id})"
         except TypeError as e:   # the SDK found no credentials at all
             if "authentication" in str(e).lower():
-                return "FAILED: no Anthropic credentials in this environment (set ANTHROPIC_API_KEY or api_key_env)"
+                return ("FAILED: no Anthropic key found. Save it once with `agent-team keys set ANTHROPIC_API_KEY` "
+                        "(run in your own terminal), or export it in a profile this shell reads")
             return f"FAILED: TypeError: {e}"
         except anthropic.AuthenticationError:
-            return "FAILED: no valid API key (set ANTHROPIC_API_KEY or api_key_env)"
+            return "FAILED: the Anthropic key was rejected; replace it with `agent-team keys set ANTHROPIC_API_KEY`"
         except anthropic.NotFoundError:
             return f"FAILED: model {model!r} not found"
         except Exception as e:  # doctor should report, never crash

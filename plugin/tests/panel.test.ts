@@ -16,6 +16,7 @@ const STATUS = {
   run_count: 34,
   spend: { total: { cost: 0.49, calls: 3 }, by_agent: { Atlas: { cost: 0.42, calls: 2 } }, today: 0.1,
            limits: { per_run: 0, per_day: 5 } },
+  attention: [{ name: 'key ANTHROPIC_API_KEY', detail: 'not found', fix: 'agent-team keys set ANTHROPIC_API_KEY' }],
   jobs: [{ id: 'build-20261015T000000-abcdef', workflow: 'build', status: 'succeeded', started: '2026-10-15T00:00:00Z',
            params: { task: 'add export' } }],
   health: { Atlas: { ok: true, status: 'ok' }, Forge: { ok: false, status: 'FAILED: node down' } },
@@ -47,6 +48,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     expect(await pane.find({ type: 'Text', text: /No marketing member/ })).toBeTruthy()
     expect(await pane.find({ type: 'Text', text: /\$0\.42/ })).toBeTruthy()           // per-member spend
     expect(await pane.find({ type: 'Text', text: /skills: api-style/ })).toBeTruthy()
+    expect(await pane.find({ type: 'Text', text: /keys set ANTHROPIC_API_KEY/ })).toBeTruthy()   // needs attention
     expect(await pane.find({ type: 'Text', text: /today \$0\.10 of \$5\.00/ })).toBeTruthy()
     expect(await pane.find({ type: 'Text', text: /add export/ })).toBeTruthy()       // a background run
 

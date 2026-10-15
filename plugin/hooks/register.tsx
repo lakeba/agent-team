@@ -247,6 +247,17 @@ export const register: Register = on => {
           {data.schedule && <Text dimColor>Shifts run {data.schedule.every ? `every ${Math.round(data.schedule.every / 60)} min` : 'on a schedule'}</Text>}
         </Box>
 
+        {(data.attention ?? []).length > 0 && (
+          <Box flexDirection="column">
+            <Text bold>Needs attention</Text>
+            {(data.attention ?? []).map(a => (
+              <Text>
+                ✕ {a.name} <Text dimColor>{a.detail}{a.fix ? ` · fix: ${a.fix}` : ''}</Text>
+              </Text>
+            ))}
+          </Box>
+        )}
+
         <Box flexDirection="column">
           <Text bold>Team</Text>
           {data.members.map(m => (

@@ -44,7 +44,7 @@ carry broadcasts); elsewhere, type the URL.
 [providers.studio]
 kind = "agent-http"
 url = "http://studio.tailnet:8765"
-api_key_env = "STUDIO_NODE_TOKEN"   # set to the node's AGENT_TEAM_TOKEN
+api_key_env = "STUDIO_NODE_TOKEN"   # the node's AGENT_TEAM_TOKEN: agent-team keys set STUDIO_NODE_TOKEN
 
 [[agents]]
 name = "Forge"

@@ -16,9 +16,10 @@ report. The team does the work; you don't do it for them unless the user asks yo
    tell the user to install it with the one-line installer in the agent-team README, and stop.
 2. **Find the team.** The project needs a `.team.toml` (in the working directory or a parent).
    If there is none, suggest `/team-init` and stop.
-3. **Check reachability first.** Run `agent-team doctor` before the first workflow in a session.
-   If a member shows `FAILED`, report which one and why, and stop. A missing Anthropic key means
-   the user must set `ANTHROPIC_API_KEY` in their shell profile; never ask them to paste a key.
+3. **Check reachability first.** Run `agent-team doctor` before the first workflow in a session
+   (`agent-team ready` gives the machine checklist alone and always exits 0). If a member shows
+   `FAILED`, report which one and why, and stop. A missing Anthropic key means the user runs
+   `agent-team keys set ANTHROPIC_API_KEY` in their own terminal; never ask them to paste a key.
 4. **Let the user watch.** Workflows take minutes and stream each member's reasoning and replies.
    If a tool exists to run a command in the user's visible terminal panel, run the workflow there
    and link the tab; otherwise run it with Bash in the background. Wait for it to finish; don't

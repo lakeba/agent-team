@@ -41,6 +41,17 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - A Claude Code side panel in the plugin (`/team-panel`, opened automatically in projects with a
   team): members with health marks, recent runs and spend, with Refresh, Check health and
   Start/Open dashboard buttons.
+- First run on a new machine: `agent-team ready` lists what's missing (git, GitHub repo, `gh`
+  sign-in, keys, Ollama, pulled models) with the exact fix; `doctor` shows it first, and the panel
+  shows anything that needs attention.
+- `agent-team keys set NAME`: keys saved in `~/.config/agent-team/env` (mode 600) and loaded by
+  every command, so they work from any shell, launchd or cron; values are never printed or taken
+  from arguments. A variable already in the environment wins.
+- `init --ollama-url` for Ollama on another machine; the builder's model is chosen from what that
+  server has pulled. Test-count patterns for Node's built-in runner, Vitest and Mocha; the QA
+  member's folder follows the project (`test/`, `tests/`...); `.team.toml.bak` is git-ignored.
+- `/team-init` checks the machine first, offers to `git init` and create a private GitHub repo,
+  asks where Ollama runs, then writes the file.
 - Skills per member: `skills = [...]` adds Markdown files or skill folders (a Claude Code
   `SKILL.md` works as it is) to a member's prompt, after its role prompt. Checked by `doctor`,
   editable and shown in the dashboard, shown in the panel and in every member's roster.

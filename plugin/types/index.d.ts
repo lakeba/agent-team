@@ -13,6 +13,7 @@ export type Snapshot = {
   run_count: number
   spend: { total: Cost; by_agent: Record<string, Cost>; today?: number; limits?: { per_run: number; per_day: number } }
   jobs?: Job[]
+  attention?: { name: string; detail: string; fix: string }[]
   schedule?: { workflow: string; every: number | null; where: string } | null
 }
 

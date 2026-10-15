@@ -15,7 +15,33 @@ def _team(args) -> config.Team:
         raise SystemExit(f"Config error: {e}")
 
 
+def print_checklist(checks) -> None:
+    for c in checks:
+        mark = "\033[32m✓\033[0m" if c.ok else "\033[31m✕\033[0m"
+        need = f"  (needed for {c.needed_for})" if not c.ok and c.needed_for else ""
+        ui.say(f"  {mark} {c.name}: {c.detail}{need}")
+        if not c.ok and c.fix:
+            ui.say(f"      fix: {c.fix}")
+
+
+def cmd_ready(args) -> int:
+    import json as _json
+    from . import readiness
+    checks = readiness.check(Path(args.project).resolve(), args.ollama_url)
+    if args.json:
+        print(_json.dumps(readiness.as_dicts(checks)))
+    else:
+        ui.heading("Readiness")
+        print_checklist(checks)
+    # Exit 0 even when something's missing: this is a report, not a failure. --strict for scripts.
+    return 1 if args.strict and not all(c.ok for c in checks) else 0
+
+
 def cmd_doctor(args) -> int:
+    from . import readiness
+    ui.heading("Readiness")
+    print_checklist([c for c in readiness.check(Path(args.project).resolve())
+                     if not c.name.startswith(("Ollama at", "model "))])   # members are checked below
     team = _team(args)
     ui.heading(f"{team.project.name} ({team.project.repo or 'no GitHub repo'}), {len(team.agents)} agents")
     failed = 0
@@ -47,7 +73,7 @@ def cmd_agents(args) -> int:
 
 def cmd_init(args) -> int:
     from .workflows import init
-    init.run(Path(args.project).resolve(), args.builder_provider, args.builder_model, args.force)
+    init.run(Path(args.project).resolve(), args.builder_provider, args.builder_model, args.force, args.ollama_url)
     return 0
 
 
@@ -127,7 +153,7 @@ def cmd_schedule(args) -> int:
 
 def status_data(team: config.Team, with_health: bool = False, recent: int = 8) -> dict:
     """A compact snapshot for the Claude panel and scripts: team, recent runs, spend, optional health."""
-    from . import budget, jobs, logs, schedule, usage
+    from . import budget, jobs, logs, readiness, schedule, usage
     from .dashboard.server import health, team_info
     info = team_info(team)
     runs = logs.parse(team.root)
@@ -141,6 +167,8 @@ def status_data(team: config.Team, with_health: bool = False, recent: int = 8) -
                   "limits": {"per_run": team.limits.per_run, "per_day": team.limits.per_day}},
         "health": health(team)["members"] if with_health else None,
         "schedule": schedule.show(team.root),
+        "attention": [{"name": c.name, "detail": c.detail, "fix": c.fix}
+                      for c in readiness.check(team.root) if not c.ok],
         "jobs": [{k: j.get(k) for k in ("id", "workflow", "status", "started", "params")} for j in jobs.list_jobs(team.root, 5)],
     }
 
@@ -206,6 +234,43 @@ def cmd_jobs(args) -> int:
     return 0
 
 
+def cmd_keys(args) -> int:
+    from . import keys
+    if args.action == "list":
+        values = keys.read()
+        ui.say(f"Keys file: {keys.path()}" + ("" if values else " (empty or missing)"))
+        names = sorted(set(values) | ({args.name} if args.name else set()))
+        for name in names:
+            ui.say(f"  {name:<28} {'set' if values.get(name) else 'not set'} in the file"
+                   f"{'; also set in this environment' if name in values and keys.where(name) == 'environment' else ''}")
+        if keys.loose_permissions():
+            ui.warn(f"{keys.path()} can be read by other users: chmod 600 it")
+        return 0
+    if not args.name:
+        raise SystemExit("say which variable, e.g. agent-team keys set ANTHROPIC_API_KEY")
+    if args.action == "remove":
+        ui.say(f"Removed {args.name}." if keys.remove(args.name) else f"{args.name} wasn't in the keys file.")
+        return 0
+    # set: the value comes from this terminal or this shell's environment, never from arguments,
+    # so it stays out of shell history, process lists and chat transcripts.
+    if args.from_env:
+        import os
+        value = os.environ.get(args.name, "")
+        if not value:
+            raise SystemExit(f"{args.name} isn't set in this shell; open the terminal where it is, or leave out --from-env")
+    else:
+        if not sys.stdin.isatty():
+            raise SystemExit("Run this in your own terminal: it asks for the value without showing it.")
+        import getpass
+        value = getpass.getpass(f"{args.name} (input hidden): ")
+    try:
+        keys.set_key(args.name, value)
+    except ValueError as e:
+        raise SystemExit(str(e))
+    ui.action(f"saved {args.name} to {keys.path()} (readable only by you)")
+    return 0
+
+
 def cmd_ui(args) -> int:
     from .dashboard.server import serve as serve_ui
     try:
@@ -253,10 +318,15 @@ def main(argv: list[str] | None = None) -> int:
         return s
 
     s = add("init", cmd_init, "write a starter .team.toml for this project")
-    s.add_argument("--builder-provider", default="local")
-    s.add_argument("--builder-model", default="qwen3.8:27b-mlx")
+    s.add_argument("--builder-provider", default="local", help="local (Ollama) or claude")
+    s.add_argument("--builder-model", default="", help="default: chosen from the models the Ollama server has")
+    s.add_argument("--ollama-url", default="", help="Ollama on another machine, e.g. http://192.168.64.1:11434")
     s.add_argument("--force", action="store_true")
-    add("doctor", cmd_doctor, "check every agent's provider is reachable")
+    add("doctor", cmd_doctor, "check this machine is ready and every member is reachable")
+    s = add("ready", cmd_ready, "checklist: git, GitHub, keys, Ollama, models (exit 0 unless --strict)")
+    s.add_argument("--ollama-url", default="", help="also check an Ollama server before there's a team")
+    s.add_argument("--json", action="store_true")
+    s.add_argument("--strict", action="store_true", help="exit 1 if anything is missing")
     add("agents", cmd_agents, "list the team")
     s = add("discuss", cmd_discuss, "members discuss and agree a roadmap (writes ROADMAP.md)")
     s.add_argument("topic")
@@ -297,6 +367,11 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--pr", action="store_true", help="for build")
     s.add_argument("--parallel", action="store_true", help="for build")
     s.add_argument("--json", action="store_true")
+    s = sub.add_parser("keys", help="API keys and tokens in agent-team's own keys file (values are never shown)")
+    s.add_argument("action", nargs="?", default="list", choices=["list", "set", "remove"])
+    s.add_argument("name", nargs="?", default="", help="e.g. ANTHROPIC_API_KEY")
+    s.add_argument("--from-env", action="store_true", help="copy the value this shell already has")
+    s.set_defaults(fn=cmd_keys)
     s = add("ui", cmd_ui, "open the dashboard: see and edit the team, start runs, follow costs")
     s.add_argument("--port", type=int, default=8790)
     s.add_argument("--no-open", action="store_true", help="don't open a browser")
@@ -317,6 +392,8 @@ def main(argv: list[str] | None = None) -> int:
     s.set_defaults(fn=cmd_discover)
 
     args = p.parse_args(argv)
+    from . import keys
+    keys.load_into_env()   # before anything reads a key: works the same from any shell, launchd or cron
     from .budget import SpendLimitError
     try:
         return args.fn(args)

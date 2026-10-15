@@ -131,7 +131,7 @@ fi
 cat <<EOF
 
 Next:
-  1. Make sure ANTHROPIC_API_KEY is set in your shell profile (and Ollama is running for local models).
-  2. In a project:  agent-team init  &&  agent-team doctor   (or /team-init in Claude Code)
+  1. Save your Anthropic key once:  agent-team keys set ANTHROPIC_API_KEY
+  2. In a project:  agent-team ready  &&  agent-team init  (or /team-init in Claude Code)
   Update later by running this script again; remove with --uninstall.
 EOF

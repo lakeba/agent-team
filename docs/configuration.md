@@ -26,7 +26,7 @@ screenshots (otherwise Chrome, Edge, Chromium or Brave is found automatically).
 |---|---|
 | `kind` | `anthropic`, `ollama`, `openai`, `agent-http`, or any registered kind. |
 | `url` | Base URL. Required for `openai` and `agent-http`; Ollama defaults to `http://localhost:11434`. |
-| `api_key_env` | Name of the environment variable holding a key or token. Never put the value itself here. |
+| `api_key_env` | Name of the environment variable holding a key or token. Never put the value itself here. Set it in your environment or, so every command finds it, with `agent-team keys set NAME` (saved in `~/.config/agent-team/env`). |
 | `options` | Kind-specific table, e.g. `{ num_ctx = 65536 }` for Ollama, `{ stall_seconds = 480 }` for Anthropic. |
 
 ## `[pricing."<model>"]`

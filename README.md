@@ -32,7 +32,7 @@ costs more than you allow, and large projects get a focused context instead of e
 ## Install
 
 Requirements: macOS or Linux, Python 3.11+ (on Ubuntu/Debian also `python3-venv`), git, and an
-Anthropic API key in `ANTHROPIC_API_KEY` for Claude members. Optional: [Ollama](https://ollama.com/)
+Anthropic API key for Claude members. Optional: [Ollama](https://ollama.com/)
 for local models, on this machine or another. The workflows that work on GitHub (`build --pr`,
 `ship`, `setup` and the plugin's PR steps) also need the [GitHub CLI](https://cli.github.com/)
 signed in (`gh auth login`).
@@ -52,10 +52,16 @@ it installed. If you prefer pipx: `pipx install git+https://github.com/lakeba/ag
 ## Quick start
 
 ```bash
+agent-team keys set ANTHROPIC_API_KEY    # asks for the key (hidden); every agent-team command finds it
 cd ~/code/my-project
-agent-team init       # writes .team.toml and ignores .team/
-agent-team doctor     # checks every member can be reached
+agent-team ready      # checklist: git, GitHub, keys, Ollama, with the fix for anything missing
+agent-team init       # writes .team.toml; add --ollama-url http://HOST:11434 for Ollama on another machine
+agent-team doctor     # the checklist again, then checks every member can be reached
 ```
+
+Keys live in `~/.config/agent-team/env`, readable only by you, so they work the same from any shell,
+the dashboard, background runs and schedules (Ubuntu's `~/.bashrc`, for one, is skipped by
+non-interactive shells). A variable already exported in your environment wins.
 
 Then edit `.team.toml` (or open `agent-team ui` and use **Edit team**): set the project's
 guarantees, adjust the team, give members skills (Markdown files or Claude Code skill folders added
@@ -77,6 +83,8 @@ agent-team ship                                          # one devops shift on G
 | `agent-team schedule --every 6h` | Run devops shifts on a schedule (launchd on macOS, cron elsewhere); `--remove` to stop. |
 | `agent-team serve ...` | Serve a model on this machine as a team member for a team elsewhere. |
 | `agent-team discover` | Find agent-team nodes on the local network. |
+| `agent-team ready [--json]` | What this machine and project still need (git, GitHub, keys, Ollama, models), each with its fix. |
+| `agent-team keys [set NAME \| remove NAME]` | API keys and tokens in agent-team's own keys file; values are never shown. |
 | `agent-team agents`, `agent-team doctor` | List the team; check every member can be reached. |
 
 `build` takes `--parallel` (split the plan across every builder), `--skip qa,security,docs`,
