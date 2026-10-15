@@ -5,6 +5,15 @@ credentials and its hardware stay on that machine; the team only needs a URL and
 
 ## On the machine that joins
 
+Install agent-team (a node doesn't need the Claude Code plugin). The machine needs the GitHub CLI
+signed in with read access to the repository:
+
+```bash
+gh api repos/lakeba/agent-team/contents/scripts/install.sh -H "Accept: application/vnd.github.raw" | bash -s -- --no-plugin
+```
+
+Then start the node:
+
 ```bash
 export AGENT_TEAM_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 agent-team serve --provider ollama --model qwen3.8:27b-mlx --port 8765 --node studio
