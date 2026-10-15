@@ -22,3 +22,7 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
   `agent-team` skill so Claude knows when to involve the team. Claude runs each workflow where the
   user can watch, verifies the result and reports.
 - `doctor` says explicitly when an Ollama model is pulled, and how to pull it when it isn't.
+- `scripts/install.sh`: one-command install and update into `~/.agent-team` (its own Python
+  environment, `agent-team` on the `PATH`, the Claude Code plugin), with `--ref`, `--no-plugin`,
+  `--force` and `--uninstall`. Works with the private repository through `gh`.
+- MIT licence, and complete package metadata (licence, classifiers, project URLs).

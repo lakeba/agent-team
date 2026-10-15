@@ -2,7 +2,17 @@
   "name": "agent-team",
   "version": "0.1.0",
   "description": "Drive your agent-team (lead, builder, marketing, devops on any model or machine) from Claude Code: plan a roadmap, build features as PRs, run devops shifts, and make marketing material.",
-  "author": { "name": "Lakeba" },
+  "author": {
+    "name": "Lakeba"
+  },
   "repository": "https://github.com/lakeba/agent-team",
-  "keywords": ["agents", "team", "github", "roadmap", "release", "ollama"]
+  "keywords": [
+    "agents",
+    "team",
+    "github",
+    "roadmap",
+    "release",
+    "ollama"
+  ],
+  "license": "MIT"
 }

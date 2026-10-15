@@ -10,6 +10,12 @@ cd tests && ../.venv/bin/python -m unittest -v
 
 Tests never call a real model or GitHub: `tests/helpers.py` provides a scripted `fake` provider.
 
+For day-to-day development, link your working copy's CLI instead of using the installer:
+`ln -s "$PWD/.venv/bin/agent-team" ~/.local/bin/agent-team`. The installer never replaces a link it
+didn't create (unless given `--force`), so the two don't fight. To test the installer against
+uncommitted work, commit locally and run it with `AGENT_TEAM_SOURCE=$PWD`, `AGENT_TEAM_HOME` and
+`BIN_DIR` pointing at temporary folders.
+
 ## Rules
 
 - All changes go through pull requests to `main`; CI must pass on Python 3.11–3.13.

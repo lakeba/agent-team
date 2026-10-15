@@ -5,8 +5,8 @@ argument-hint: [--builder-provider local --builder-model qwen3.8:27b-mlx]
 
 Set up an agent-team for this project. Options: $ARGUMENTS
 
-1. Find the CLI (`agent-team`, else `~/agent-team/.venv/bin/agent-team`). If there is none, tell
-   the user to install agent-team and stop.
+1. Find the CLI (`agent-team`, else `~/.agent-team/venv/bin/agent-team`, else `~/agent-team/.venv/bin/agent-team`). If there is none, tell
+   the user to install it with the one-line installer in the agent-team README, and stop.
 2. If `.team.toml` already exists, show its team (`agent-team agents`) and stop unless the user
    asked to start over.
 3. Run `agent-team init` with the options given. It detects the test command and the GitHub repo,

@@ -12,8 +12,8 @@ report. The team does the work; you don't do it for them unless the user asks yo
 ## Operating rules
 
 1. **Find the CLI.** Use `agent-team` if `command -v agent-team` finds it, else
-   `~/agent-team/.venv/bin/agent-team`. If neither exists, tell the user to install it (see the
-   agent-team README) and stop.
+   `~/.agent-team/venv/bin/agent-team`, else `~/agent-team/.venv/bin/agent-team`. If none exists,
+   tell the user to install it with the one-line installer in the agent-team README, and stop.
 2. **Find the team.** The project needs a `.team.toml` (in the working directory or a parent).
    If there is none, suggest `/team-init` and stop.
 3. **Check reachability first.** Run `agent-team doctor` before the first workflow in a session.

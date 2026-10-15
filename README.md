@@ -27,26 +27,37 @@ lead approved the exact head commit, and every member who owns a changed path si
 same commit. Releases need green CI on `main` and a CHANGELOG entry. Text from outside the team
 always reaches the models marked as untrusted.
 
-## Quick start
+## Install
 
-Requirements: Python 3.11+, the [GitHub CLI](https://cli.github.com/) signed in, an Anthropic
-API key in `ANTHROPIC_API_KEY`, and optionally [Ollama](https://ollama.com/) for local models.
+Requirements: macOS or Linux, Python 3.11+, git, the [GitHub CLI](https://cli.github.com/) signed in
+(`gh auth login`), an Anthropic API key in `ANTHROPIC_API_KEY`, and optionally
+[Ollama](https://ollama.com/) for local models.
+
+One command installs the CLI into its own environment under `~/.agent-team`, puts `agent-team` on
+your `PATH` (`~/.local/bin`), and installs the Claude Code plugin if Claude Code is present:
 
 ```bash
-git clone https://github.com/lakeba/agent-team.git
-cd agent-team
-python3 -m venv .venv && .venv/bin/pip install -e ".[screenshots]"
+gh api repos/lakeba/agent-team/contents/scripts/install.sh -H "Accept: application/vnd.github.raw" | bash
+```
 
+Run it again to update. Options go after `bash -s --`, for example `| bash -s -- --ref v0.1.0`
+for a specific version, `--no-plugin` to skip the plugin, or `--uninstall` to remove everything
+it installed. If you prefer pipx: `pipx install git+https://github.com/lakeba/agent-team.git`
+(that installs the CLI only).
+
+## Quick start
+
+```bash
 cd ~/code/my-project
-~/agent-team/.venv/bin/agent-team init       # writes .team.toml and ignores .team/
-~/agent-team/.venv/bin/agent-team doctor     # checks every member can be reached
+agent-team init       # writes .team.toml and ignores .team/
+agent-team doctor     # checks every member can be reached
 ```
 
 Then edit `.team.toml`: set the project's guarantees, adjust the team, and run a workflow.
 
 ### Use it from Claude Code
 
-Install the plugin once, at the prompt of a Claude Code session:
+The installer adds the plugin. To add it by hand, at the prompt of a Claude Code session:
 
 ```
 /plugin install agent-team --marketplace lakeba/agent-team
@@ -54,9 +65,7 @@ Install the plugin once, at the prompt of a Claude Code session:
 
 Then, in any project: `/team-init`, `/team-doctor`, `/team-plan`, `/team-build <task>`,
 `/team-ship` and `/team-market`. Claude runs the workflow where you can watch it, checks the
-result, and reports back. The commands need the `agent-team` CLI on your `PATH` (for example
-`ln -s ~/agent-team/.venv/bin/agent-team ~/.local/bin/agent-team`). The repository is private, so
-`git` on your machine must be able to read it.
+result, and reports back. The commands need the `agent-team` CLI on your `PATH`.
 
 ## Documentation
 
@@ -65,6 +74,10 @@ result, and reports back. The commands need the `agent-team` CLI on your `PATH` 
 - [Extending](docs/extending.md): add a team member, a role, a provider or a workflow.
 - [Remote agents](docs/remote-agents.md): let another machine join the team.
 - [Examples](examples/): the todo-py team, and a six-member team across four machines.
+
+## Licence
+
+MIT, see [LICENSE](LICENSE).
 
 ## Status
 

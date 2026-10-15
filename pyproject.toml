@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,11 +8,32 @@ version = "0.1.0"
 description = "A configurable team of AI agents (any model, any machine) that plans, builds, reviews, markets and ships a software project through GitHub."
 readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Lakeba" }]
+keywords = ["ai", "agents", "llm", "claude", "ollama", "github", "devops"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development",
+]
 dependencies = ["anthropic>=1.0"]
 
 [project.optional-dependencies]
 screenshots = ["pillow>=10"]
 dev = ["pillow>=10"]
+
+[project.urls]
+Homepage = "https://github.com/lakeba/agent-team"
+Documentation = "https://github.com/lakeba/agent-team/tree/main/docs"
+Changelog = "https://github.com/lakeba/agent-team/blob/main/CHANGELOG.md"
 
 [project.scripts]
 agent-team = "agent_team.cli:main"
