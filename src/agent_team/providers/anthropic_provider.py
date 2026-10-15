@@ -23,6 +23,15 @@ class Stalled(Exception):
     pass
 
 
+def usage_of(message) -> dict:
+    u = getattr(message, "usage", None)
+    if u is None:
+        return {}
+    return {"input": getattr(u, "input_tokens", 0) or 0, "output": getattr(u, "output_tokens", 0) or 0,
+            "cache_read": getattr(u, "cache_read_input_tokens", 0) or 0,
+            "cache_write": getattr(u, "cache_creation_input_tokens", 0) or 0}
+
+
 @register("anthropic")
 class AnthropicProvider(Provider):
     supports_images = True
@@ -50,7 +59,7 @@ class AnthropicProvider(Provider):
         if response.stop_reason == "refusal":
             raise ProviderError(f"{model} declined: {response.stop_details}")
         text = "".join(b.text for b in response.content if b.type == "text")
-        return Reply(text=text, content=response.content)
+        return Reply(text=text, content=response.content, usage=usage_of(response))
 
     def _stream(self, system, messages, model, effort):
         extra = {}
@@ -99,6 +108,10 @@ class AnthropicProvider(Provider):
     def check(self, model):
         try:
             return f"ok ({self.client.models.retrieve(model).id})"
+        except TypeError as e:   # the SDK found no credentials at all
+            if "authentication" in str(e).lower():
+                return "FAILED: no Anthropic credentials in this environment (set ANTHROPIC_API_KEY or api_key_env)"
+            return f"FAILED: TypeError: {e}"
         except anthropic.AuthenticationError:
             return "FAILED: no valid API key (set ANTHROPIC_API_KEY or api_key_env)"
         except anthropic.NotFoundError:

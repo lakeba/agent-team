@@ -35,6 +35,7 @@ def build(cfg: ProviderConfig, secret: str = "") -> "Provider":
 class Reply:
     text: str
     content: Any        # what to append to the conversation as the assistant turn
+    usage: dict | None = None   # tokens reported by the provider: input, output, cache_read, cache_write
 
 
 class ProviderError(RuntimeError):

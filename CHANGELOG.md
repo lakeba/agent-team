@@ -26,3 +26,10 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
   environment, `agent-team` on the `PATH`, the Claude Code plugin), with `--ref`, `--no-plugin`,
   `--force` and `--uninstall`. Works with the private repository through `gh`.
 - MIT licence, and complete package metadata (licence, classifiers, project URLs).
+- `agent-team ui` and `/team-ui`: a read-only dashboard on 127.0.0.1 with the team and each
+  member's reachability, a timeline of runs with verdicts, sign-offs, files and GitHub actions,
+  and estimated costs per member, model, day and run.
+- Token usage per model call is recorded to `.team/usage.jsonl` (all providers, remote nodes and
+  the devops tool loop), with cost estimates from a price table that `[pricing]` can override.
+- Run logs carry timestamp markers, so headings inside agents' replies are never mistaken for
+  structure.

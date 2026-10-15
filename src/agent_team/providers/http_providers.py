@@ -53,7 +53,7 @@ class OllamaProvider(Provider):
                    "options": {"num_ctx": int(self.cfg.options.get("num_ctx", 65536))}}
         if "think" in self.cfg.options:
             payload["think"] = self.cfg.options["think"]
-        parts = []
+        parts, usage = [], {}
         with _post(f"{self.url}/api/chat", payload, {}) as r:
             for line in r:
                 chunk = json.loads(line)
@@ -62,9 +62,11 @@ class OllamaProvider(Provider):
                 piece = chunk.get("message", {}).get("content", "")
                 parts.append(piece)
                 ui.say(piece, end="")
+                if chunk.get("done"):
+                    usage = {"input": chunk.get("prompt_eval_count", 0), "output": chunk.get("eval_count", 0)}
         ui.say()
         text = "".join(parts)
-        return Reply(text=text, content=text)
+        return Reply(text=text, content=text, usage=usage)
 
     def check(self, model):
         try:
@@ -94,7 +96,9 @@ class OpenAICompatProvider(Provider):
         except (KeyError, IndexError) as e:
             raise ProviderError(f"unexpected response from {self.cfg.url}: {str(data)[:300]}") from e
         ui.say(text)
-        return Reply(text=text, content=text)
+        u = data.get("usage") or {}
+        return Reply(text=text, content=text,
+                     usage={"input": u.get("prompt_tokens", 0), "output": u.get("completion_tokens", 0)})
 
     def check(self, model):
         try:
@@ -125,7 +129,7 @@ class RemoteAgentProvider(Provider):
             data = json.load(r)
         text = data.get("text", "")
         ui.say(text)
-        return Reply(text=text, content=text)
+        return Reply(text=text, content=text, usage=data.get("usage"))
 
     def check(self, model):
         try:

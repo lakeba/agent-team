@@ -75,6 +75,17 @@ def cmd_ship(args) -> int:
     return 0
 
 
+def cmd_ui(args) -> int:
+    from .dashboard.server import serve as serve_ui
+    try:
+        serve_ui(Path(args.project).resolve(), args.port, not args.no_open)
+    except config.ConfigError as e:
+        raise SystemExit(f"Config error: {e}")
+    except OSError as e:
+        raise SystemExit(f"Could not start the dashboard on port {args.port}: {e}. Try --port.")
+    return 0
+
+
 def cmd_serve(args) -> int:
     from .server import serve
     serve(args.provider, args.model, args.host, args.port, args.url, args.token_env, args.api_key_env, args.node)
@@ -117,6 +128,9 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--license", default="", help='e.g. "MIT, copyright 2026 Lakeba"')
     s = add("ship", cmd_ship, "run one devops shift: triage, sign-offs, reviews, merges, releases")
     s.add_argument("--max-steps", type=int, default=30)
+    s = add("ui", cmd_ui, "open a read-only dashboard: team, health, runs and costs")
+    s.add_argument("--port", type=int, default=8790)
+    s.add_argument("--no-open", action="store_true", help="don't open a browser")
     s = sub.add_parser("serve", help="serve a model on this machine as a remote team member")
     s.add_argument("--provider", required=True, choices=["anthropic", "ollama", "openai"])
     s.add_argument("--model", required=True)

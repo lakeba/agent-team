@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>agent-team</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">◆</span>
+      <div>
+        <h1 id="project-name">agent-team</h1>
+        <p class="sub"><a id="repo-link" href="#" target="_blank" rel="noopener noreferrer"></a><span id="version"></span></p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span class="badge neutral" title="This dashboard only reads; change the team in .team.toml">Read-only</span>
+      <span id="refreshed" class="muted small"></span>
+      <button id="refresh" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+    <button role="tab" data-tab="team" aria-selected="false">Team</button>
+    <button role="tab" data-tab="runs" aria-selected="false">Runs</button>
+    <button role="tab" data-tab="costs" aria-selected="false">Costs</button>
+  </nav>
+
+  <main>
+    <section id="overview" class="panel" role="tabpanel"></section>
+    <section id="team" class="panel" role="tabpanel" hidden></section>
+    <section id="runs" class="panel" role="tabpanel" hidden></section>
+    <section id="costs" class="panel" role="tabpanel" hidden></section>
+  </main>
+
+  <div id="tooltip" class="tooltip" role="status" hidden></div>
+  <script src="/app.js"></script>
+</body>
+</html>

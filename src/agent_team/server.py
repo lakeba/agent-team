@@ -8,7 +8,7 @@ this machine; the caller only needs the URL and the bearer token.
 
 Endpoints:
     GET  /v1/info   -> {"node", "provider", "model", "version"}
-    POST /v1/turn   {"system", "messages": [{"role", "content"}], "effort"?} -> {"text"}
+    POST /v1/turn   {"system", "messages": [{"role", "content"}], "effort"?} -> {"text", "usage"}
 """
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ def make_handler(provider, model: str, token: str, node: str):
                                               effort=str(req.get("effort", "high")), label=f"node {node}")
                 except Exception as e:  # report to the caller instead of dropping the connection
                     return self._send(502, {"error": f"{type(e).__name__}: {e}"})
-            self._send(200, {"text": reply.text})
+            self._send(200, {"text": reply.text, "usage": reply.usage or {}})
 
         def log_message(self, fmt, *args):
             ui.say(f"  [{self.address_string()}] {fmt % args}")

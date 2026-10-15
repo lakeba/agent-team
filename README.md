@@ -21,6 +21,7 @@ built, marketed and released (v1.0.0 and v1.0.1).
 | Market | `agent-team market` | The marketing member writes a brief, a website and a pitch deck; a fact-checker checks claims and the lead reviews with screenshots. |
 | Set up | `agent-team setup --license "MIT, copyright 2026 Lakeba"` | The devops member drafts README, CONTRIBUTING, CHANGELOG, CI and templates. |
 | Ship | `agent-team ship` | One devops shift on GitHub: triage, owner sign-offs, lead review, merge, release, feedback digest. |
+| Dashboard | `agent-team ui` | A read-only page on this machine: the team and whether each member is reachable, every run with each member's verdicts, estimated costs per member, day and run, and the GitHub state. |
 
 Guardrails are enforced in code, not left to the models. A PR merges only when CI is green, the
 lead approved the exact head commit, and every member who owns a changed path signed off that
@@ -64,7 +65,7 @@ The installer adds the plugin. To add it by hand, at the prompt of a Claude Code
 ```
 
 Then, in any project: `/team-init`, `/team-doctor`, `/team-plan`, `/team-build <task>`,
-`/team-ship` and `/team-market`. Claude runs the workflow where you can watch it, checks the
+`/team-ship`, `/team-market` and `/team-ui`. Claude runs the workflow where you can watch it, checks the
 result, and reports back. The commands need the `agent-team` CLI on your `PATH`.
 
 ## Documentation

@@ -20,7 +20,7 @@ from pathlib import Path
 import anthropic
 from anthropic import beta_tool
 
-from .. import agent, files, github, ui
+from .. import agent, files, github, ui, usage
 from ..config import Team
 
 SIGNATURE = "\n\n— {name}, devops agent for this repo (automated)"
@@ -336,6 +336,8 @@ def run(team: Team, max_steps: int = 30) -> None:
     final = None
     for message in runner:
         final = message
+        usage.record(root, devops_cfg.name, "anthropic", devops_cfg.model,
+                     anthropic_usage(message))
         for block in message.content:
             if block.type == "text" and block.text.strip():
                 ui.say(f"\n{ui.label(devops_cfg.name, 'devops', devops_cfg.color)}: {block.text}")
@@ -344,6 +346,11 @@ def run(team: Team, max_steps: int = 30) -> None:
     summary = "".join(b.text for b in final.content if b.type == "text") if final else ""
     log.record(f"{devops_cfg.name}: shift summary", summary)
     ui.heading(f"Shift over. Log: {log.path}")
+
+
+def anthropic_usage(message) -> dict:
+    from ..providers.anthropic_provider import usage_of
+    return usage_of(message)
 
 
 def _last_summary(log_path: Path) -> str:

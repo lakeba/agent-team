@@ -4,7 +4,7 @@ from __future__ import annotations
 from importlib import resources
 from pathlib import Path
 
-from . import providers, ui
+from . import providers, ui, usage
 from .config import AgentConfig, Team
 
 
@@ -49,6 +49,7 @@ class Agent:
         reply = self.provider.complete(self.system, self.messages, model=self.cfg.model,
                                        effort=self.cfg.effort, label=self.label)
         self.messages.append({"role": "assistant", "content": reply.content})
+        usage.record(self.team.root, self.cfg.name, self.provider.kind, self.cfg.model, reply.usage)
         return reply.text
 
 

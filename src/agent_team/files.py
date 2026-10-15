@@ -5,7 +5,7 @@ import os
 import re
 from pathlib import Path
 
-from . import ui
+from . import ui, usage
 
 FILE_FORMAT = """To create or replace a file, output it in full like this:
 <file path="relative/path.ext">
@@ -92,11 +92,14 @@ class Log:
         folder = Path(root) / LOG_DIR / "logs"
         folder.mkdir(parents=True, exist_ok=True)
         self.path = folder / f"{name}.md"
+        started = usage.now()
+        self.run_id = f"{name}@{started}"
+        usage.set_run(self.run_id)          # tags the model calls of this run in usage.jsonl
         self.f = open(self.path, "a", encoding="utf-8")
-        self.f.write(f"\n# {title}\n")
+        self.f.write(f"\n# {title}\n<!-- run {self.run_id} -->\n")
         self.f.flush()
 
     def record(self, who: str, text: str, written: list[str] | tuple = ()) -> None:
         note = f"\n\n_Files written: {', '.join(written)}_" if written else ""
-        self.f.write(f"\n\n## {who}\n\n{text}{note}\n")
+        self.f.write(f"\n\n## {who}\n<!-- at {usage.now()} -->\n\n{text}{note}\n")
         self.f.flush()

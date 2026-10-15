@@ -65,6 +65,7 @@ class Team:
     project: ProjectConfig
     providers: dict[str, ProviderConfig]
     agents: dict[str, AgentConfig]
+    pricing: dict = field(default_factory=dict)   # model -> {input, output, cache_read?, cache_write?}
 
     def by_role(self, role: str, required: bool = True) -> AgentConfig | None:
         found = [a for a in self.agents.values() if a.role == role]
@@ -149,4 +150,9 @@ def parse(data: dict, root: Path) -> Team:
         agents[a.name] = a
     if not agents:
         raise ConfigError("no [[agents]] defined")
-    return Team(root=root, project=project, providers=providers, agents=agents)
+    pricing = dict(data.get("pricing") or {})
+    for model, table in pricing.items():
+        bad = set(table) - {"input", "output", "cache_read", "cache_write"}
+        if bad or not all(isinstance(v, (int, float)) for v in table.values()):
+            raise ConfigError(f"[pricing.\"{model}\"]: use numeric input, output, cache_read, cache_write (USD per million tokens)")
+    return Team(root=root, project=project, providers=providers, agents=agents, pricing=pricing)

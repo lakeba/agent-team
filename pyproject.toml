@@ -42,4 +42,4 @@ agent-team = "agent_team.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-agent_team = ["prompts/*.md"]
+agent_team = ["prompts/*.md", "dashboard/static/*"]

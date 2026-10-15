@@ -28,6 +28,18 @@ screenshots (otherwise Chrome, Edge, Chromium or Brave is found automatically).
 | `api_key_env` | Name of the environment variable holding a key or token. Never put the value itself here. |
 | `options` | Kind-specific table, e.g. `{ num_ctx = 65536 }` for Ollama, `{ stall_seconds = 480 }` for Anthropic. |
 
+## `[pricing."<model>"]`
+
+Optional. Overrides the built-in price table the dashboard uses for cost estimates, in US dollars
+per million tokens: `input`, `output`, and optionally `cache_read` and `cache_write` (default 10%
+and 125% of `input`). Local and self-hosted models count as free unless priced here.
+
+```toml
+[pricing."qwen3.8:27b-mlx"]   # e.g. to account for a rented GPU
+input = 0.10
+output = 0.40
+```
+
 ## `[[agents]]`
 
 | Key | Default | Meaning |

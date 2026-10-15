@@ -49,6 +49,14 @@ allowed prefixes. Every run is logged to `.team/logs/<workflow>.md` in the proje
 can act. The rules that matter (`merge_blockers`, `is_changelog_rename`) are small pure functions
 with their own tests.
 
+## Records
+
+Each workflow appends to `.team/logs/<workflow>.md`; every run and entry heading carries a
+timestamp marker, so `logs.py` can rebuild the timeline (older logs without markers still parse).
+Every model call appends a line to `.team/usage.jsonl` (member, model, tokens, run), which
+`usage.py` turns into cost estimates. `agent-team ui` (`dashboard/`) serves both, read-only, on
+127.0.0.1 with a strict Content-Security-Policy and a Host check, and never returns secret values.
+
 ## Trust model
 
 - Facts the tooling verifies (CI status, test counts from CI logs, sign-offs tied to a commit) are
