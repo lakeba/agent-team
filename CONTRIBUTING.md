@@ -29,6 +29,10 @@ uncommitted work, commit locally and run it with `AGENT_TEAM_SOURCE=$PWD`, `AGEN
 
 ## Rules
 
+- The version lives in `pyproject.toml`, `src/agent_team/__init__.py`, `plugin/.claude-plugin/plugin.json`
+  and `PLUGIN_VERSION` in `plugin/hooks/register.tsx`; a test keeps them equal. Bump it when the
+  plugin changes: an installed copy of the plugin only updates when its version does.
+
 - All changes go through pull requests to `main`; CI must pass on Python 3.11–3.13.
 - Guardrail code needs a test for every behaviour change: `workflows/ship.py` (`merge_blockers`,
   `is_changelog_rename`), `files.write_files`, `budget.check`, `schedule.lock`, `jobs.argv_for`

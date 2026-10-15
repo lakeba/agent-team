@@ -81,8 +81,7 @@ def check(root: Path, ollama_url: str = "") -> list[Check]:
     if repo:
         out.append(Check("GitHub repo", True, repo))
     elif on_github:
-        out.append(Check("GitHub repo", False, f"origin is {origin}, but [project].repo isn't set",
-                         "set repo = \"owner/name\" under [project]", "build --pr, ship, plan"))
+        out.append(Check("GitHub repo", True, f"origin {origin} (used until [project].repo is set)"))
     else:
         name = root.name
         out.append(Check("GitHub repo", False, "no GitHub repository yet",
@@ -120,7 +119,9 @@ def check(root: Path, ollama_url: str = "") -> list[Check]:
     for url, models in servers.items():
         have = ollama_models(url)
         if have is None:
-            fix = ("start the Ollama app (or: ollama serve)" if is_local(url) else
+            fix = ("start Ollama here (the app, or: ollama serve); or, if it runs on another machine, set "
+                   "url = \"http://HOST:11434\" under the connection in .team.toml (or the dashboard's Connections)"
+                   if is_local(url) else
                    f"on the machine at {url}: let Ollama listen on the network (OLLAMA_HOST=0.0.0.0) and allow port 11434")
             out.append(Check(f"Ollama at {url}", False, "not reachable", fix))
             continue

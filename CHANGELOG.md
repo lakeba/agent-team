@@ -41,6 +41,11 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - A Claude Code side panel in the plugin (`/team-panel`, opened automatically in projects with a
   team): members with health marks, recent runs and spend, with Refresh, Check health and
   Start/Open dashboard buttons.
+- Version 0.2.0 for the CLI and the plugin. The installer updates an installed plugin and says
+  to `/reload-plugins` open sessions (they keep the commands they started with); the panel warns
+  when the plugin and the CLI versions differ.
+- `[project].repo` falls back to `origin` when it's on GitHub, so a repo created after `init`
+  needs no edit.
 - First run on a new machine: `agent-team ready` lists what's missing (git, GitHub repo, `gh`
   sign-in, keys, Ollama, pulled models) with the exact fix; `doctor` shows it first, and the panel
   shows anything that needs attention.

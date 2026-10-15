@@ -18,7 +18,8 @@ something missing must not fail: `agent-team ready` always exits 0 and reports w
 3. **Fix what's missing, with the user's go-ahead for each:**
    - No git repository: offer to run `git init -b main` and make a first commit of the current
      files (show which files; never commit secrets or `.env` files).
-   - No GitHub repository: offer to create one with `gh repo create <folder-name> --private --source . --push`.
+   - No GitHub repository: offer to create one with `gh repo create <folder-name> --private --source . --push`
+     (agent-team then reads the repo from `origin`; nothing to edit by hand).
      Private unless the user says otherwise. If `gh` isn't signed in, tell them to run
      `gh auth login` in their own terminal. Without a repo the team can't open pull requests;
      setup can continue and the repo can be added later.

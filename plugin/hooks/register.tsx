@@ -6,6 +6,9 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Health, Job, Snapshot } from '../types'
 
+// Keep equal to plugin.json's version and the CLI's (a test checks): a mismatch means one of
+// them wasn't updated, and the panel says so.
+const PLUGIN_VERSION = '0.2.0'
 const PANE = 'agent-team'
 const TITLE = 'agent-team'
 const snapshot = atom({ plugin: 'agent-team', key: 'snapshot' } as const, null)
@@ -247,6 +250,12 @@ export const register: Register = on => {
           {data.schedule && <Text dimColor>Shifts run {data.schedule.every ? `every ${Math.round(data.schedule.every / 60)} min` : 'on a schedule'}</Text>}
         </Box>
 
+        {data.version !== PLUGIN_VERSION && (
+          <Text dimColor>
+            ! This plugin is {PLUGIN_VERSION} and the agent-team CLI is {data.version}. Rerun the installer, then
+            /reload-plugins (or start a new session).
+          </Text>
+        )}
         {(data.attention ?? []).length > 0 && (
           <Box flexDirection="column">
             <Text bold>Needs attention</Text>

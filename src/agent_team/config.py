@@ -131,7 +131,12 @@ def load(path: str | Path) -> Team:
             data = tomllib.load(f)
         except tomllib.TOMLDecodeError as e:
             raise ConfigError(f"{path}: {e}") from None
-    return parse(data, path.parent)
+    team = parse(data, path.parent)
+    if not team.project.repo:
+        # Not set yet (the repo was created after init): use origin when it's on GitHub.
+        from .workflows.init import github_repo
+        team.project.repo = github_repo(team.root)
+    return team
 
 
 def parse(data: dict, root: Path) -> Team:

@@ -44,7 +44,8 @@ your `PATH` (`~/.local/bin`), and installs the Claude Code plugin if Claude Code
 curl -fsSL https://raw.githubusercontent.com/lakeba/agent-team/main/scripts/install.sh | bash
 ```
 
-Run it again to update. Options go after `bash -s --`, for example `| bash -s -- --ref v0.1.0`
+Run it again to update, then run `/reload-plugins` in any open Claude Code session (or start a new
+one): an open session keeps the commands it started with. Options go after `bash -s --`, for example `| bash -s -- --ref v0.1.0`
 for a specific version, `--no-plugin` to skip the plugin, or `--uninstall` to remove everything
 it installed. If you prefer pipx: `pipx install git+https://github.com/lakeba/agent-team.git`
 (that installs the CLI only).
@@ -122,5 +123,5 @@ MIT, see [LICENSE](LICENSE).
 
 ## Status
 
-Version 0.1.0. The workflows were proven on todo-py; see [ROADMAP.md](ROADMAP.md) for what's next
+Version 0.2.0. The workflows were proven on todo-py; see [ROADMAP.md](ROADMAP.md) for what's next
 and [CONTRIBUTING.md](CONTRIBUTING.md) to help.

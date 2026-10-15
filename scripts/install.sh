@@ -119,10 +119,15 @@ say "installed $("$VENV/bin/agent-team" --version)"
 # 5. The Claude Code plugin, read from the local copy so updates arrive with the next run.
 if [ "$PLUGIN" = 1 ] && command -v claude >/dev/null 2>&1; then
   claude plugin marketplace add "$SRC" >/dev/null 2>&1 || true
+  claude plugin marketplace update lakeba-agent-team >/dev/null 2>&1 || true
   if claude plugin install agent-team@lakeba-agent-team --scope user >/dev/null 2>&1; then
-    say "Claude Code plugin installed: /team-init, /team-doctor, /team-plan, /team-build, /team-ship, /team-schedule, /team-market, /team-ui, /team-panel, /team-run"
+    # A new install, or one already loading in place from $SRC. An install from another source
+    # (a cached copy, e.g. /plugin marketplace add lakeba/agent-team) moves with the version.
+    claude plugin update agent-team@lakeba-agent-team --scope user -y >/dev/null 2>&1 || true
+    say "Claude Code plugin ready: /team-init, /team-doctor, /team-plan, /team-build, /team-ship, /team-schedule, /team-market, /team-ui, /team-panel, /team-run"
+    say "Open Claude Code sessions keep the old commands: run /reload-plugins in each, or start a new one."
   else
-    warn "the Claude Code plugin is already installed or could not be installed; run /reload-plugins in open sessions."
+    warn "the Claude Code plugin could not be installed; in Claude Code run: /plugin marketplace add $SRC, then /plugin install agent-team@lakeba-agent-team"
   fi
 elif [ "$PLUGIN" = 1 ]; then
   say "Claude Code not found; skipped the plugin."
