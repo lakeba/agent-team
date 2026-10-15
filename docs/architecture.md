@@ -55,6 +55,11 @@ can act. With Claude it runs on the Anthropic SDK's tool runner; with any other 
 on `tool_loop.py`, which uses that provider's `complete_tools`. The rules that matter
 (`merge_blockers`, `is_changelog_rename`) are small pure functions with their own tests.
 
+`fix` closes the review loop: when a shift's lead review requests changes on a team PR, a
+builder applies that review (read from the team's own ship log; PR comments arrive as untrusted)
+on the PR's branch, the lead confirms the blocking points, and only then is it pushed. Approvals
+stay tied to commits, so the next shift reviews the new head before anything merges.
+
 `build` brings in the optional members when the team has them: a `qa` member writes tests for the
 plan first, a `security` member reviews the result once the lead approves (a NO sends it back),
 and a `docs` member updates the documentation afterwards. With several builders and `--parallel`,

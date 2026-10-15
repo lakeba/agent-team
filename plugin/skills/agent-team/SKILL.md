@@ -46,11 +46,13 @@ report. The team does the work; you don't do it for them unless the user asks yo
 - `/team-build <task>`: the lead plans, builders implement, tests run, the lead reviews; QA,
   security and docs members join when the team has them; opens a PR.
 - `/team-ship`: one devops shift: triage, sign-offs, lead review, merges, releases.
+- `/team-fix <PR>`: a builder applies the lead's requested changes on that PR's branch and pushes;
+  the next shift reviews the new commit.
 - `/team-schedule [6h | --remove]`: run devops shifts on a schedule, never two at once.
 - `/team-market`: brief, website and pitch deck, reviewed with screenshots; opens a PR.
 - `/team-ui`: open the dashboard, where the team can also be edited.
 - `/team-panel`: show the team, health, recent runs and spend in a side panel.
-- `/team-run <build task | discuss topic | ship | market | doctor>`: start a run in the
+- `/team-run <build task | fix PR | discuss topic | ship | market | doctor>`: start a run in the
   background; the panel follows it. For runs the user wants to watch here, use the commands above.
 
 ## Growing the team

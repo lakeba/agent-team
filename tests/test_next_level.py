@@ -328,6 +328,9 @@ class DiscoveryTests(unittest.TestCase):
 
 class JobTests(unittest.TestCase):
     def test_form_input_is_checked(self):
+        self.assertEqual(jobs.argv_for("fix", {"number": 12}), ["fix", "12", "--rounds", "2"])
+        with self.assertRaises(jobs.JobError):
+            jobs.argv_for("fix", {"number": "12; rm"})
         self.assertEqual(jobs.argv_for("build", {"task": "add x", "branch": "feat/x", "pr": True, "skip": ["docs"]}),
                          ["build", "add x", "--rounds", "3", "--branch", "feat/x", "--pr", "--skip", "docs"])
         for wf, params in [("build", {}), ("build", {"task": "x", "pr": True}), ("build", {"task": "x", "branch": "--force"}),

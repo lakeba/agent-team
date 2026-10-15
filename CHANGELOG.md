@@ -41,6 +41,10 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - A Claude Code side panel in the plugin (`/team-panel`, opened automatically in projects with a
   team): members with health marks, recent runs and spend, with Refresh, Check health and
   Start/Open dashboard buttons.
+- 0.2.2: `agent-team fix <PR>` (and `/team-fix`, `/team-run fix`, the dashboard's "Fix a pull
+  request"): a builder applies the lead's requested changes on an open PR's branch, the lead
+  confirms, and it pushes; never to forks, nothing pushed without the lead's confirmation. The
+  devops shift names it as the next step when the lead requests changes.
 - 0.2.1, from the second VM run: `ready --ollama-url` checks that address even when a team file
   exists; `init --builder-provider` accepts `ollama`/`anthropic` and refuses to leave a file the
   CLI can't read; the checklist reports a missing git identity; Node's test-count pattern no

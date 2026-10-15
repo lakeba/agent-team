@@ -18,6 +18,7 @@ It grew out of todo-py, a small command-line app this team planned, built, marke
 |---|---|---|
 | Discuss | `agent-team discuss "next features"` | Members talk in turn until they all agree; the lead updates `ROADMAP.md`. |
 | Build | `agent-team build "task" --branch x --pr` | The lead writes `PLAN.md`, builders implement it (in parallel with `--parallel`), tests run each round, the lead reviews until approved, then a PR opens. Optional QA, security and docs members write tests first, review the result and update the docs. |
+| Fix | `agent-team fix 12` | When the lead requests changes on a PR, a builder applies the review on that PR's branch, the lead confirms the blocking points are addressed, and it pushes; the next shift reviews the new commit. |
 | Market | `agent-team market` | The marketing member writes a brief, a website and a pitch deck; a fact-checker checks claims and the lead reviews with screenshots. |
 | Set up | `agent-team setup --license "MIT, copyright 2026 Lakeba"` | The devops member drafts README, CONTRIBUTING, CHANGELOG, CI and templates. |
 | Ship | `agent-team ship` | One devops shift on GitHub: triage, owner sign-offs, lead review, merge, release, feedback digest. `agent-team schedule --every 6h` runs shifts unattended, never two at once. |
@@ -100,11 +101,11 @@ The installer adds the plugin. To add it by hand, at the prompt of a Claude Code
 ```
 
 Then, in any project: `/team-init`, `/team-doctor`, `/team-plan`, `/team-build <task>`,
-`/team-ship`, `/team-schedule <6h>`, `/team-market` and `/team-ui`. Claude runs the workflow where you can watch it, checks the
+`/team-ship`, `/team-fix <PR>`, `/team-schedule <6h>`, `/team-market` and `/team-ui`. Claude runs the workflow where you can watch it, checks the
 result, and reports back. In projects with a `.team.toml`, the plugin also opens an agent-team side
 panel (or run `/team-panel`): the team, each member's health, recent runs and spend, with buttons to
 refresh, check health, start a devops shift and start the dashboard, plus background runs you can
-stop. `/team-run build <task>` (or `discuss <topic>`, `ship`, `market`, `doctor`) starts a run in
+stop. `/team-run build <task>` (or `fix <PR>`, `discuss <topic>`, `ship`, `market`, `doctor`) starts a run in
 the background and the panel follows it. The commands need the `agent-team` CLI on your `PATH`.
 
 ## Documentation
@@ -123,5 +124,5 @@ MIT, see [LICENSE](LICENSE).
 
 ## Status
 
-Version 0.2.1. The workflows were proven on todo-py; see [ROADMAP.md](ROADMAP.md) for what's next
+Version 0.2.2. The workflows were proven on todo-py; see [ROADMAP.md](ROADMAP.md) for what's next
 and [CONTRIBUTING.md](CONTRIBUTING.md) to help.

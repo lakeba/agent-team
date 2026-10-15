@@ -2,7 +2,7 @@ export type Member = { name: string; role: string; kind: string; model: string; 
                        skills?: { name: string; missing?: boolean }[]; skills_problem?: string }
 export type Run = { workflow: string; title: string; started: string | null; outcome: string }
 export type Health = { ok: boolean; status: string }
-export type Job = { id: string; workflow: string; status: string; started: string; params: { task?: string; topic?: string } }
+export type Job = { id: string; workflow: string; status: string; started: string; params: { task?: string; topic?: string; number?: number } }
 export type Cost = { cost: number; calls: number }
 export type Snapshot = {
   version: string

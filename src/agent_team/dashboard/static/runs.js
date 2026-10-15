@@ -6,6 +6,7 @@ const launch = { workflow: "build", params: { rounds: 3, skip: [] }, jobs: [], o
 
 const WORKFLOWS = [
   ["build", "Build a task", "The lead plans, builders implement, tests run, the lead reviews."],
+  ["fix", "Fix a pull request", "A builder applies the lead's review to an open PR's branch and pushes; the next shift reviews it again."],
   ["ship", "Devops shift", "Triage, sign-offs, lead review, merges and releases on GitHub."],
   ["discuss", "Roadmap discussion", "Members discuss a topic until they agree; the lead updates ROADMAP.md."],
   ["market", "Marketing", "Brief, website and pitch deck, reviewed with screenshots."],
@@ -61,6 +62,8 @@ function renderLauncher() {
         check("pr", "Commit, push and open a pull request when approved (needs a branch)"),
         check("parallel", builders > 1 ? `Split the work across all ${builders} builders` : "Split across builders (the team has one)", builders < 2),
         ["qa", "security", "docs"].filter(has).map(skipBox)));
+  } else if (launch.workflow === "fix") {
+    fields.push(field("Pull request number", numIn("number", "", 1, 99999), "Its latest review comes from the last devops shift"));
   } else if (launch.workflow === "discuss") {
     fields.push(field("Topic", textIn("topic", { placeholder: "e.g. the next three features" })), field("Messages", numIn("turns", 12, 2, 40)));
   } else if (launch.workflow === "ship") {
@@ -95,7 +98,7 @@ function jobList() {
     const isOpen = launch.open === j.id;
     list.append(h("div", { class: "job" },
       h("div", { class: "job-head" },
-        h("strong", {}, j.workflow), h("span", { class: "title muted", title: j.argv.join(" ") }, " " + (j.params.task || j.params.topic || "")),
+        h("strong", {}, j.workflow), h("span", { class: "title muted", title: j.argv.join(" ") }, " " + (j.params.task || j.params.topic || (j.params.number ? `PR #${j.params.number}` : ""))),
         h("span", { class: "spacer" }), status(JOB_STATUS[j.status] || "pending", j.status), h("span", { class: "muted small" }, fmtWhen(j.started)),
         h("button", { type: "button", onclick: async () => { launch.open = isOpen ? null : j.id; if (!isOpen && launch.output[j.id] === undefined) await pollOutput(j.id); refreshJobList(); } }, isOpen ? "Hide output" : "Output"),
         j.status === "running" ? h("button", { type: "button", class: "danger", onclick: () => stopRun(j.id) }, "Stop") : null),
@@ -109,6 +112,8 @@ async function startRun() {
   const p = { ...launch.params };
   if (launch.workflow === "build" && !(p.task || "").trim()) return toast("Describe the task first.");
   if (launch.workflow === "discuss" && !(p.topic || "").trim()) return toast("Give the discussion a topic.");
+  if (launch.workflow === "fix" && !(p.number > 0)) return toast("Which pull request? Give its number.");
+  if (launch.workflow === "fix" && !confirm(`This pushes the fix to pull request #${p.number}'s branch on GitHub. Start?`)) return;
   if (launch.workflow === "build" && p.pr && !confirm("When the lead approves, this commits, pushes the branch and opens a pull request on GitHub. Start?")) return;
   if (launch.workflow === "ship" && !confirm("A devops shift acts on GitHub: comments, labels, merges and releases, within the team's rules. Start?")) return;
   for (const k of Object.keys(p)) if (p[k] === undefined || p[k] === "") delete p[k];

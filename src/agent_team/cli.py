@@ -94,6 +94,11 @@ def cmd_build(args) -> int:
     return 0 if ok else 2
 
 
+def cmd_fix(args) -> int:
+    from .workflows import fix
+    return 0 if fix.run(_team(args), args.number, args.rounds, args.lead, args.builder) else 2
+
+
 def cmd_market(args) -> int:
     from .workflows import market
     return 0 if market.run(_team(args), args.rounds, args.reuse_brief) else 2
@@ -204,7 +209,7 @@ def cmd_jobs(args) -> int:
             if not args.target:
                 raise jobs.JobError("say which workflow: doctor, build, discuss, market or ship")
             params = {k: v for k, v in {"task": args.task, "topic": args.topic, "branch": args.branch,
-                                        "pr": args.pr, "parallel": args.parallel}.items() if v}
+                                        "pr": args.pr, "parallel": args.parallel, "number": args.number}.items() if v}
             job = jobs.start(root, args.target, params)
             if args.json:
                 print(_json.dumps(job))
@@ -342,6 +347,11 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--pr", action="store_true", help="commit, push and open a PR when approved")
     s.add_argument("--parallel", action="store_true", help="split the plan across every builder, working at once")
     s.add_argument("--skip", default="", help="comma-separated optional steps to leave out: qa,security,docs")
+    s = add("fix", cmd_fix, "a builder addresses the review feedback on an open PR and pushes to its branch")
+    s.add_argument("number", type=int, help="the pull request number")
+    s.add_argument("--rounds", type=int, default=2)
+    s.add_argument("--lead", default="")
+    s.add_argument("--builder", default="")
     s = add("market", cmd_market, "brief, website and pitch deck, reviewed with screenshots")
     s.add_argument("--rounds", type=int, default=3)
     s.add_argument("--reuse-brief", action="store_true")
@@ -367,6 +377,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--branch", default="", help="for build")
     s.add_argument("--pr", action="store_true", help="for build")
     s.add_argument("--parallel", action="store_true", help="for build")
+    s.add_argument("--number", type=int, default=0, help="for fix: the pull request number")
     s.add_argument("--json", action="store_true")
     s = sub.add_parser("keys", help="API keys and tokens in agent-team's own keys file (values are never shown)")
     s.add_argument("action", nargs="?", default="list", choices=["list", "set", "remove"])
