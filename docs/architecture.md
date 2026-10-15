@@ -55,6 +55,10 @@ can act. With Claude it runs on the Anthropic SDK's tool runner; with any other 
 on `tool_loop.py`, which uses that provider's `complete_tools`. The rules that matter
 (`merge_blockers`, `is_changelog_rename`) are small pure functions with their own tests.
 
+Review rules: the lead's approval of a commit is also its sign-off on paths it owns, and a
+re-review gets the reviewer's earlier review with the rule to block only on unresolved points or
+problems the new commit introduces (`RE_REVIEW` in `ship.py`).
+
 `fix` closes the review loop: when a shift's lead review requests changes on a team PR, a
 builder applies that review (read from the team's own ship log; PR comments arrive as untrusted)
 on the PR's branch, the lead confirms the blocking points, and only then is it pushed. Approvals

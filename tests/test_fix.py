@@ -100,3 +100,44 @@ class FixTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewLoopTests(unittest.TestCase):
+    def setUp(self):
+        helpers.reset()
+        self.root = project()
+
+    def record(self, *entries):
+        log = files.Log(self.root, "ship", "Ops shift")
+        for who, text in entries:
+            log.record(who, text)
+        log.f.close()
+        usage.set_run("")
+
+    def test_the_lead_is_never_asked_to_sign_off_separately(self):
+        from agent_team.workflows.ship import merge_blockers, split_lead
+        rest, lead_paths = split_lead({"Atlas": ["ROADMAP.md"], "Spark": ["site/x"]}, "Atlas")
+        self.assertEqual((rest, lead_paths), ({"Spark": ["site/x"]}, ["ROADMAP.md"]))
+        team = load(self.root)
+        # Approval by the lead also records its sign-off for the same commit, so this merges.
+        blockers = merge_blockers(team, 2, "abc", ["ROADMAP.md"], True, "ok", {2: "abc"}, {(2, "Atlas"): "abc"})
+        self.assertEqual(blockers, "")
+
+    def test_a_re_review_sees_its_earlier_review_and_the_rule(self):
+        from agent_team.workflows.ship import re_review_note
+        self.record(("Atlas: review of PR #2 at aaaaaaaaaa", "Drop v1.0.1.\nVERDICT: CHANGES"))
+        note = re_review_note(self.root, 2, "Atlas", "bbbbbbbbbbbb")
+        self.assertIn("Drop v1.0.1.", note)
+        self.assertIn("Don't move the goalposts", note)
+        self.assertEqual(re_review_note(self.root, 2, "Atlas", "aaaaaaaaaa11"), "")   # same commit: first review
+        self.assertEqual(re_review_note(self.root, 3, "Atlas", "bbbbbbbbbbbb"), "")   # another PR
+
+    def test_fix_gets_the_lead_review_and_refused_sign_offs_only(self):
+        self.record(("Atlas: review of PR #2 at aaaaaaaaaa", "Looks fine.\nVERDICT: APPROVED"),
+                    ("Atlas: sign-off on PR #2 at aaaaaaaaaa", "M3 must cover a missing file.\nSIGN-OFF: NO"),
+                    ("Spark: sign-off on PR #2 at aaaaaaaaaa", "Fine.\nSIGN-OFF: YES"))
+        text, sha = fix.team_feedback(load(self.root), 2, "Atlas", ["ROADMAP.md", "BRIEF.md"])
+        self.assertEqual(sha, "aaaaaaaaaa")
+        self.assertIn("Atlas (lead review)", text)
+        self.assertIn("Atlas (owner sign-off: NO)\nM3 must cover a missing file.", text)
+        self.assertNotIn("Spark", text)

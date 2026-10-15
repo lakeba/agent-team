@@ -11,25 +11,30 @@ waiting. `fix` closes that loop:
 """
 from __future__ import annotations
 
-import re
 
 from .. import agent, context, files, github, logs, ui
 from ..config import Team
 from .build import run_tests
 
-REVIEW_RE = re.compile(r"^review of PR #(\d+) at ([0-9a-f]+)")
 
 
 def lead_review(team: Team, number: int, lead: str) -> tuple[str, str]:
     """(review text, commit) of the lead's latest review of this PR in the ship log, or ("", "")."""
-    for run in logs.parse(team.root):              # newest run first
-        if run["workflow"] != "ship":
-            continue
-        for e in reversed(run["entries"]):
-            m = REVIEW_RE.match(e["what"])
-            if e["who"] == lead and m and int(m.group(1)) == number:
-                return e["text"], m.group(2)
-    return "", ""
+    from .ship import earlier_review
+    return earlier_review(team.root, number, lead, kinds=("review",))
+
+
+def team_feedback(team: Team, number: int, lead: str, paths: list[str]) -> tuple[str, str]:
+    """The lead's latest review and every owner's latest refused sign-off of this PR, as one text,
+    with the commit the lead reviewed. Sign-offs that said YES leave nothing to fix."""
+    from .ship import earlier_review
+    text, lead_sha = earlier_review(team.root, number, lead, kinds=("review",))
+    parts = [f"## {lead} (lead review)\n{text}"] if text else []
+    for member in team.owners_of(paths):
+        signoff, _ = earlier_review(team.root, number, member, kinds=("sign-off",))
+        if signoff and files.last_marker(files.SIGNOFF_RE, signoff) == "NO":
+            parts.append(f"## {member} (owner sign-off: NO)\n{signoff}")
+    return "\n\n".join(parts), lead_sha
 
 
 def pr_comments(repo: str, number: int) -> str:
@@ -62,7 +67,7 @@ def run(team: Team, number: int, rounds: int = 2, lead: str = "", builder: str =
         raise SystemExit(f"PR #{number} is {info['state'].lower()}; only open PRs can be fixed.")
     if info["isCrossRepository"]:
         raise SystemExit(f"PR #{number} comes from a fork; the team can't push to it. Comment with the review instead.")
-    review, reviewed_sha = lead_review(team, number, lead_cfg.name)
+    review, reviewed_sha = team_feedback(team, number, lead_cfg.name, [f["path"] for f in info.get("files") or []])
     comments = pr_comments(repo, number)
     if not review and not comments:
         raise SystemExit(f"No review of PR #{number} yet: run a devops shift (agent-team ship) first.")
@@ -81,7 +86,7 @@ def run(team: Team, number: int, rounds: int = 2, lead: str = "", builder: str =
     focus = context.Focus(team, None) if not context.needs_focus(team) else context.Focus(team, context.default_paths(team) | pr_paths)
     worker = agent.make(team, builder_cfg, "builder", file_format=files.FILE_FORMAT, label_suffix=f" · PR #{number}")
     checker = agent.make(team, lead_cfg, "lead", file_format=files.FILE_FORMAT, label_suffix=f" · PR #{number} fix")
-    feedback = (f"# {lead_cfg.name}'s review of this PR (from the team's own log){stale}\n\n{review or '(none in the log)'}"
+    feedback = (f"# The team's latest review of this PR (from its own log){stale}\n\n{review or '(none in the log)'}"
                 f"\n\n# Comments on the PR\n" + (github.untrusted(comments) if comments else "(none)"))
     task = (f"PR #{number} \"{info['title']}\" (branch {branch}) received review feedback. Address every "
             f"BLOCKING point; non-blocking notes only if trivial and safe. Change nothing else.\n\n{feedback}")

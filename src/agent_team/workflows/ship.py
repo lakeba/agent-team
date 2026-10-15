@@ -20,7 +20,7 @@ from pathlib import Path
 import anthropic
 from anthropic import beta_tool
 
-from .. import agent, budget, files, github, ui, usage
+from .. import agent, budget, files, github, logs, ui, usage
 from ..config import Team
 
 SIGNATURE = "\n\n— {name}, devops agent for this repo (automated)"
@@ -43,6 +43,44 @@ def is_changelog_rename(changed_lines: list[str], paths: list[str], version: str
     """True only for a PR whose entire change is `## [Unreleased]` -> `## [X.Y.Z] - YYYY-MM-DD`."""
     return (paths == ["CHANGELOG.md"] and len(changed_lines) == 2 and changed_lines[0] == "-## [Unreleased]"
             and re.fullmatch(rf"\+## \[{re.escape(version)}\] - \d{{4}}-\d{{2}}-\d{{2}}", changed_lines[1]) is not None)
+
+
+RE_REVIEW = """You reviewed this pull request before. Your earlier review is below, and the commit has changed
+since. On this re-review, block only on (a) your earlier blocking points that are still not
+resolved, and (b) real problems introduced by the changes since then. Anything else you notice now
+goes under "Non-blocking notes" unless it is serious (a bug, broken guarantee, security or data
+loss). Don't move the goalposts: a PR that fixes what you asked for should pass.
+
+# Your earlier review (of commit {sha})
+{text}"""
+
+PR_ENTRY_RE = re.compile(r"^(review|sign-off) (?:of|on) PR #(\d+) at ([0-9a-f]+)")
+
+
+def earlier_review(root, number: int, member: str, kinds=("review", "sign-off")) -> tuple[str, str]:
+    """(text, commit) of this member's latest review or sign-off of this PR in the ship log."""
+    for run in logs.parse(root):                  # newest run first
+        if run["workflow"] != "ship":
+            continue
+        for e in reversed(run["entries"]):
+            m = PR_ENTRY_RE.match(e["what"])
+            if e["who"] == member and m and m.group(1) in kinds and int(m.group(2)) == number:
+                return e["text"], m.group(3)
+    return "", ""
+
+
+def re_review_note(root, number: int, member: str, sha: str) -> str:
+    text, reviewed = earlier_review(root, number, member)
+    if not text or sha.startswith(reviewed):
+        return ""
+    return "\n\n" + RE_REVIEW.format(sha=reviewed, text=text[:6000])
+
+
+def split_lead(owners: dict[str, list[str]], lead: str) -> tuple[dict[str, list[str]], list[str] | None]:
+    """(owners who sign off separately, the lead's owned paths or None): the lead's approval of a
+    commit is its sign-off, so it isn't asked twice."""
+    rest = {m: p for m, p in owners.items() if m != lead}
+    return rest, owners.get(lead)
 
 
 def ensure_labels(repo: str, names: list[str]) -> list[str]:
@@ -189,15 +227,21 @@ def run(team: Team, max_steps: int = 30) -> None:
             note: What the PR changes and why.
         """
         info, owners = pr_head(number), team.owners_of(github.changed_files(repo, number))
+        # The lead reviews every PR anyway: its approval of a commit counts as its own sign-off,
+        # so it never reviews the same commit twice with two different verdicts.
+        owners, lead_owned = split_lead(owners, lead_cfg.name)
+        lead_note = (f"{lead_cfg.name} is the lead: its approval in request_lead_review counts as its "
+                     f"sign-off for {', '.join(lead_owned)}.") if lead_owned else ""
         if not owners:
-            return "No sign-offs needed: the PR changes no owned paths."
-        sha, results = info["headRefOid"], []
+            return lead_note or "No sign-offs needed: the PR changes no owned paths."
+        sha, results = info["headRefOid"], [lead_note] if lead_note else []
         main_files = github.main_snapshot(root, skip, limit, focus=None if team.project.context == "full" else github.changed_files(repo, number))
         for member, paths in owners.items():
             cfg = team.get(member)
             reviewer = agent.make(team, cfg, "signoff", files=main_files, label_suffix=f" · PR #{number} sign-off")
             reply = reviewer.turn(
-                f"{devops_cfg.name}'s note:\n{note}\n\nYour paths changed: {paths}\n{verified_facts(sha)}\n\n" +
+                f"{devops_cfg.name}'s note:\n{note}\n\nYour paths changed: {paths}\n{verified_facts(sha)}"
+                f"{re_review_note(root, number, member, sha)}\n\n" +
                 github.untrusted(f"Title: {info['title']}\n\n{info['body']}\n\nDiff of your paths:\n"
                                  f"{github.diff_for(repo, number, tuple(cfg.owns))}"))
             yes = files.last_marker(files.SIGNOFF_RE, reply) == "YES"
@@ -222,7 +266,8 @@ def run(team: Team, max_steps: int = 30) -> None:
         info = pr_head(number)
         sha, green_summary = info["headRefOid"], github.ci_status(repo, number)
         owners = team.owners_of(github.changed_files(repo, number))
-        status = {m: ("YES for this commit" if signoffs.get((number, m)) == sha else "MISSING for this commit")
+        status = {m: ("covered by your review" if m == lead_cfg.name else
+                      "YES for this commit" if signoffs.get((number, m)) == sha else "MISSING for this commit")
                   for m in owners}
         main_files = github.main_snapshot(root, skip, limit, focus=None if team.project.context == "full" else github.changed_files(repo, number))
         reviewer = agent.make(team, lead_cfg, "review_pr", files=main_files,
@@ -230,11 +275,13 @@ def run(team: Team, max_steps: int = 30) -> None:
         review = reviewer.turn(
             f"{devops_cfg.name}'s note:\n{note}\n\nCI all green: {green_summary[0]} ({green_summary[1]})\n"
             f"Head commit under review: {sha}\nSign-offs (verified by the team's tooling): {status or 'none needed'}\n"
-            f"{verified_facts(sha)}\n\n" +
+            f"{verified_facts(sha)}{re_review_note(root, number, lead_cfg.name, sha)}\n\n" +
             github.untrusted(f"Title: {info['title']}\n\n{info['body']}\n\nDiff:\n{github.diff_for(repo, number)}"))
         log.record(f"{lead_cfg.name}: review of PR #{number} at {sha[:10]}", review)
         if files.last_marker(files.VERDICT_RE, review) == "APPROVED":
             approvals[number] = sha
+            if lead_cfg.name in owners:
+                signoffs[(number, lead_cfg.name)] = sha   # the lead's approval is its sign-off
         return review
 
     @beta_tool

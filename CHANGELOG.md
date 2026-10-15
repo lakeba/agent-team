@@ -42,7 +42,10 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
   team): members with health marks, recent runs and spend, with Refresh, Check health and
   Start/Open dashboard buttons.
 - 0.2.4: the devops shift creates a label that doesn't exist yet instead of failing on it, and
-  gets the repository's clone URL as a verified fact.
+  gets the repository's clone URL as a verified fact. The lead's approval of a commit counts as
+  its sign-off for paths it owns, so it never gives two verdicts on one commit. Re-reviews see
+  the reviewer's earlier review and block only on points still open or problems the new commit
+  introduces. `fix` also applies owners' refused sign-offs, not only the lead's review.
 - 0.2.3: `discuss` reads the devops member's feedback digest (`.team/FEEDBACK.md`, marked as
   untrusted), so roadmap discussions answer what developers ask for. Before, the digest was
   written every shift but never reached the planning.

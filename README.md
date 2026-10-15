@@ -26,7 +26,8 @@ It grew out of todo-py, a small command-line app this team planned, built, marke
 
 Guardrails are enforced in code, not left to the models. A PR merges only when CI is green, the
 lead approved the exact head commit, and every member who owns a changed path signed off that
-same commit. Releases need green CI on `main` and a CHANGELOG entry. Text from outside the team
+same commit (the lead's approval is its own sign-off). On a re-review, reviewers block only on
+points still open or problems the new commit introduces, so a PR that fixes what was asked passes. Releases need green CI on `main` and a CHANGELOG entry. Text from outside the team
 always reaches the models marked as untrusted. Spend limits in `.team.toml` stop any run before it
 costs more than you allow, and large projects get a focused context instead of every file.
 
