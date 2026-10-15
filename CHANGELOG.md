@@ -24,7 +24,7 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - `doctor` says explicitly when an Ollama model is pulled, and how to pull it when it isn't.
 - `scripts/install.sh`: one-command install and update into `~/.agent-team` (its own Python
   environment, `agent-team` on the `PATH`, the Claude Code plugin), with `--ref`, `--no-plugin`,
-  `--force` and `--uninstall`. Works with the private repository through `gh`.
+  `--force` and `--uninstall`.
 - MIT licence, and complete package metadata (licence, classifiers, project URLs).
 - `agent-team ui` and `/team-ui`: a dashboard on 127.0.0.1 with the team and each
   member's reachability, a timeline of runs with verdicts, sign-offs, files and GitHub actions,
@@ -59,6 +59,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
   output, and the panel's "Start a shift" and `/team-run`.
 - `/team-schedule` in the Claude Code plugin; the plugin's commands and skill cover the new roles,
   spend limits, background runs and any-provider devops shifts.
+- The installer works without the GitHub CLI (the repository is public), and says how to fix a
+  missing `python3-venv` on Ubuntu/Debian. The panel opens the dashboard with `xdg-open` on Linux.
 - Network discovery: nodes on `--host 0.0.0.0` answer UDP probes; `agent-team discover` and the
   dashboard's Add a machine list them.
 - Tool use for every provider kind: Ollama, OpenAI-compatible servers and remote nodes can be the

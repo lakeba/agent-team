@@ -119,10 +119,22 @@ async function startShift($: EngineInterface): Promise<void> {
   void $.ui.toast(await startJob($, 'ship'))
 }
 
+// Open a URL in the person's browser: `open` on macOS, `xdg-open` on Linux.
+async function openUrl($: EngineInterface, url: string): Promise<void> {
+  for (const opener of ['open', 'xdg-open']) {
+    try {
+      const r = await $.process.run([opener, url], { timeoutMs: 10000 })
+      if (r.exitCode === 0) return
+    } catch {
+      // not on this system; try the next
+    }
+  }
+}
+
 async function openDashboard($: EngineInterface): Promise<void> {
   const running = await read($, dashboard)
   if (running) {
-    await $.process.run(['open', running]).catch(() => undefined)
+    await openUrl($, running)
     return
   }
   const cli = await findCli($)
@@ -153,7 +165,7 @@ async function openDashboard($: EngineInterface): Promise<void> {
     if (url) {
       await update($, dashboard, () => url)
       await update($, busy, () => '')
-      await $.process.run(['open', url]).catch(() => undefined)
+      await openUrl($, url)
       return
     }
   }

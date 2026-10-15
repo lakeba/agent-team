@@ -9,8 +9,8 @@ models through Ollama, any OpenAI-compatible server, or another machine running
 `agent-team serve`. A team is described in a `.team.toml` file in each project, so adding a
 member, a machine or a project is a configuration change.
 
-It grew out of [lakeba/todo-py](https://github.com/lakeba/todo-py), which this team planned,
-built, marketed and released (v1.0.0 and v1.0.1).
+It grew out of todo-py, a small command-line app this team planned, built, marketed and released
+(v1.0.0 and v1.0.1); its team is in [examples/todo-py.team.toml](examples/todo-py.team.toml).
 
 ## How the team works
 
@@ -31,15 +31,17 @@ costs more than you allow, and large projects get a focused context instead of e
 
 ## Install
 
-Requirements: macOS or Linux, Python 3.11+, git, the [GitHub CLI](https://cli.github.com/) signed in
-(`gh auth login`), an Anthropic API key in `ANTHROPIC_API_KEY`, and optionally
-[Ollama](https://ollama.com/) for local models.
+Requirements: macOS or Linux, Python 3.11+ (on Ubuntu/Debian also `python3-venv`), git, and an
+Anthropic API key in `ANTHROPIC_API_KEY` for Claude members. Optional: [Ollama](https://ollama.com/)
+for local models, on this machine or another. The workflows that work on GitHub (`build --pr`,
+`ship`, `setup` and the plugin's PR steps) also need the [GitHub CLI](https://cli.github.com/)
+signed in (`gh auth login`).
 
 One command installs the CLI into its own environment under `~/.agent-team`, puts `agent-team` on
 your `PATH` (`~/.local/bin`), and installs the Claude Code plugin if Claude Code is present:
 
 ```bash
-gh api repos/lakeba/agent-team/contents/scripts/install.sh -H "Accept: application/vnd.github.raw" | bash
+curl -fsSL https://raw.githubusercontent.com/lakeba/agent-team/main/scripts/install.sh | bash
 ```
 
 Run it again to update. Options go after `bash -s --`, for example `| bash -s -- --ref v0.1.0`

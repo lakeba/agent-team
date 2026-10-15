@@ -46,7 +46,11 @@ owns = ["locales/"]
 
 ## Add a machine
 
-- Another machine with Ollama: add a provider with `kind = "ollama"` and its `url`.
+- Another machine with Ollama: add a provider with `kind = "ollama"` and its `url`, for example
+  `http://studio.local:11434`. Ollama listens only on its own machine by default: on the machine
+  that runs it, set `OLLAMA_HOST=0.0.0.0` (on macOS: `launchctl setenv OLLAMA_HOST 0.0.0.0`, then
+  restart the Ollama app; on Linux: `Environment="OLLAMA_HOST=0.0.0.0"` in its systemd service).
+  Ollama has no authentication, so only do this on a network you trust.
 - A GPU server with vLLM, LM Studio or llama.cpp: `kind = "openai"` and its `url`.
 - Anything else, or a machine that should keep its own credentials: run `agent-team serve` there
   and add `kind = "agent-http"`. See [remote-agents.md](remote-agents.md); `agent-team discover`

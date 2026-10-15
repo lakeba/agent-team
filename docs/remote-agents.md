@@ -5,11 +5,10 @@ credentials and its hardware stay on that machine; the team only needs a URL and
 
 ## On the machine that joins
 
-Install agent-team (a node doesn't need the Claude Code plugin). The machine needs the GitHub CLI
-signed in with read access to the repository:
+Install agent-team (a node doesn't need the Claude Code plugin):
 
 ```bash
-gh api repos/lakeba/agent-team/contents/scripts/install.sh -H "Accept: application/vnd.github.raw" | bash -s -- --no-plugin
+curl -fsSL https://raw.githubusercontent.com/lakeba/agent-team/main/scripts/install.sh | bash -s -- --no-plugin
 ```
 
 Then start the node:

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install or update agent-team (the CLI and, if Claude Code is installed, its plugin).
 #
-#   gh api repos/lakeba/agent-team/contents/scripts/install.sh -H "Accept: application/vnd.github.raw" | bash
+#   curl -fsSL https://raw.githubusercontent.com/lakeba/agent-team/main/scripts/install.sh | bash
 #   ~/.agent-team/src/scripts/install.sh            # update an existing install
 #   ... | bash -s -- --no-plugin --ref v0.1.0     # options
 #
@@ -64,11 +64,11 @@ for c in python3.13 python3.12 python3.11 /opt/homebrew/bin/python3.13 /opt/home
     PY="$(command -v "$c")"; break
   fi
 done
-[ -n "$PY" ] || die "agent-team needs Python 3.11 or newer (on macOS: brew install python@3.12)."
+[ -n "$PY" ] || die "agent-team needs Python 3.11 or newer (macOS: brew install python@3.12; Ubuntu/Debian: sudo apt install python3 python3-venv)."
 say "using $("$PY" --version) at $PY"
 command -v git >/dev/null 2>&1 || die "git is required."
 
-# 2. The source: clone once, then update. gh handles access to a private repository.
+# 2. The source: clone once, then update. gh is used when signed in (it also reaches private forks).
 mkdir -p "$HOME_DIR"
 if [ -d "$SRC/.git" ]; then
   say "updating $SRC to $REF"
@@ -83,14 +83,19 @@ else
     gh repo clone "$REPO" "$SRC" -- -q
   else
     git clone -q "https://github.com/$REPO.git" "$SRC" \
-      || die "could not clone $REPO. If it is private, sign in with 'gh auth login' first."
+      || die "could not clone $REPO. Check the network; for a private fork, sign in with 'gh auth login' first."
   fi
   git -C "$SRC" checkout -q "$REF"
 fi
 
 # 3. Its own environment, so it never touches the system Python or your projects' packages.
 say "installing into $VENV"
-[ -x "$VENV/bin/python" ] || "$PY" -m venv "$VENV"
+if [ ! -x "$VENV/bin/python" ]; then
+  "$PY" -m venv "$VENV" 2>/dev/null || {
+    rm -rf "$VENV"
+    die "Python can't create an environment. On Ubuntu/Debian: sudo apt install python3-venv (or python3.12-venv), then run this again."
+  }
+fi
 "$VENV/bin/python" -m pip install -q --upgrade pip
 "$VENV/bin/python" -m pip install -q --upgrade "$SRC[screenshots]"
 
