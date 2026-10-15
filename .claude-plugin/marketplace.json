@@ -8,7 +8,7 @@
     {
       "name": "agent-team",
       "source": "./plugin",
-      "description": "Drive your agent-team from Claude Code: /team-plan, /team-build, /team-ship, /team-market."
+      "description": "Drive your agent-team from Claude Code: /team-plan, /team-build, /team-ship, /team-schedule, /team-market, /team-ui, plus a side panel and /team-run."
     }
   ]
 }

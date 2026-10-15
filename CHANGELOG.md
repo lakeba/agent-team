@@ -54,6 +54,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
   `ship --every 6h`; a lock in `.team/` means two shifts never overlap.
 - Background runs: `agent-team jobs` (start, stop, log), the dashboard's "Start a run" with live
   output, and the panel's "Start a shift" and `/team-run`.
+- `/team-schedule` in the Claude Code plugin; the plugin's commands and skill cover the new roles,
+  spend limits, background runs and any-provider devops shifts.
 - Network discovery: nodes on `--host 0.0.0.0` answer UDP probes; `agent-team discover` and the
   dashboard's Add a machine list them.
 - Tool use for every provider kind: Ollama, OpenAI-compatible servers and remote nodes can be the

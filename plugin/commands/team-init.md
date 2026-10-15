@@ -16,6 +16,9 @@ Set up an agent-team for this project. Options: $ARGUMENTS
    codebase. Also propose `context_skip` entries for build output, vendored code and large assets.
    Show the user the proposed changes and apply them when they agree.
 5. Ask whether the default team suits them (Atlas lead, Forge builder on a local model, Spark
-   marketing, Harbor devops), or whether they want other members, models or machines.
+   marketing, Harbor devops), or whether they want other members, models or machines. The file
+   has commented-out optional members: Sentinel (security review of every build and sign-off of
+   every PR), Probe (QA: tests first) and Quill (docs). Offer them, and offer spend limits
+   (`[limits] per_run`, `per_day` in US dollars), and uncomment what the user wants.
 6. Run `agent-team doctor` and report what's reachable. Remind them that `.team.toml` holds no
    secrets and can be committed, and suggest `/team-plan` as a first step.

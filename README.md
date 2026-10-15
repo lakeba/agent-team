@@ -55,7 +55,29 @@ agent-team init       # writes .team.toml and ignores .team/
 agent-team doctor     # checks every member can be reached
 ```
 
-Then edit `.team.toml`: set the project's guarantees, adjust the team, and run a workflow.
+Then edit `.team.toml` (or open `agent-team ui` and use **Edit team**): set the project's
+guarantees, adjust the team, set spend limits under `[limits]`, and run a workflow:
+
+```bash
+agent-team discuss "next features"                       # agree a roadmap
+agent-team build "add an export command" --branch team/export --pr
+agent-team ship                                          # one devops shift on GitHub
+```
+
+### Other commands
+
+| Command | What it does |
+|---|---|
+| `agent-team status [--json] [--health]` | The team, spend per member and today, recent and background runs, the schedule. |
+| `agent-team ui` | The dashboard: see and edit the team, start runs, follow costs. |
+| `agent-team jobs [start <workflow> \| stop <id> \| log <id>]` | Runs in the background, as the dashboard and the Claude panel start them. |
+| `agent-team schedule --every 6h` | Run devops shifts on a schedule (launchd on macOS, cron elsewhere); `--remove` to stop. |
+| `agent-team serve ...` | Serve a model on this machine as a team member for a team elsewhere. |
+| `agent-team discover` | Find agent-team nodes on the local network. |
+| `agent-team agents`, `agent-team doctor` | List the team; check every member can be reached. |
+
+`build` takes `--parallel` (split the plan across every builder), `--skip qa,security,docs`,
+`--rounds`, `--builder` and `--lead`. Every command takes `-C <project>`; `--help` lists the rest.
 
 ### Use it from Claude Code
 
@@ -66,7 +88,7 @@ The installer adds the plugin. To add it by hand, at the prompt of a Claude Code
 ```
 
 Then, in any project: `/team-init`, `/team-doctor`, `/team-plan`, `/team-build <task>`,
-`/team-ship`, `/team-market` and `/team-ui`. Claude runs the workflow where you can watch it, checks the
+`/team-ship`, `/team-schedule <6h>`, `/team-market` and `/team-ui`. Claude runs the workflow where you can watch it, checks the
 result, and reports back. In projects with a `.team.toml`, the plugin also opens an agent-team side
 panel (or run `/team-panel`): the team, each member's health, recent runs and spend, with buttons to
 refresh, check health, start a devops shift and start the dashboard, plus background runs you can
@@ -79,7 +101,9 @@ the background and the panel follows it. The commands need the `agent-team` CLI 
 - [Configuration](docs/configuration.md): every `.team.toml` setting.
 - [Extending](docs/extending.md): add a team member, a role, a provider or a workflow.
 - [Remote agents](docs/remote-agents.md): let another machine join the team.
-- [Examples](examples/): the todo-py team, and a six-member team across four machines.
+- [Examples](examples/): the todo-py team, and a larger team across four machines with security,
+  QA and docs members, parallel builders and spend limits.
+- [Changelog](CHANGELOG.md) and [roadmap](ROADMAP.md).
 
 ## Licence
 

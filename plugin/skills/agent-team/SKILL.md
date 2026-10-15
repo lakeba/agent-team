@@ -1,6 +1,6 @@
 ---
 name: agent-team
-description: Work with the project's agent-team (an AI team defined in .team.toml with a lead, builders, marketing and devops members on any model or machine). Use when the user asks the team, or a team member by name (for example Atlas, Forge, Spark or Harbor), to plan a roadmap, build or fix something as a pull request, review and merge PRs, cut a release, triage issues, or write a brief, website or pitch deck; or asks to add a team member, a machine or a model to the team. Not for ordinary coding the user asked Claude itself to do.
+description: Work with the project's agent-team (an AI team defined in .team.toml with a lead, builders, marketing, devops and optional security, QA and docs members on any model or machine). Use when the user asks the team, or a team member by name (for example Atlas, Forge, Spark, Harbor or Sentinel), to plan a roadmap, build or fix something as a pull request, review and merge PRs, cut a release, triage issues, run shifts on a schedule, or write a brief, website or pitch deck; or asks to add a team member, a machine or a model to the team, or to set spend limits. Not for ordinary coding the user asked Claude itself to do.
 ---
 
 # Working with an agent-team
@@ -22,7 +22,9 @@ report. The team does the work; you don't do it for them unless the user asks yo
 4. **Let the user watch.** Workflows take minutes and stream each member's reasoning and replies.
    If a tool exists to run a command in the user's visible terminal panel, run the workflow there
    and link the tab; otherwise run it with Bash in the background. Wait for it to finish; don't
-   poll in a tight loop, and don't start a second workflow on the same project meanwhile.
+   poll in a tight loop, and don't start a second workflow on the same project meanwhile. Check
+   `agent-team jobs` first: a run started from the dashboard, the panel or a schedule may already
+   be going.
 5. **Verify, then report.** Read the end of `.team/logs/<workflow>.md` and check the facts
    yourself (tests, `git diff`, the PR or release on GitHub). Report what changed, what the
    reviewers said, and what's left, with links. Say plainly if something failed or wasn't checked.
@@ -31,14 +33,19 @@ report. The team does the work; you don't do it for them unless the user asks yo
    is stuck in review loops, explain what's blocking and ask the user how to proceed.
 7. **Costs.** Workflows call paid models with the project's files as context. Mention that a run
    costs money when starting a long or repeated one, and never loop workflows on your own.
+   `[limits]` in `.team.toml` caps spend per run and per day; a run that reaches a limit stops
+   with exit code 3. Report it and let the user decide; never raise or remove a limit yourself
+   without being asked. `agent-team status` shows spend per member and today.
 
 ## Commands
 
 - `/team-init`: write a starter `.team.toml` for this project.
 - `/team-doctor`: check every member can be reached.
 - `/team-plan [topic]`: members discuss and agree a roadmap; opens a PR with `ROADMAP.md`.
-- `/team-build <task>`: the lead plans, a builder implements, tests run, the lead reviews; opens a PR.
+- `/team-build <task>`: the lead plans, builders implement, tests run, the lead reviews; QA,
+  security and docs members join when the team has them; opens a PR.
 - `/team-ship`: one devops shift: triage, sign-offs, lead review, merges, releases.
+- `/team-schedule [6h | --remove]`: run devops shifts on a schedule, never two at once.
 - `/team-market`: brief, website and pitch deck, reviewed with screenshots; opens a PR.
 - `/team-ui`: open the dashboard, where the team can also be edited.
 - `/team-panel`: show the team, health, recent runs and spend in a side panel.
@@ -49,5 +56,9 @@ report. The team does the work; you don't do it for them unless the user asks yo
 
 Members, roles, owned paths and machines are all in `.team.toml`; see the agent-team docs
 (`docs/configuration.md`, `docs/extending.md`, `docs/remote-agents.md`). When the user asks to add
-a member or machine, edit `.team.toml`, then run `agent-team doctor` to confirm it's reachable.
+a member or machine, edit `.team.toml` (or use the dashboard's Edit team), then run
+`agent-team doctor` to confirm it's reachable. `agent-team discover` finds `agent-team serve` nodes
+on the local network. Built-in roles: `lead`, `builder`, `devops`, `marketing`, `factcheck`,
+`security`, `qa`, `docs`; `owns = ["*"]` makes a member sign off every PR. Large projects use
+focused context automatically (`[project].context`).
 Secrets never go in `.team.toml`: a provider names the environment variable that holds them.

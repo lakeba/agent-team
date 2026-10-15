@@ -15,7 +15,8 @@ agent-team has four layers. Each one can grow without changes to the others.
 
 A project's `.team.toml` lists **providers** (how to reach a model) and **agents** (team members).
 Agents have a free-form `role`; the built-in workflows look for `lead`, `builder`, `devops`,
-`marketing` and optionally `factcheck`. Any other role can still join discussions and own files.
+`marketing`, and optionally `factcheck`, `qa`, `security` and `docs`. `[limits]` sets spend caps and
+`[project].context` how much of the project a prompt includes. Any other role can still join discussions and own files.
 Unknown keys are rejected with a clear message, so typos don't silently change behaviour.
 
 ## 2. Providers (`providers/`)
@@ -30,7 +31,9 @@ A provider turns `(system prompt, conversation)` into a reply. Built in:
 | `agent-http` | Another machine running `agent-team serve` | That machine keeps its model and credentials; see [remote-agents.md](remote-agents.md). |
 
 Providers register themselves by kind (`@register("kind")`), and configuration is validated
-against the registry, so a new kind needs no change anywhere else.
+against the registry, so a new kind needs no change anywhere else. Every built-in kind also
+implements `complete_tools`, one step of a tool-using conversation, so any of them can be the
+devops member.
 
 ## 3. Agents (`agent.py`, `prompts/`)
 
@@ -46,9 +49,14 @@ blocks, written by `files.write_files`, which refuses paths outside the project 
 allowed prefixes. Every run is logged to `.team/logs/<workflow>.md` in the project.
 
 `ship` is different: the devops member drives it with tool use, and the tools are the only way it
-can act. With Claude it runs on the Anthropic SDK's tool runner; with any other provider it runs on
-`tool_loop.py`, which uses that provider's `complete_tools`. The rules that matter (`merge_blockers`, `is_changelog_rename`) are small pure functions
-with their own tests.
+can act. With Claude it runs on the Anthropic SDK's tool runner; with any other provider it runs
+on `tool_loop.py`, which uses that provider's `complete_tools`. The rules that matter
+(`merge_blockers`, `is_changelog_rename`) are small pure functions with their own tests.
+
+`build` brings in the optional members when the team has them: a `qa` member writes tests for the
+plan first, a `security` member reviews the result once the lead approves (a NO sends it back),
+and a `docs` member updates the documentation afterwards. With several builders and `--parallel`,
+the lead splits the plan into parts with separate paths.
 
 ## Records
 

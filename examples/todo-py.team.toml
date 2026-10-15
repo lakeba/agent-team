@@ -19,6 +19,11 @@ brief = "BRIEF.md"
 site = "site/index.html"
 deck = "deck/index.html"
 
+# Spend limits in US dollars; a run stops before the next model call once it reaches one.
+[limits]
+per_run = 3.0
+per_day = 15.0
+
 [providers.claude]
 kind = "anthropic"
 

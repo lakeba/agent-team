@@ -1,5 +1,5 @@
 ---
-description: Open the agent-team dashboard for this project (team, reachability, run history, costs)
+description: Open the agent-team dashboard for this project (team, reachability, runs, costs; edit the team and start runs)
 argument-hint: [--port 8790]
 ---
 
@@ -14,10 +14,16 @@ Open the project's agent-team dashboard. Options: $ARGUMENTS
 3. Open that address in the browser available to you (an in-app browser pane if there is one),
    or give the user the link.
 4. Tell the user what it shows: the team and whether each member is reachable, the history of
-   runs with each member's verdicts, estimated costs per member, day and run, and the GitHub state.
-   **Edit team** changes members, connections, guarantees and prices; **Add a machine** walks
-   through connecting an Ollama server, an OpenAI-compatible server or another agent-team node.
-   Every save shows the diff first, is validated, and keeps the previous file as `.team.toml.bak`
-   (comments in a hand-written file are not kept). Usage and timestamps exist only for runs made
-   since the dashboard was added; older runs show without them.
-5. Stop the dashboard when the user is done with it.
+   runs with each member's verdicts, estimated costs per member, day and run (with today's spend
+   against the daily limit), and the GitHub state.
+   - **Team → Edit team** changes members (including the security, qa and docs roles),
+     connections, guarantees, context mode, spend limits and prices. **Add a machine** walks
+     through connecting an Ollama server, an OpenAI-compatible server or another agent-team node,
+     and can find nodes on the local network. Every save shows the diff first, is validated, and
+     keeps the previous file as `.team.toml.bak` (comments in a hand-written file are not kept).
+   - **Runs → Start a run** starts a build, devops shift, discussion, marketing run or health
+     check in the background, with live output and a Stop button. Runs keep going if the page or
+     the dashboard closes; spend limits apply.
+   Usage and timestamps exist only for runs made since the dashboard was added; older runs show
+   without them.
+5. Stop the dashboard when the user is done with it (runs it started keep going).

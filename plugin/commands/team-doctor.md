@@ -10,5 +10,8 @@ Check this project's agent-team.
    - Anthropic: `ANTHROPIC_API_KEY` missing or invalid in the shell profile (never ask for the key).
    - Ollama: the app isn't running, or the model isn't pulled (`ollama pull <model>`).
    - A remote node: it isn't running `agent-team serve`, the URL is wrong, or the token variable
-     named by `api_key_env` isn't set on this machine.
-4. Also note any missing role a workflow needs (lead, builder, devops, marketing).
+     named by `api_key_env` isn't set on this machine. `agent-team discover` lists the nodes that
+     answer on the local network, with their URLs.
+4. Also note any missing role a workflow needs (lead, builder, devops, marketing), and which
+   optional members `build` will use (qa, security, docs). If `[limits]` isn't set, mention that
+   spend limits are available.
