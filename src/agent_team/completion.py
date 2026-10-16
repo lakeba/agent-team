@@ -15,7 +15,7 @@ from pathlib import Path
 
 # Options whose value is a member name (or a comma-separated list of them).
 MEMBER_OPTIONS = {"--lead", "--builder", "--members"}
-COMMA_LISTS = {"--members", "--skip", "--only"}
+COMMA_LISTS = {"--members", "--skip", "--only"}   # behaviour --only takes journey names
 KNOWN_KEYS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "AGENT_TEAM_TOKEN", "AGENT_TEAM_WEBHOOK", "GITHUB_TOKEN")
 
 
@@ -61,7 +61,13 @@ def _value_candidates(cmd: str, option: str, action: argparse.Action, words: lis
         from .composition import EXTRAS
         return [(r, f"{name}: {about}") for r, (name, about) in EXTRAS.items()] + [("all", ""), ("none", "")]
     if cmd == "build" and option == "--skip":
-        return [("qa", ""), ("security", ""), ("docs", "")]
+        return [("qa", ""), ("security", ""), ("docs", ""), ("journeys", "")]
+    if cmd == "behaviour" and option == "--only":
+        try:
+            from .config import find_config, load
+            return [(s.name, s.kind) for s in load(find_config(_project(words))).behaviour.scenarios]
+        except Exception:
+            return []
     if cmd == "eval" and option == "--only":
         return [(x, "") for x in ("feature", "bug", "edit", "injection", "fake-release")]
     if cmd == "init" and option == "--builders":

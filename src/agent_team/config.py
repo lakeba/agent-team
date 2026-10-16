@@ -108,22 +108,36 @@ class McpServerConfig:
     max_output: int = 20_000        # characters of one result a model sees
 
 
+SCENARIO_KINDS = ("terminal", "browser", "api")
+SCENARIOS_FILE = "team/behaviour.toml"   # scenarios the team writes and keeps, besides those in .team.toml
+
+
 @dataclass
 class BehaviourScenario:
-    """A user journey run on the base version and on the team's work, then compared."""
+    """A user journey (or an API surface) checked on the base version and on the team's work."""
     name: str
-    run: str                        # shell commands; $PROJECT is the version under test; runs in an empty folder
+    kind: str = "terminal"          # terminal: a command line; browser: a web page; api: a .NET assembly's public API
     prepare: str = ""               # run first in $PROJECT, not captured (e.g. a build), so the run itself is quick
+    # terminal
+    run: str = ""                   # shell commands; $PROJECT is the version under test; runs in an empty folder
     input: list[str] = field(default_factory=list)   # lines typed into the program, one after another
     input_delay: float = 2.0        # seconds before the first line is typed
     input_every: float = 1.0        # seconds between lines
-    timeout: int = 120              # seconds
     watch: list[str] = field(default_factory=lambda: ["."])   # files (in that folder) compared after the run
+    # browser
+    serve: str = ""                 # starts the app in $PROJECT (e.g. "npm run preview -- --port 5173"); stopped after
+    url: str = ""                   # where the browser starts, e.g. http://127.0.0.1:5173/
+    steps: list[str] = field(default_factory=list)   # e.g. 'fill textbox "Project" with "client-a"', 'click button "Start"'
+    # api
+    assembly: str = ""              # the built assembly, relative to $PROJECT, e.g. "out/Tally.dll"
+    timeout: int = 120              # seconds
+    source: str = ".team.toml"      # where it was defined (set when loading)
 
 
 @dataclass
 class BehaviourConfig:
     server: str = "rea"             # the [mcp] server that captures the runs
+    browser: str = ""               # Chrome or Chromium for browser scenarios; default: found on this machine
     scenarios: list[BehaviourScenario] = field(default_factory=list)
 
 
@@ -178,6 +192,58 @@ def _take(table: dict, cls, where: str, **extra):
         return cls(**table, **extra)
     except TypeError as e:
         raise ConfigError(f"{where}: {e}") from None
+
+
+def scenario(table: dict, where: str, source: str = ".team.toml") -> BehaviourScenario:
+    """One behaviour scenario, checked: what it needs depends on its kind."""
+    table.pop("source", None)
+    sc = _take(table, BehaviourScenario, where, source=source)
+    label = f"{where} ({sc.name!r})" if isinstance(sc.name, str) and sc.name else where
+    if not isinstance(sc.name, str) or not sc.name.strip():
+        raise ConfigError(f"{where}: needs a name")
+    if sc.kind not in SCENARIO_KINDS:
+        raise ConfigError(f"{label}: kind is {', '.join(SCENARIO_KINDS)}, not {sc.kind!r}")
+    texts = [sc.prepare, sc.run, sc.serve, sc.url, sc.assembly]
+    lists = [sc.input, sc.watch, sc.steps]
+    if not all(isinstance(x, str) for x in texts) or not all(isinstance(l, list) and all(isinstance(x, str) for x in l)
+                                                             for l in lists):
+        raise ConfigError(f"{label}: run, prepare, serve, url and assembly are text; input, watch and steps are lists of text")
+    if not isinstance(sc.timeout, int) or sc.timeout < 1:
+        raise ConfigError(f"{label}: timeout is seconds (1 or more)")
+    if not all(isinstance(x, (int, float)) and x >= 0 for x in (sc.input_delay, sc.input_every)):
+        raise ConfigError(f"{label}: input_delay and input_every are seconds")
+    if any(w.startswith("/") or ".." in w.split("/") for w in sc.watch):
+        raise ConfigError(f"{label}: watch paths are inside the run's folder (relative)")
+    if sc.kind == "terminal" and not sc.run.strip():
+        raise ConfigError(f"{label}: a terminal scenario needs run (the commands)")
+    if sc.kind == "browser":
+        if not sc.url.startswith(("http://127.0.0.1", "http://localhost", "http://[::1]")):
+            raise ConfigError(f"{label}: url is the app on this machine, e.g. http://127.0.0.1:5173/ (behaviour checks "
+                              f"don't visit other sites)")
+        from .steps import StepError, parse_steps
+        try:
+            parse_steps(sc.steps)
+        except StepError as e:
+            raise ConfigError(f"{label}: {e}") from None
+    if sc.kind == "api" and (not sc.assembly.strip() or sc.assembly.startswith("/") or ".." in sc.assembly.split("/")):
+        raise ConfigError(f"{label}: assembly is the built .dll, relative to the project, e.g. \"out/App.dll\"")
+    return sc
+
+
+def scenarios_file(root: Path) -> list[BehaviourScenario]:
+    """The scenarios in team/behaviour.toml: the ones the team writes and keeps up to date."""
+    path = Path(root) / SCENARIOS_FILE
+    if not path.is_file():
+        return []
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as e:
+        raise ConfigError(f"{SCENARIOS_FILE}: {e}") from None
+    unknown = set(data) - {"scenarios"}
+    if unknown:
+        raise ConfigError(f"{SCENARIOS_FILE}: only [[scenarios]] tables go here; found {sorted(unknown)}")
+    return [scenario(dict(t), f"{SCENARIOS_FILE} [[scenarios]] #{i + 1}", SCENARIOS_FILE)
+            for i, t in enumerate(data.get("scenarios") or [])]
 
 
 def find_config(start: Path) -> Path:
@@ -291,18 +357,12 @@ def parse(data: dict, root: Path) -> Team:
             raise ConfigError(f"agent {a.name!r} uses [mcp.{empty[0]}], which allows no tools yet: list the ones "
                               f"members may call in its tools")
     btable = dict(data.get("behaviour") or {})
-    scenarios = []
-    for i, table in enumerate(btable.pop("scenarios", None) or []):
-        sc = _take(dict(table), BehaviourScenario, f"[[behaviour.scenarios]] #{i + 1}")
-        if not sc.name.strip() or not sc.run.strip():
-            raise ConfigError(f"[[behaviour.scenarios]] #{i + 1}: needs a name and the commands to run")
-        if not all(isinstance(x, str) for x in [*sc.input, *sc.watch]) or not isinstance(sc.timeout, int) or sc.timeout < 1:
-            raise ConfigError(f"[[behaviour.scenarios]] {sc.name!r}: input and watch are lists of strings; timeout is seconds")
-        if not all(isinstance(x, (int, float)) and x >= 0 for x in (sc.input_delay, sc.input_every)):
-            raise ConfigError(f"[[behaviour.scenarios]] {sc.name!r}: input_delay and input_every are seconds")
-        if any(w.startswith("/") or ".." in w.split("/") for w in sc.watch):
-            raise ConfigError(f"[[behaviour.scenarios]] {sc.name!r}: watch paths are inside the run's folder (relative)")
-        scenarios.append(sc)
+    scenarios = [scenario(dict(t), f"[[behaviour.scenarios]] #{i + 1}") for i, t in enumerate(btable.pop("scenarios", None) or [])]
+    scenarios += scenarios_file(root)
+    names = [s.name for s in scenarios]
+    dupes = sorted({n for n in names if names.count(n) > 1})
+    if dupes:
+        raise ConfigError(f"behaviour scenarios share the name {dupes[0]!r} (in .team.toml and {SCENARIOS_FILE})")
     behaviour = _take(btable, BehaviourConfig, "[behaviour]", scenarios=scenarios)
     if scenarios and behaviour.server not in mcp:
         raise ConfigError(f"[behaviour].server is {behaviour.server!r}, but there's no [mcp.{behaviour.server}] to "

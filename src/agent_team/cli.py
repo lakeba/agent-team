@@ -97,7 +97,7 @@ def cmd_init(args) -> int:
     init.run(Path(args.project).resolve(), args.builder_provider, args.builder_model, args.force, args.ollama_url,
              args.no_claude, models=args.models, extras=extras, builders=args.builders,
              per_run=args.per_run, per_day=args.per_day,
-             interactive=interactive, vision=args.vision)
+             interactive=interactive, vision=args.vision, use_rea=False if args.no_rea else None)
     if args.no_claude or args.models == "ollama":
         ui.say("Every member runs on Ollama, so no Anthropic key is needed. The devops member acts through tool "
                "calls: pick a model that's good at them (see agent-team doctor).")
@@ -586,6 +586,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="what the product should be, saved as VISION.md (text, or a file holding it)")
     s.add_argument("-y", "--yes", action="store_true",
                    help="ask nothing: take the defaults for every choice the flags leave open")
+    s.add_argument("--no-rea", action="store_true", help="don't set up behaviour checks with REA, even if it's installed")
     s.add_argument("--force", action="store_true", help="replace an existing .team.toml")
     add("doctor", cmd_doctor, "check this machine is ready and every member is reachable")
     s = add("ready", cmd_ready, "checklist: git, GitHub, keys, Ollama, models (exit 0 unless --strict)")
@@ -609,7 +610,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--branch", default="", help="create this branch first")
     s.add_argument("--pr", action="store_true", help="commit, push and open a PR when approved")
     s.add_argument("--parallel", action="store_true", help="split the plan across every builder, working at once")
-    s.add_argument("--skip", default="", help="comma-separated optional steps to leave out: qa,security,docs")
+    s.add_argument("--skip", default="", help="comma-separated optional steps to leave out: qa,security,docs,journeys")
     s = add("fix", cmd_fix, "a builder addresses the review feedback on an open PR and pushes to its branch")
     s.add_argument("number", type=int, help="the pull request number")
     s.add_argument("--rounds", type=int, default=2)
@@ -699,6 +700,14 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--timeout", type=float, default=2.0)
     s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_discover)
+    s = add("rea", cmd_rea, "REA, the tool server behind behaviour checks: status, or setup (install and configure)")
+    s.add_argument("action", nargs="?", default="status", choices=["status", "setup"])
+    s.add_argument("--yes", action="store_true", help="for setup: install without asking")
+    s = add("behaviour", cmd_behaviour, "behaviour checks: list the journeys, run them, or have the lead suggest them")
+    s.add_argument("action", nargs="?", default="list", choices=["list", "run", "suggest"])
+    s.add_argument("--base", default="", help="for run: the commit to compare against (default: HEAD)")
+    s.add_argument("--target", default="", help="for run: a commit to check instead of the working tree")
+    s.add_argument("--only", default="", help="for run: comma-separated journey names")
     s = sub.add_parser("completion", help="Tab completion for bash and zsh: print the script, or install it")
     s.add_argument("action", nargs="?", default="install", choices=["install", "bash", "zsh"],
                    help="install (for your shell), or print the bash or zsh script")
@@ -706,6 +715,74 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--yes", action="store_true", help="for install: add the line to ~/.zshrc without asking")
     s.set_defaults(fn=cmd_completion)
     return p
+
+
+def cmd_rea(args) -> int:
+    from . import rea
+    root = Path(args.project).resolve()
+    if args.action == "status":
+        st = rea.status(root)
+        if not st["command"]:
+            ui.say(f"REA isn't installed. Install REA {rea.VERSION} for agent-team with: agent-team rea setup")
+            return 1
+        ui.say(f"REA {st['version'] or '?'} ({st['where']}): {st['command']} {' '.join(st['args'])}")
+        ui.say(f"  tried with: {st['pinned']}" + ("" if st["version"] == st["pinned"] else "  (a different version works too, "
+                                                  "but agent-team was tried with this one)"))
+        ui.say(f"  registered with Claude Code: {'yes' if st['claude_code'] else 'no'}")
+        ui.say(f"  this project: {'uses it ([mcp.rea])' if st['configured'] else 'not set up yet (agent-team rea setup)'}")
+        ok, detail = rea.doctor(st["command"])
+        ui.say(f"  rea doctor: {'ok' if ok else 'needs attention'}: {detail}")
+        return 0 if ok else 1
+    command, cargs, where = rea.find()
+    if not command:
+        command, cargs, where = rea.install(args.yes), ["--mcp"], "agent-team's copy"
+    ui.action(f"REA: {command} ({where})")
+    from .config import CONFIG_NAME
+    if (root / CONFIG_NAME).exists():
+        if rea.configure(root, command, cargs):
+            ui.action(f"added [mcp.rea] and [behaviour] to {CONFIG_NAME}")
+        else:
+            ui.say(f"{CONFIG_NAME} already has [mcp.rea].")
+        team = config.load(root)
+        from . import mcp
+        ok, detail = mcp.check(team, "rea")
+        ui.say(f"  {'ok' if ok else 'FAILED'}: {detail}")
+        if ok and not team.behaviour.scenarios:
+            ui.say("Next: agent-team behaviour suggest   (the lead writes the first journeys from VISION.md)")
+        return 0 if ok else 1
+    ui.say(f"No {CONFIG_NAME} here: run agent-team init (it finds REA and sets it up).")
+    return 0
+
+
+def cmd_behaviour(args) -> int:
+    from . import behaviour
+    team = _team(args)
+    if args.action == "list":
+        if not team.behaviour.scenarios:
+            ui.say("No journeys yet. agent-team behaviour suggest has the lead write them from VISION.md.")
+            return 0
+        for sc in team.behaviour.scenarios:
+            ui.say(f"  {sc.name}  ({sc.kind}, in {sc.source})")
+        return 0
+    if args.action == "suggest":
+        from .workflows import journeys
+        if team.behaviour.server not in team.mcp:
+            raise SystemExit("Set up REA first: agent-team rea setup")
+        written = journeys.suggest(team)
+        if written:
+            ui.say(f"Review {written[0]}, then try them: agent-team behaviour run")
+        return 0 if written else 1
+    from . import github
+    base = github.git(team.root, "rev-parse", args.base or "HEAD", check=False).strip()
+    if not base:
+        raise SystemExit("behaviour checks compare against a commit: this folder needs git and at least one commit")
+    outcomes = behaviour.run(team, base, args.target or None, label="manual",
+                             only=[n.strip() for n in args.only.split(",") if n.strip()] or None)
+    if not outcomes:
+        ui.say("Nothing to check: no journeys (agent-team behaviour suggest), or REA isn't set up (agent-team rea setup).")
+        return 1
+    ui.say(behaviour.report(outcomes, for_pr=True))
+    return 2 if any(o.status == "failed" for o in outcomes) else 0
 
 
 def cmd_completion(args) -> int:

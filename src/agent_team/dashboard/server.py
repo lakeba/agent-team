@@ -15,9 +15,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 import threading
 import time
+import urllib.parse
 import webbrowser
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -35,7 +37,8 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/settings.js": ("settings.js", "text/javascript; charset=utf-8"),
           "/activity.js": ("activity.js", "text/javascript; charset=utf-8"),
           "/projects.js": ("projects.js", "text/javascript; charset=utf-8"),
-          "/lakeba-mark.svg": ("lakeba-mark.svg", "image/svg+xml")}
+          "/lakeba-mark.svg": ("lakeba-mark.svg", "image/svg+xml"),
+          "/behaviour.js": ("behaviour.js", "text/javascript; charset=utf-8")}
 HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
     "X-Content-Type-Options": "nosniff",
@@ -241,6 +244,20 @@ def make_handler(root: Path, port: int, token: str | None = None):
                         return self._json({"error": "unknown workflow"}, 400)
                     cycles = int(query["cycles"]) if query.get("cycles", "").isdigit() else 1
                     return self._json(estimate.estimate(team, wf, cycles))
+                if path == "/api/behaviour":
+                    from .. import behaviour
+                    return self._json({"checks": behaviour.recent(team),
+                                       "configured": team.behaviour.server in team.mcp})
+                if path.startswith("/api/evidence/"):
+                    from .. import behaviour
+                    parts = urllib.parse.unquote(path.removeprefix("/api/evidence/")).split("/")
+                    if (len(parts) != 2 or not re.fullmatch(r"[A-Za-z0-9_-]+", parts[0])
+                            or not re.fullmatch(r"\d+-(base|work)\.png", parts[1])):
+                        return self._json({"error": "not found"}, 404)
+                    png = behaviour.evidence_root(team) / parts[0] / parts[1]
+                    if not png.is_file():
+                        return self._json({"error": "not found"}, 404)
+                    return self._send(200, png.read_bytes(), "image/png")
                 if path == "/api/metrics":
                     from .. import metrics
                     return self._json(metrics.compute(team))

@@ -162,7 +162,7 @@ class ClientTests(unittest.TestCase):
             build.return_value.check.return_value = "ok"
             cli.main(["doctor", "-C", str(root)])
         self.assertIn("Tool servers (MCP)", out.getvalue())
-        self.assertIn("ok: fake 1.0, 5 tools, 3 allowed for members", out.getvalue())
+        self.assertIn("ok: fake 1.0, 8 tools, 3 allowed for members", out.getvalue())
 
 
 class BehaviourTests(unittest.TestCase):
@@ -175,8 +175,8 @@ class BehaviourTests(unittest.TestCase):
             outcomes = behaviour.run(config.load(root), base)
         self.assertEqual([o.status for o in outcomes], ["changed"])
         o = outcomes[0]
-        self.assertIn("No timer running.", o.base.screen)
-        self.assertIn("Running: client-b", o.work.screen)
+        self.assertIn("No timer running.", o.base.view)
+        self.assertIn("Running: client-b", o.work.view)
         self.assertEqual(o.work.files, ["created tally.json"])
         self.assertEqual(o.first_difference, 'screen line 2: before "No timer running.", now "Running: client-b"')
         for_lead = behaviour.report(outcomes)
@@ -211,12 +211,12 @@ class BehaviourTests(unittest.TestCase):
         team = config.load(root)
         self.assertEqual(behaviour.run(team, None), [])
         team.sandbox.mode = "container"
-        with quiet():
-            self.assertEqual(behaviour.run(team, base), [])
+        with quiet(), mock.patch("agent_team.sandbox.ready", return_value=(False, "docker isn't running")):
+            self.assertEqual(behaviour.run(team, base), [])   # never run outside the sandbox instead
 
     def test_what_counts_as_a_difference(self):
-        run = lambda screen="a", exit="exit code 0", files=(), contents=None: behaviour.Run(
-            screen=screen, exit=exit, files=list(files), contents=contents or {}, evidence={})
+        run = lambda screen="a", exit="exit code 0", files=(), contents=None: behaviour.Observation(
+            view=screen, exit=exit, files=list(files), contents=contents or {}, evidence={})
         self.assertEqual(behaviour.compare(run(), run())[0], "same")
         self.assertIn("exit code 1", behaviour.compare(run(), run(exit="exit code 1"))[1])
         self.assertIn("files before: none", behaviour.compare(run(), run(files=["created x"]))[1])
@@ -242,6 +242,7 @@ class BuildTests(unittest.TestCase):
         team = config.load(root)
         team.project.review = "snapshot"
         helpers.SCRIPTS["Atlas"].extend(["# Plan\nDo it.\n<file path=\"PLAN.md\">\n# Plan\n</file>",
+                                         "NO CHANGE",   # the journeys already cover it
                                          "Looks good.\nVERDICT: APPROVED"])
         helpers.SCRIPTS["Forge"].append('<file path="notes.txt">\nx\n</file>')
         with quiet():

@@ -23,7 +23,7 @@ from ..config import AgentConfig, Team
 TEST_PREFIXES = ("tests/", "test/", "spec/", "__tests__/", "test_")
 DOC_PREFIXES = ("README", "docs/", "CHANGELOG.md", "CONTRIBUTING.md")
 PART_RE = re.compile(r"^PART:\s*([^|\n]+?)\s*\|\s*([^|\n]*?)\s*\|\s*(.+?)\s*$", re.M)
-OPTIONAL = ("qa", "security", "docs")
+OPTIONAL = ("qa", "security", "docs", "journeys")   # journeys: the behaviour checks the task needs
 
 PARALLEL_NOTE = """
 The team has {count} builders who will work at the same time: {names}. After PLAN.md, add one
@@ -80,7 +80,7 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
     if not builders:
         team.by_role("builder")   # raises the standard "no agent with role" error
     parallel = parallel and len(builders) > 1
-    extra = {r: ([] if r in skip else team.all_by_role(r)) for r in OPTIONAL}
+    extra = {r: ([] if r in skip else team.all_by_role(r)) for r in OPTIONAL if r != "journeys"}
 
     if branch:
         if github.git(team.root, "status", "--porcelain", "--untracked-files=no").strip():
@@ -134,6 +134,17 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
         touched.update(written)
         focus.add(written)
         log.record(f"{qa_cfg.name}: tests first", reply, written)
+
+    if "journeys" not in skip and team.behaviour.server in team.mcp and base:
+        # Behaviour checks first, like tests first: the journeys that show this task working for a user.
+        from . import journeys
+        from ..config import load
+        writer = (extra["qa"] or [lead_cfg])[0]
+        plan_text = (team.root / "PLAN.md").read_text(encoding="utf-8") if (team.root / "PLAN.md").exists() else ""
+        written = journeys.for_task(team, writer, task, plan_text, log)
+        if written:
+            touched.update(written)
+            team.behaviour.scenarios = load(team.root).behaviour.scenarios
 
     note = f"Task: {task}\n\nStart building from PLAN.md."
     approved, rejected = False, 0

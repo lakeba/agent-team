@@ -249,8 +249,12 @@ def check(root: Path, ollama_url: str = "") -> list[Check]:
                                                else f"install {s.command}, or fix command in [mcp.{name}]"),
                              "behaviour checks" if team.behaviour.server == name and team.behaviour.scenarios
                              else "members' MCP tools"))
-    if team and team.behaviour.scenarios and team.sandbox.mode == "container":
-        out.append(Check("behaviour checks", True, "skipped while [sandbox] mode is container", optional=True))
+    if team and "rea" not in team.mcp:   # behaviour checks are optional: offer them
+        from . import rea
+        command, _, where = rea.find()
+        out.append(Check("REA (behaviour checks)", bool(command),
+                         f"installed ({where}), not used by this team yet" if command else "not installed",
+                         "agent-team rea setup", "behaviour checks", optional=True))
     if team and team.sandbox.mode == "container":
         from . import sandbox
         ok, detail = sandbox.ready(team)

@@ -290,6 +290,23 @@ def write_vision(root: Path, text: str) -> str:
     return "saved the vision as VISION.md: every workflow reads it, and /team-plan plans the roadmap from it"
 
 
+def setup_rea(root: Path, use_rea: bool | None, interactive: bool) -> str:
+    """Behaviour checks: when REA is on this machine, add [mcp.rea] and [behaviour] (asking first in a
+    terminal). Returns a note for the summary."""
+    if use_rea is False:
+        return ""
+    from .. import rea
+    command, args, where = rea.find()
+    if not command:
+        return ("Behaviour checks (the team uses the program like a user, before and after each change) need REA: "
+                "agent-team rea setup")
+    if interactive and use_rea is None and not ask_yes(f"REA is installed ({where}). Use it for behaviour checks?"):
+        return ""
+    rea.configure(root, command, args)
+    return ("Behaviour checks are set up with REA. Next: agent-team behaviour suggest (the lead writes the first "
+            "journeys), or /team-build writes them as it goes.")
+
+
 def ask_vision(root: Path) -> str:
     if (root / "VISION.md").exists():
         ui.say("The product vision: VISION.md (already written).\n")
@@ -327,7 +344,7 @@ def run(root: Path, builder_provider: str = "local", builder_model: str = "", fo
         ollama_url: str = "", no_claude: bool = False, *, models: str | None = None,
         extras: tuple[str, ...] | None = None, builders: int | None = None,
         per_run: float | None = None, per_day: float | None = None, interactive: bool = False,
-        vision: str | None = None) -> Path:
+        vision: str | None = None, use_rea: bool | None = None) -> Path:
     """Write a starter .team.toml. Every choice left as None is asked in a terminal (interactive)
     or takes its default."""
     path = root / CONFIG_NAME
@@ -404,8 +421,11 @@ def run(root: Path, builder_provider: str = "local", builder_model: str = "", fo
     ui.action(f"wrote {path} (test command: {test_command or 'none detected'}; repo: {github_repo(root) or 'none'})")
     if note:
         ui.say(f"Builder model: {note}.")
+    rea_note = setup_rea(root, use_rea, interactive)
     vision_note = write_vision(root, vision or "")
     if vision_note:
         ui.say(vision_note[0].upper() + vision_note[1:] + ".")
+    if rea_note:
+        ui.say(rea_note)
     ui.say("Edit the guarantees and team, then run `agent-team doctor`.")
     return path

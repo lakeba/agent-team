@@ -103,11 +103,15 @@ def to_data(team: Team) -> dict:
         defaults = McpServerConfig(name="", command="")
         mcp[name] = {k: v for k, v in d.items() if k == "command" or v != getattr(defaults, k)}
     behaviour = {}
-    if team.behaviour.scenarios or team.behaviour.server != BehaviourConfig().server:
-        sdef = BehaviourScenario(name="", run="")
+    if (team.behaviour.scenarios or team.behaviour.server != BehaviourConfig().server
+            or team.behaviour.browser):
+        sdef = BehaviourScenario(name="")
         behaviour = {"server": team.behaviour.server,
-                     "scenarios": [{k: v for k, v in asdict(sc).items() if k in ("name", "run") or v != getattr(sdef, k)}
-                                   for sc in team.behaviour.scenarios]}
+                     **({"browser": team.behaviour.browser} if team.behaviour.browser else {}),
+                     # only the ones written here: team/behaviour.toml keeps its own
+                     "scenarios": [{k: v for k, v in asdict(sc).items()
+                                    if k != "source" and (k == "name" or v != getattr(sdef, k))}
+                                   for sc in team.behaviour.scenarios if sc.source == ".team.toml"]}
     return {"project": project, "providers": providers, "pricing": dict(team.pricing), "limits": limits,
             "routing": routing, "notify": notify, "sandbox": sandbox, "mcp": mcp, "behaviour": behaviour,
             "agents": agents}
@@ -139,7 +143,8 @@ def render(data: dict) -> str:
         parts += ["", f"[mcp.{_key(name)}]", *_lines(s)]
     behaviour = dict(data.get("behaviour") or {})
     scenarios = behaviour.pop("scenarios", None) or []
-    if behaviour.get("server") and (scenarios or behaviour["server"] != BehaviourConfig().server):
+    if behaviour.get("server") and (scenarios or behaviour["server"] != BehaviourConfig().server
+                                    or behaviour.get("browser")):
         parts += ["", "[behaviour]", *_lines(behaviour)]
     for sc in scenarios:
         parts += ["", "[[behaviour.scenarios]]", *_lines(sc)]
@@ -214,9 +219,10 @@ def clean(data: dict) -> dict:
     btable = data.get("behaviour") or {}
     sf = {f.name for f in fields(BehaviourScenario)}
     behaviour = {}
-    if isinstance(btable, dict) and (btable.get("scenarios") or btable.get("server")):
+    if isinstance(btable, dict) and (btable.get("scenarios") or btable.get("server") or btable.get("browser")):
         behaviour = {"server": str(btable.get("server") or BehaviourConfig().server),
-                     "scenarios": [{k: v for k, v in (sc or {}).items() if k in sf}
+                     **({"browser": str(btable["browser"])} if btable.get("browser") else {}),
+                     "scenarios": [{k: v for k, v in (sc or {}).items() if k in sf - {"source"}}
                                    for sc in btable.get("scenarios") or [] if isinstance(sc, dict)]}
     return {"project": project, "providers": providers, "pricing": pricing, "limits": limits, "routing": routing,
             "notify": notify, "sandbox": sandbox, "mcp": mcp, "behaviour": behaviour, "agents": agents}

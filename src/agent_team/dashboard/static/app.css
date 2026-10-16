@@ -217,3 +217,11 @@ pre.job-output { font: 12px/1.45 var(--mono); background: var(--surface-0); bord
 .made { text-align: center; padding: 28px 16px 36px; font-size: 12px; }
 .made a { color: var(--text-muted); text-decoration: none; display: inline-flex; gap: 6px; align-items: center; }
 .made a:hover { color: var(--accent); }
+
+/* Behaviour checks: before and now, side by side */
+.grid.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.screen { white-space: pre-wrap; word-break: break-word; margin: 8px 0 0; padding: 10px 12px; font: 12.5px/1.5 var(--mono);
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; max-height: 360px; overflow: auto; }
+img.shot { display: block; width: 100%; height: auto; margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; }
+button.link { background: none; border: none; padding: 0; color: var(--accent); cursor: pointer; font: inherit; }
+button.link.selected { font-weight: 600; text-decoration: underline; }

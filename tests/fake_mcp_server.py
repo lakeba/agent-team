@@ -17,7 +17,33 @@ TOOLS = [
     {"name": "hidden", "description": "x" * 5000, "inputSchema": {"type": "object", "properties": {}}},
     {"name": "capture_process_scenario", "description": "Run a command.", "inputSchema": {"type": "object"}},
     {"name": "compare_process_captures", "description": "Compare two runs.", "inputSchema": {"type": "object"}},
+    {"name": "capture_browser_scenario", "description": "Drive a browser.", "inputSchema": {"type": "object"}},
+    {"name": "compare_web_screenshots", "description": "Compare two PNGs.", "inputSchema": {"type": "object"}},
+    {"name": "inspect_managed_members", "description": "Read a .NET assembly.", "inputSchema": {"type": "object"}},
 ]
+
+
+def browse(args):
+    """A pretend browser: the page's text (tags removed) after the steps, which must name real text."""
+    import re
+    import urllib.request
+    html = urllib.request.urlopen(args["start_url"]["url"], timeout=5).read().decode()
+    text = re.sub(r"<[^>]+>", " ", html)
+    steps = [{"step_id": "scenario_start", "status": "completed", "artifacts": {}}]
+    for a in args["actions"]:
+        steps.append({"step_id": a["step_id"], "status": "completed", "artifacts": {}})
+    png = {"sha256": "a" * 64 if "v2" not in html else "b" * 64, "bytes": 4, "media_type": "image/png",
+           "data_base64": "iVBORw=="}
+    steps[-1]["artifacts"] = {"accessibility": {"state": "captured", "value": {"text": " ".join(text.split())}},
+                              "url": {"state": "captured", "value": {"url": args["start_url"]["url"]}},
+                              "screenshot": {"state": "captured", "value": png}}
+    errors = [{"kind": "page-error", "text": "boom"}] if "boom" in html else []
+    return {"normalized_result": {"steps": steps, "events": {"items": errors}}}
+
+
+def assembly(args):
+    """A pretend assembly: a JSON file with types and methods in REA's shape."""
+    return {"normalized_result": json.load(open(args["path"]))}
 
 
 def files_in(paths):
@@ -71,8 +97,12 @@ for line in sys.stdin:
             result(rid, {"content": [{"type": "text", "text": args["text"] + " | env: " + ",".join(sorted(os.environ))}]})
         elif name == "big":
             result(rid, {"content": [{"type": "text", "text": "y" * 50_000}]})
-        elif name in ("capture_process_scenario", "compare_process_captures"):
-            value = capture(args) if name.startswith("capture") else {"normalized_result": compare(args)}   # as REA
+        elif name in ("capture_process_scenario", "compare_process_captures", "capture_browser_scenario",
+                      "inspect_managed_members", "compare_web_screenshots"):
+            value = {"capture_process_scenario": capture, "capture_browser_scenario": browse,
+                     "inspect_managed_members": assembly,
+                     "compare_web_screenshots": lambda a: {"normalized_result": {"changed_pixel_ratio": 0.05}},
+                     "compare_process_captures": lambda a: {"normalized_result": compare(a)}}[name](args)
             result(rid, {"content": [{"type": "text", "text": json.dumps(value)}], "structuredContent": value})
         else:
             print(json.dumps({"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": f"no tool {name}"}}),
