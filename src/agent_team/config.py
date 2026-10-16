@@ -47,6 +47,7 @@ class AgentConfig:
     skills: list[str] = field(default_factory=list)   # Markdown files or skill folders added to the prompt
     escalate_to: str = ""           # a stronger member who takes over this member's work after failed rounds
     github_token_env: str = ""      # variable holding this member's own GitHub token (its bot account or app)
+    mcp: list[str] = field(default_factory=list)   # [mcp] servers whose allowed tools this member may call
     color: str = ""
 
 
@@ -95,6 +96,38 @@ class SandboxConfig:
 
 
 @dataclass
+class McpServerConfig:
+    """A tool server the team can use over the Model Context Protocol (stdio)."""
+    name: str
+    command: str                    # the program that starts the server, e.g. "rea" or "npx"
+    args: list[str] = field(default_factory=list)
+    env: dict = field(default_factory=dict)        # extra environment variables (plain values, never secrets)
+    env_from: list[str] = field(default_factory=list)   # variables passed through from your environment or keys file
+    tools: list[str] = field(default_factory=list)  # the only tools members are offered; the rest stay hidden
+    timeout: int = 300              # seconds one tool call may take
+    max_output: int = 20_000        # characters of one result a model sees
+
+
+@dataclass
+class BehaviourScenario:
+    """A user journey run on the base version and on the team's work, then compared."""
+    name: str
+    run: str                        # shell commands; $PROJECT is the version under test; runs in an empty folder
+    prepare: str = ""               # run first in $PROJECT, not captured (e.g. a build), so the run itself is quick
+    input: list[str] = field(default_factory=list)   # lines typed into the program, one after another
+    input_delay: float = 2.0        # seconds before the first line is typed
+    input_every: float = 1.0        # seconds between lines
+    timeout: int = 120              # seconds
+    watch: list[str] = field(default_factory=lambda: ["."])   # files (in that folder) compared after the run
+
+
+@dataclass
+class BehaviourConfig:
+    server: str = "rea"             # the [mcp] server that captures the runs
+    scenarios: list[BehaviourScenario] = field(default_factory=list)
+
+
+@dataclass
 class Team:
     root: Path
     project: ProjectConfig
@@ -105,6 +138,8 @@ class Team:
     routing: RoutingConfig = field(default_factory=RoutingConfig)
     notify: NotifyConfig = field(default_factory=NotifyConfig)
     sandbox: SandboxConfig = field(default_factory=SandboxConfig)
+    mcp: dict[str, McpServerConfig] = field(default_factory=dict)
+    behaviour: BehaviourConfig = field(default_factory=BehaviourConfig)
 
     def by_role(self, role: str, required: bool = True) -> AgentConfig | None:
         found = [a for a in self.agents.values() if a.role == role]
@@ -235,5 +270,42 @@ def parse(data: dict, root: Path) -> Team:
         raise ConfigError(f"[sandbox].mode: use off or container, not {sandbox.mode!r}")
     if sandbox.engine not in ("", "docker", "podman"):
         raise ConfigError(f"[sandbox].engine: use docker or podman, not {sandbox.engine!r}")
+    mcp = {}
+    for name, table in (data.get("mcp") or {}).items():
+        s = _take(dict(table), McpServerConfig, f"[mcp.{name}]", name=name)
+        if not isinstance(s.command, str) or not s.command.strip():
+            raise ConfigError(f"[mcp.{name}]: command is the program that starts the server, e.g. \"rea\"")
+        if not all(isinstance(x, str) for x in [*s.args, *s.tools, *s.env_from]):
+            raise ConfigError(f"[mcp.{name}]: args, tools and env_from are lists of strings")
+        if not isinstance(s.env, dict) or not all(isinstance(v, str) for v in s.env.values()):
+            raise ConfigError(f"[mcp.{name}].env: names and plain string values (put secrets in env_from)")
+        if not isinstance(s.timeout, int) or s.timeout < 1 or not isinstance(s.max_output, int) or s.max_output < 500:
+            raise ConfigError(f"[mcp.{name}]: timeout is seconds (1 or more); max_output is characters (500 or more)")
+        mcp[name] = s
+    for a in agents.values():
+        unknown = [m for m in a.mcp if m not in mcp]
+        if unknown:
+            raise ConfigError(f"agent {a.name!r}: mcp names {unknown}, which aren't [mcp] servers in {CONFIG_NAME}")
+        empty = [m for m in a.mcp if not mcp[m].tools]
+        if empty:
+            raise ConfigError(f"agent {a.name!r} uses [mcp.{empty[0]}], which allows no tools yet: list the ones "
+                              f"members may call in its tools")
+    btable = dict(data.get("behaviour") or {})
+    scenarios = []
+    for i, table in enumerate(btable.pop("scenarios", None) or []):
+        sc = _take(dict(table), BehaviourScenario, f"[[behaviour.scenarios]] #{i + 1}")
+        if not sc.name.strip() or not sc.run.strip():
+            raise ConfigError(f"[[behaviour.scenarios]] #{i + 1}: needs a name and the commands to run")
+        if not all(isinstance(x, str) for x in [*sc.input, *sc.watch]) or not isinstance(sc.timeout, int) or sc.timeout < 1:
+            raise ConfigError(f"[[behaviour.scenarios]] {sc.name!r}: input and watch are lists of strings; timeout is seconds")
+        if not all(isinstance(x, (int, float)) and x >= 0 for x in (sc.input_delay, sc.input_every)):
+            raise ConfigError(f"[[behaviour.scenarios]] {sc.name!r}: input_delay and input_every are seconds")
+        if any(w.startswith("/") or ".." in w.split("/") for w in sc.watch):
+            raise ConfigError(f"[[behaviour.scenarios]] {sc.name!r}: watch paths are inside the run's folder (relative)")
+        scenarios.append(sc)
+    behaviour = _take(btable, BehaviourConfig, "[behaviour]", scenarios=scenarios)
+    if scenarios and behaviour.server not in mcp:
+        raise ConfigError(f"[behaviour].server is {behaviour.server!r}, but there's no [mcp.{behaviour.server}] to "
+                          f"capture the runs with")
     return Team(root=root, project=project, providers=providers, agents=agents, pricing=pricing, limits=limits,
-                routing=routing, notify=notify, sandbox=sandbox)
+                routing=routing, notify=notify, sandbox=sandbox, mcp=mcp, behaviour=behaviour)

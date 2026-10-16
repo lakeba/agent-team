@@ -241,6 +241,16 @@ def check(root: Path, ollama_url: str = "") -> list[Check]:
         out.append(Check("keys file permissions", False, f"{keys.path()} is readable by other users",
                          f"chmod 600 {keys.path()}"))
 
+    if team:   # tool servers: is each one's program installed? (doctor also starts them)
+        for name, s in team.mcp.items():
+            found = shutil.which(s.command)
+            out.append(Check(f"MCP server {name}", bool(found), found or f"{s.command} isn't on the PATH",
+                             "" if found else (f"install it (REA: npm install --global rea-agents)" if "rea" in s.command
+                                               else f"install {s.command}, or fix command in [mcp.{name}]"),
+                             "behaviour checks" if team.behaviour.server == name and team.behaviour.scenarios
+                             else "members' MCP tools"))
+    if team and team.behaviour.scenarios and team.sandbox.mode == "container":
+        out.append(Check("behaviour checks", True, "skipped while [sandbox] mode is container", optional=True))
     if team and team.sandbox.mode == "container":
         from . import sandbox
         ok, detail = sandbox.ready(team)

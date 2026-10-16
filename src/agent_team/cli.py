@@ -62,6 +62,15 @@ def cmd_doctor(args) -> int:
     for name, problem in skills.problems(team).items():
         failed += 1
         ui.say(f"  {name}: FAILED: {problem}")
+    if team.mcp:
+        from . import mcp
+        ui.heading("Tool servers (MCP)")
+        for name in team.mcp:
+            ok, detail = mcp.check(team, name)
+            failed += not ok
+            users = [a.name for a in team.agents.values() if name in a.mcp]
+            role = (["behaviour checks"] if team.behaviour.scenarios and team.behaviour.server == name else []) + users
+            ui.say(f"  {name}  ({', '.join(role) or 'not used yet'})\n      {'ok' if ok else 'FAILED'}: {detail}")
     for role in ("lead", "builder", "devops"):
         if not team.by_role(role, required=False):
             ui.warn(f"no {role!r} agent: the workflows that need one won't run")

@@ -481,51 +481,62 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
 
     tools = [view_pull_request, comment, set_labels, close_issue, request_signoffs, request_lead_review, request_fix,
              merge_pull_request, write_feedback_digest, create_release]
+    from .. import mcp
+    member_tools = mcp.member_tools(team, devops_cfg)   # the devops member's [mcp] tools, if it has any
+    extra = member_tools.__enter__()
+    tools += extra
+    tools_note = mcp.tools_note(extra)
+    try:
 
-    ui.heading(f"{devops_cfg.name}'s shift on {repo}")
-    state = repo_state(team)
-    if team.project.release == "ask":
-        pending = release_proposal(root)
-        state = (f"# Releases\nThis project's owners approve releases. "
-                 + (f"They approved v{approved_release} for this shift: release it with create_release."
-                    if approved_release else
-                    "Propose one with create_release when it's worth it; it is recorded, not published.")
-                 + (f" Pending proposal: v{pending['version']}." if pending and not approved_release else "")
-                 + f"\n\n{state}")
-    handover = _last_summary(log.path)
-    if handover:
-        state = f"# Your handover notes from the previous shift\n\n{handover}\n\n{state}"
+        ui.heading(f"{devops_cfg.name}'s shift on {repo}")
+        state = repo_state(team)
+        if team.project.release == "ask":
+            pending = release_proposal(root)
+            state = (f"# Releases\nThis project's owners approve releases. "
+                     + (f"They approved v{approved_release} for this shift: release it with create_release."
+                        if approved_release else
+                        "Propose one with create_release when it's worth it; it is recorded, not published.")
+                     + (f" Pending proposal: v{pending['version']}." if pending and not approved_release else "")
+                     + f"\n\n{state}")
+        handover = _last_summary(log.path)
+        if handover:
+            state = f"# Your handover notes from the previous shift\n\n{handover}\n\n{state}"
 
-    provider = team.providers[devops_cfg.provider]
-    system = agent.make(team, devops_cfg, "devops").system
-    first = f"Start your shift. Current state:\n\n{state}"
-    if provider.kind != "anthropic":   # Ollama, OpenAI-compatible or a remote node: the generic tool loop
-        from .. import tool_loop
-        summary = tool_loop.run(team, devops_cfg, system, tools, first, max_steps)
+        provider = team.providers[devops_cfg.provider]
+        system = agent.make(team, devops_cfg, "devops").system
+        first = f"Start your shift. Current state:\n\n{state}"
+        if tools_note:
+            system = f"{system}\n\n{tools_note}"
+        # Ollama, OpenAI-compatible or a remote node, or MCP tools (which the SDK's runner doesn't take): the generic loop
+        if provider.kind != "anthropic" or tools_note:
+            from .. import tool_loop
+            summary = tool_loop.run(team, devops_cfg, system, tools, first, max_steps)
+            log.record(f"{devops_cfg.name}: shift summary", summary)
+            ui.heading(f"Shift over. Log: {log.path}")
+            return
+        client = anthropic.Anthropic(api_key=team.secret(provider)) if team.secret(provider) else anthropic.Anthropic()
+        runner = client.beta.messages.tool_runner(
+            model=devops_cfg.model, max_tokens=16000, tools=tools, system=system,
+            output_config={"effort": devops_cfg.effort}, max_iterations=max_steps,
+            **({"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"}
+               if devops_cfg.model.startswith(("claude-fable-5-1", "claude-opus-5", "claude-sonnet-5-5")) else {}),
+            messages=[{"role": "user", "content": first}])
+        final = None
+        for message in runner:
+            final = message
+            usage.record(root, devops_cfg.name, "anthropic", devops_cfg.model,
+                         anthropic_usage(message))
+            for block in message.content:
+                if block.type == "text" and block.text.strip():
+                    ui.say(f"\n{ui.label(devops_cfg.name, 'devops', devops_cfg.color)}: {block.text}")
+                elif block.type == "tool_use":
+                    ui.say(f"  → {block.name}({json.dumps(block.input)[:140]})")
+            budget.check(team)
+        summary = "".join(b.text for b in final.content if b.type == "text") if final else ""
         log.record(f"{devops_cfg.name}: shift summary", summary)
         ui.heading(f"Shift over. Log: {log.path}")
-        return
-    client = anthropic.Anthropic(api_key=team.secret(provider)) if team.secret(provider) else anthropic.Anthropic()
-    runner = client.beta.messages.tool_runner(
-        model=devops_cfg.model, max_tokens=16000, tools=tools, system=system,
-        output_config={"effort": devops_cfg.effort}, max_iterations=max_steps,
-        **({"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"}
-           if devops_cfg.model.startswith(("claude-fable-5-1", "claude-opus-5", "claude-sonnet-5-5")) else {}),
-        messages=[{"role": "user", "content": first}])
-    final = None
-    for message in runner:
-        final = message
-        usage.record(root, devops_cfg.name, "anthropic", devops_cfg.model,
-                     anthropic_usage(message))
-        for block in message.content:
-            if block.type == "text" and block.text.strip():
-                ui.say(f"\n{ui.label(devops_cfg.name, 'devops', devops_cfg.color)}: {block.text}")
-            elif block.type == "tool_use":
-                ui.say(f"  → {block.name}({json.dumps(block.input)[:140]})")
-        budget.check(team)
-    summary = "".join(b.text for b in final.content if b.type == "text") if final else ""
-    log.record(f"{devops_cfg.name}: shift summary", summary)
-    ui.heading(f"Shift over. Log: {log.path}")
+    finally:
+        member_tools.__exit__(None, None, None)
 
 
 def anthropic_usage(message) -> dict:

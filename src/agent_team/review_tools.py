@@ -139,4 +139,8 @@ verdict line your instructions ask for."""
 def review(team: Team, cfg: AgentConfig, system: str, brief: str, base: str | None = None,
            touched: set[str] | None = None, max_steps: int = 25) -> str:
     """One review with tools; returns the reviewer's final text (with its verdict line)."""
-    return tool_loop.run(team, cfg, f"{system}\n\n{TOOL_NOTE}", make_tools(team, base, touched), brief, max_steps)
+    from . import mcp
+    with mcp.member_tools(team, cfg) as extra:
+        note = f"\n\n{mcp.tools_note(extra)}" if extra else ""
+        return tool_loop.run(team, cfg, f"{system}\n\n{TOOL_NOTE}{note}", make_tools(team, base, touched) + extra,
+                             brief, max_steps)

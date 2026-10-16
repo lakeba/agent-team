@@ -14,8 +14,9 @@ import tomllib
 from dataclasses import asdict, fields
 from pathlib import Path
 
-from .config import (CONFIG_NAME, AgentConfig, ConfigError, LimitsConfig, NotifyConfig, ProjectConfig, ProviderConfig,
-                     RoutingConfig, SandboxConfig, Team, parse)
+from .config import (CONFIG_NAME, AgentConfig, BehaviourConfig, BehaviourScenario, ConfigError, LimitsConfig,
+                     McpServerConfig, NotifyConfig, ProjectConfig, ProviderConfig, RoutingConfig, SandboxConfig, Team,
+                     parse)
 
 HEADER = ("# agent-team configuration. Docs: https://github.com/lakeba/agent-team/blob/main/docs/configuration.md\n"
           "# Secrets never go here: providers name the environment variable that holds them.\n")
@@ -95,8 +96,21 @@ def to_data(team: Team) -> dict:
     routing = {k: v for k, v in asdict(team.routing).items() if v != getattr(RoutingConfig(), k)}
     notify = {k: v for k, v in asdict(team.notify).items() if v != getattr(NotifyConfig(), k)}
     sandbox = {k: v for k, v in asdict(team.sandbox).items() if v != getattr(SandboxConfig(), k)}
+    mcp = {}
+    for name, s in team.mcp.items():
+        d = asdict(s)
+        d.pop("name")
+        defaults = McpServerConfig(name="", command="")
+        mcp[name] = {k: v for k, v in d.items() if k == "command" or v != getattr(defaults, k)}
+    behaviour = {}
+    if team.behaviour.scenarios or team.behaviour.server != BehaviourConfig().server:
+        sdef = BehaviourScenario(name="", run="")
+        behaviour = {"server": team.behaviour.server,
+                     "scenarios": [{k: v for k, v in asdict(sc).items() if k in ("name", "run") or v != getattr(sdef, k)}
+                                   for sc in team.behaviour.scenarios]}
     return {"project": project, "providers": providers, "pricing": dict(team.pricing), "limits": limits,
-            "routing": routing, "notify": notify, "sandbox": sandbox, "agents": agents}
+            "routing": routing, "notify": notify, "sandbox": sandbox, "mcp": mcp, "behaviour": behaviour,
+            "agents": agents}
 
 
 def render(data: dict) -> str:
@@ -121,6 +135,14 @@ def render(data: dict) -> str:
         parts += ["", "[sandbox]", *_lines(sandbox, skip_empty=False)]
     for model, price in (data.get("pricing") or {}).items():
         parts += ["", f"[pricing.{_key(model)}]", *_lines(price, skip_empty=False)]
+    for name, s in (data.get("mcp") or {}).items():
+        parts += ["", f"[mcp.{_key(name)}]", *_lines(s)]
+    behaviour = dict(data.get("behaviour") or {})
+    scenarios = behaviour.pop("scenarios", None) or []
+    if behaviour.get("server") and (scenarios or behaviour["server"] != BehaviourConfig().server):
+        parts += ["", "[behaviour]", *_lines(behaviour)]
+    for sc in scenarios:
+        parts += ["", "[[behaviour.scenarios]]", *_lines(sc)]
     for a in data.get("agents") or []:
         parts += ["", "[[agents]]", *_lines(a)]
     return "\n".join(parts) + "\n"
@@ -187,8 +209,17 @@ def clean(data: dict) -> dict:
         notify["events"] = [e for e in notify["events"] if isinstance(e, str) and e.strip()]
     sandbox = {k: v for k, v in (data.get("sandbox") or {}).items()
                if k in {f.name for f in fields(SandboxConfig)} and v not in (None, "")}
+    mf = {f.name for f in fields(McpServerConfig)} - {"name"}
+    mcp = {str(n): {k: v for k, v in (s or {}).items() if k in mf} for n, s in (data.get("mcp") or {}).items()}
+    btable = data.get("behaviour") or {}
+    sf = {f.name for f in fields(BehaviourScenario)}
+    behaviour = {}
+    if isinstance(btable, dict) and (btable.get("scenarios") or btable.get("server")):
+        behaviour = {"server": str(btable.get("server") or BehaviourConfig().server),
+                     "scenarios": [{k: v for k, v in (sc or {}).items() if k in sf}
+                                   for sc in btable.get("scenarios") or [] if isinstance(sc, dict)]}
     return {"project": project, "providers": providers, "pricing": pricing, "limits": limits, "routing": routing,
-            "notify": notify, "sandbox": sandbox, "agents": agents}
+            "notify": notify, "sandbox": sandbox, "mcp": mcp, "behaviour": behaviour, "agents": agents}
 
 
 def plan_change(root: Path, data: dict) -> dict:

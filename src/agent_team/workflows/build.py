@@ -17,7 +17,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
-from .. import agent, context, files, github, memory, review_tools, routing, ui
+from .. import agent, behaviour, context, files, github, memory, review_tools, routing, ui
 from ..config import AgentConfig, Team
 
 TEST_PREFIXES = ("tests/", "test/", "spec/", "__tests__/", "test_")
@@ -137,6 +137,7 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
 
     note = f"Task: {task}\n\nStart building from PLAN.md."
     approved, rejected = False, 0
+    checks: list = []
     for rnd in range(1, rounds + 1):
         ui.heading(f"=========== Round {rnd}/{rounds} ===========")
         results = _build_round(team, parts, note, focus)
@@ -152,6 +153,12 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
         if tests:
             ui.say(tests)
             log.record(f"Tests: round {rnd}", tests)
+        checks = behaviour.run(team, base)
+        if checks:
+            evidence = behaviour.report(checks)
+            log.record(f"Behaviour checks: round {rnd}", evidence)
+            ui.say(behaviour.report(checks, for_pr=True))
+            tests += f"\n\n{evidence}"
 
         messages = "\n\n".join(f"# {p.builder.name}'s message (round {rnd})\n\n{files.strip_files(r)}"
                                for p, (r, _) in zip(parts, results))
@@ -215,7 +222,8 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
 
     if approved and open_pr:
         names = ", ".join(p.builder.name for p in parts)
-        open_pull_request(team, task, sorted(touched), lead_cfg.name, names, closes)
+        open_pull_request(team, task, sorted(touched), lead_cfg.name, names, closes,
+                          behaviour.report(checks, for_pr=True))
     ui.say(f"Log: {log.path}")
     return approved
 
@@ -270,7 +278,8 @@ def plan_title(plan: str, task: str) -> str:
     return task if len(task) <= 72 else task[:69] + "..."
 
 
-def open_pull_request(team: Team, task: str, paths: list[str], lead: str, builder: str, closes: int = 0) -> str:
+def open_pull_request(team: Team, task: str, paths: list[str], lead: str, builder: str, closes: int = 0,
+                      checks: str = "") -> str:
     if not team.project.repo:
         raise SystemExit("[project].repo is not set, so no pull request can be opened.")
     branch = github.git(team.root, "rev-parse", "--abbrev-ref", "HEAD").strip()
@@ -295,7 +304,8 @@ def open_pull_request(team: Team, task: str, paths: list[str], lead: str, builde
                     if plan.strip() else "")
     closing = f"Closes #{closes}.\n\n" if closes else ""
     body = (f"{closing}{task}\n\nPlanned by {lead}, built by {builder}; the lead approved the result and the "
-            f"project's tests ran each round.\n\nFiles: {', '.join(f'`{p}`' for p in paths)}{plan_section}\n\n"
+            f"project's tests ran each round.\n\nFiles: {', '.join(f'`{p}`' for p in paths)}"
+            f"{chr(10) * 2 + checks if checks else ''}{plan_section}\n\n"
             "Opened by agent-team. The devops shift reviews, gets sign-offs and merges.")
     url = github.gh("pr", "create", "-R", team.project.repo, "--head", branch, "--title", title,
                     "--body", body).strip()

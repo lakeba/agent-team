@@ -6,6 +6,19 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- Tool servers over MCP: `[mcp.<name>]` starts a local Model Context Protocol server (stdio) and
+  offers members only the tools its `tools` list allows. Members with `mcp = [...]` can call them
+  in reviews and devops shifts, with any provider that can use tools. Servers start with a small
+  environment (your API keys stay out), and results reach the models marked as untrusted and cut
+  to `max_output`. `ready` checks each server is installed and `doctor` that it starts.
+- Behaviour checks: `[[behaviour.scenarios]]` are user journeys (commands, typed input, files to
+  watch) that `build` runs every round on the base version and with the team's changes, captured by
+  [REA](https://github.com/morluto/rea) through MCP and compared as a user would see them (the final
+  screen, the exit code, the files by content). The lead reviews with the screens and the first
+  difference, the builders get them with requested changes, and the pull request lists the outcome.
+
 ## [0.6.1] - 2026-10-16
 
 ### Added

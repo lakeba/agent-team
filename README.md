@@ -128,6 +128,17 @@ from a vision you've written elsewhere:
 agent-team discuss --vision ~/notes/tipsplit-pitch.md    # saved as VISION.md if there's none yet
 ```
 
+### Behaviour checks and tool servers (MCP)
+
+Tests check what their authors thought of. A behaviour check runs the program the way a user would,
+before and after the team's change, and compares the two runs, so a review can say "after `stop`,
+`status` still shows the timer running" with the screens as evidence. List a few user journeys
+under `[[behaviour.scenarios]]`; `build` runs them every round and gives the lead the results.
+They're captured by [REA](https://github.com/morluto/rea) (`npm install --global rea-agents`),
+one of the tool servers the team can use over MCP: any `[mcp.*]` server's allowed tools can also
+be given to members (`mcp = ["rea"]`) for their reviews and shifts. `agent-team doctor` checks that
+each server starts. See [configuration](docs/configuration.md#mcpname).
+
 ### Other commands
 
 | Command | What it does |

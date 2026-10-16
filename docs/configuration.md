@@ -103,6 +103,71 @@ events = []                          # empty: all of pr_opened, pr_merged, fix_p
 
 The URL itself never goes in `.team.toml`. `agent-team notify` sends a test message.
 
+## `[mcp.<name>]`
+
+A tool server the team can use, over the Model Context Protocol (stdio). agent-team starts it
+when a member or a behaviour check needs it, and stops it afterwards.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `command` | required | The program that starts the server, e.g. `"rea"` or `"npx"`. |
+| `args` | `[]` | Its arguments, e.g. `["--mcp"]`. |
+| `tools` | `[]` | The only tools members are offered. Servers can offer hundreds (REA has over 200, with megabytes of descriptions), so list the few a member's job needs. Behaviour checks call the tools they need whatever this says. |
+| `env` | `{}` | Extra environment variables, as plain values. Never put secrets here. |
+| `env_from` | `[]` | Variables passed through from your environment or keys file (for tokens a server needs). |
+| `timeout` | `300` | Seconds one tool call may take. |
+| `max_output` | `20000` | Characters of one result a model sees; the rest is cut, with a note. |
+
+A server starts with a small environment (PATH, HOME, locale, terminal) plus `env` and `env_from`,
+never everything agent-team has loaded, so your API keys don't reach the programs it runs.
+Results reach the models marked as untrusted, like issue text from outside the team.
+
+```toml
+[mcp.rea]                     # REA: npm install --global rea-agents
+command = "rea"
+args = ["--mcp"]
+tools = ["capture_process_scenario"]   # each allowed tool's description is sent on every call: this one is ~8,000 characters
+```
+
+## `[behaviour]` and `[[behaviour.scenarios]]`
+
+Behaviour checks run your program the way a user would, once on the version a build started from
+and once with the team's changes, and compare the two runs: the screen, the exit code and the files
+it left. `build` runs them every round, after the tests. The lead reviews with the results (screens
+included); the builders get them with any requested changes; the pull request lists them.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `[behaviour].server` | `rea` | The `[mcp.*]` server that captures the runs (it needs `capture_process_scenario`). agent-team compares them: the final screen line by line, the exit code, and the files by content. |
+| `name` | required | A short name for the journey, shown in reviews and the PR. |
+| `run` | required | Shell commands. They run in an empty folder; `$PROJECT` is the version under test. |
+| `prepare` | `""` | Run first in `$PROJECT` and not captured, e.g. a build, so the run itself is quick. |
+| `input` | `[]` | Lines typed into the program, one after another. |
+| `input_delay` | `2.0` | Seconds before the first line is typed. |
+| `input_every` | `1.0` | Seconds between lines. |
+| `timeout` | `120` | Seconds the run may take. |
+| `watch` | `["."]` | Paths in the run's folder whose files are compared. |
+
+```toml
+[behaviour]
+server = "rea"
+
+[[behaviour.scenarios]]
+name = "timer journey"
+prepare = "dotnet build -c Release -o out"
+run = 'tally() { dotnet "$PROJECT/out/Tally.dll" "$@"; }; tally start client-a; tally stop; tally status'
+
+[[behaviour.scenarios]]
+name = "asks for a project name"
+prepare = "dotnet build -c Release -o out"
+run = 'dotnet "$PROJECT/out/Tally.dll" start'
+input = ["client-b"]
+```
+
+The program runs with your user's permissions on this machine, as the tests do when `[sandbox]`
+is off. With `[sandbox] mode = "container"`, behaviour checks are skipped for now. They need git
+(the base version is checked out in a temporary worktree) and are skipped without it.
+
 ## `[[agents]]`
 
 | Key | Default | Meaning |
@@ -117,6 +182,7 @@ The URL itself never goes in `.team.toml`. `agent-team notify` sends a test mess
 | `prompt` | `""` | A Markdown file (relative to the project) replacing this member's role prompt. Placeholders such as `{name}`, `{project}`, `{roster}`, `{guarantees}` are filled in. |
 | `github_token_env` | `""` | The variable holding this member's own GitHub token (a bot account or GitHub App installation). Its comments are posted as that account, and its sign-offs and the lead's verdicts become real GitHub reviews (approve or request changes), so branch protection can require them. |
 | `escalate_to` | `""` | A stronger member who takes over this member's build or fix after `[routing].escalate_after` rejected rounds. |
+| `mcp` | `[]` | `[mcp.*]` server names. In reviews (the lead) and devops shifts, this member may call those servers' allowed tools. |
 | `skills` | `[]` | Markdown files, or folders holding a `SKILL.md` (a Claude Code skill works as it is), added to this member's prompt after its role prompt. Relative to the project; `~` is the home folder. See below. |
 | `color` | by role | Terminal colour: orange, cyan, pink, green, yellow, blue, magenta, red. |
 
