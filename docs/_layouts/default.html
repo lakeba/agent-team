@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+{% include head.html %}
+</head>
+<body>
+{% include header.html %}
+<div class="wrap docs">
+  <aside aria-label="Guides">
+    <h4>Guides</h4>
+    <ul>
+      {% assign guides = "architecture|Architecture,configuration|Configuration,extending|Extending the team,remote-agents|Remote agents,publishing|Publishing" | split: "," %}
+      {% for g in guides %}{% assign parts = g | split: "|" %}
+      <li><a href="{{ '/' | append: parts[0] | append: '.html' | relative_url }}"{% if page.url contains parts[0] %} class="on" aria-current="page"{% endif %}>{{ parts[1] }}</a></li>
+      {% endfor %}
+    </ul>
+    <h4>More</h4>
+    <ul>
+      <li><a href="{{ '/' | relative_url }}">Home</a></li>
+      <li><a href="https://github.com/lakeba/agent-team/blob/main/CHANGELOG.md">Changelog</a></li>
+      <li><a href="https://github.com/lakeba/agent-team">Source on GitHub</a></li>
+    </ul>
+  </aside>
+  <article class="prose">
+{{ content }}
+  </article>
+</div>
+{% include footer.html %}
+</body>
+</html>

@@ -338,11 +338,18 @@ document.querySelectorAll("[role=tab]").forEach(tab => tab.addEventListener("cli
   document.querySelectorAll("[role=tab]").forEach(t => t.setAttribute("aria-selected", String(t === tab)));
   document.querySelectorAll("[role=tabpanel]").forEach(p => { p.hidden = p.id !== tab.dataset.tab; });
   try { localStorage.setItem("agent-team-tab", tab.dataset.tab); } catch (_) {}
+  history.replaceState(null, "", `#${tab.dataset.tab}`);
 }));
-try {
-  const saved = localStorage.getItem("agent-team-tab");
-  if (saved) document.querySelector(`[role=tab][data-tab="${saved}"]`)?.click();
-} catch (_) {}
+// A tab can be opened by its address (…/#runs); otherwise the last tab used is reopened.
+const fromHash = location.hash.slice(1);
+if (fromHash && document.querySelector(`[role=tab][data-tab="${fromHash}"]`)) {
+  document.querySelector(`[role=tab][data-tab="${fromHash}"]`).click();
+} else {
+  try {
+    const saved = localStorage.getItem("agent-team-tab");
+    if (saved) document.querySelector(`[role=tab][data-tab="${saved}"]`)?.click();
+  } catch (_) {}
+}
 document.getElementById("refresh").addEventListener("click", () => {
   if (typeof edit !== "undefined" && edit.on && !confirm("Refreshing discards your unsaved edits. Continue?")) return;
   if (typeof edit !== "undefined") { edit.on = false; edit.draft = null; }

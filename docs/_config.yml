@@ -1,9 +1,11 @@
 # GitHub Pages (Settings → Pages → Deploy from a branch → main, /docs) renders these pages.
 title: agent-team
 description: A configurable team of AI agents that plans, builds, reviews, markets and ships software through GitHub.
-theme: jekyll-theme-cayman
 plugins:
   - jekyll-relative-links
+  - jekyll-optional-front-matter
+  - jekyll-titles-from-headings
+  - jekyll-default-layout
 relative_links:
   enabled: true
   collections: false

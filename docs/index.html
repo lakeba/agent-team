@@ -1,0 +1,212 @@
+---
+layout: home
+title: agent-team
+description: An AI dev team for your repository. It plans, builds, reviews, fixes, merges and releases through GitHub, on Claude, on local Ollama models or on your other machines, with the rules enforced in code.
+---
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="pill"><span class="dot"></span> v0.5 · open source · MIT</span>
+      <h1>Your AI dev team.<br><span class="accent">On any model, any machine.</span></h1>
+      <p class="lede">agent-team plans a roadmap, builds features as pull requests, reviews them, fixes what
+        reviewers ask for, merges and releases, through GitHub, like a small team would. The rules that
+        keep it safe are enforced in code, not left to the models.</p>
+      <div class="ctas">
+        <a class="btn primary" href="#start">Get started</a>
+        <a class="btn" href="https://github.com/lakeba/agent-team">View on GitHub</a>
+      </div>
+      <div class="install" aria-label="Install command">
+        <span class="prompt">$</span><code>pipx install agent-team</code>
+        <button class="copy" type="button" data-copy="pipx install agent-team">Copy</button>
+      </div>
+      <div class="facts">
+        <span class="pill">Claude</span><span class="pill">Ollama</span><span class="pill">OpenAI-compatible</span>
+        <span class="pill">Your other machines</span><span class="pill">macOS &amp; Linux</span>
+      </div>
+    </div>
+    <div class="terminal" role="img" aria-label="A build run: the lead plans, the builder implements, tests pass, the lead approves, the PR merges">
+      <div class="bar"><i></i><i></i><i></i><span>agent-team build "add CSV export" --branch team/export --pr</span></div>
+      <div class="body">
+        <span class="line" style="animation-delay:.2s"><span class="who c-lead">Atlas · lead</span> <span class="c-dim">(claude-opus-5-5)</span></span>
+        <span class="line" style="animation-delay:.5s">  Wrote PLAN.md: export command, CSV writer, 4 tests.</span>
+        <span class="line" style="animation-delay:.9s"><span class="who c-qa">Probe · qa</span>  wrote tests/test_export.py first</span>
+        <span class="line" style="animation-delay:1.3s"><span class="who c-build">Forge · builder</span> <span class="c-dim">(qwen on your Mac)</span></span>
+        <span class="line" style="animation-delay:1.6s">  &lt;edit path="todo.py"&gt; 2 changes · export.py created</span>
+        <span class="line" style="animation-delay:2s"><span class="c-ok">✓ tests: 31 passed</span> <span class="c-dim">(in a sandbox, no network)</span></span>
+        <span class="line" style="animation-delay:2.4s"><span class="who c-lead">Atlas</span> read export.py, ran the tests</span>
+        <span class="line" style="animation-delay:2.7s">  <span class="c-ok">VERDICT: APPROVED</span> after 1 round</span>
+        <span class="line" style="animation-delay:3.1s"><span class="who c-sec">Sentinel · security</span>  <span class="c-ok">SIGN-OFF: YES</span></span>
+        <span class="line" style="animation-delay:3.5s"><span class="c-dim">▸ secret check passed · opened PR #12</span></span>
+        <span class="line" style="animation-delay:3.9s"><span class="who c-ops">Harbor · devops</span> CI green, lead approved 4d74eaa</span>
+        <span class="line" style="animation-delay:4.3s"><span class="c-ok">▸ merged PR #12</span> <span class="c-dim">· $0.31 · 6 min</span></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="team">
+  <div class="wrap">
+    <p class="eyebrow">The team</p>
+    <h2 class="title">Members with jobs, not one chatbot.</h2>
+    <p class="intro">Each member has a role, a model and the files it owns. Name them, add more, put each on the model
+      that suits the job: Claude where judgement matters, a local model where volume does.</p>
+    <div class="grid g4">
+      <div class="card member"><div class="avatar a-lead">A</div><h3>Atlas</h3><div class="role">Lead</div>
+        <p>Plans the work, reviews every change against the plan and the project's guarantees.</p><span class="model">claude-opus-5-5</span></div>
+      <div class="card member"><div class="avatar a-build">F</div><h3>Forge</h3><div class="role">Builder</div>
+        <p>Writes the code with small search/replace edits, round after round, until the lead approves.</p><span class="model">qwen on your Mac</span></div>
+      <div class="card member"><div class="avatar a-ops">H</div><h3>Harbor</h3><div class="role">DevOps</div>
+        <p>Runs shifts on GitHub: triage, sign-offs, fixes, merges, releases, a feedback digest.</p><span class="model">claude-sonnet-5-5</span></div>
+      <div class="card member"><div class="avatar a-mkt">S</div><h3>Spark</h3><div class="role">Marketing</div>
+        <p>Writes the brief, the website and the pitch deck, checked against the code and reviewed with screenshots.</p><span class="model">claude-sonnet-5-5</span></div>
+      <div class="card member optional"><div class="avatar a-sec">S</div><h3>Sentinel</h3><div class="role">Security · optional</div>
+        <p>Reviews every approved build and signs off every pull request.</p></div>
+      <div class="card member optional"><div class="avatar a-qa">P</div><h3>Probe</h3><div class="role">QA · optional</div>
+        <p>Writes the tests for a plan before anyone builds it.</p></div>
+      <div class="card member optional"><div class="avatar a-docs">Q</div><h3>Quill</h3><div class="role">Docs · optional</div>
+        <p>Brings the README, docs and changelog up to date after every build.</p></div>
+      <div class="card member optional"><div class="avatar" style="background:var(--line);color:var(--ink-2)">+</div><h3>Yours</h3><div class="role">Any role</div>
+        <p>Any role with its own prompt and skills, on any model, on any machine.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <p class="eyebrow">How it works</p>
+    <h2 class="title">From roadmap to release, a pull request at a time.</h2>
+    <p class="intro">Run each step yourself, or let autopilot work through a milestone: it builds the next issue,
+      and each devops shift reviews, fixes and merges, until the lead says the milestone is done.</p>
+    <div class="loop" role="list">
+      <div class="step" role="listitem"><b>Plan</b><span>The team agrees a roadmap; items become issues</span></div>
+      <div class="step" role="listitem"><b>Build</b><span>The lead plans, builders write the code</span></div>
+      <div class="step" role="listitem"><b>Test</b><span>Every round, in a sandbox if you like</span></div>
+      <div class="step" role="listitem"><b>Review</b><span>The lead reads files and runs tests itself</span></div>
+      <div class="step" role="listitem"><b>Fix</b><span>Requested changes go back to the builder</span></div>
+      <div class="step" role="listitem"><b>Merge</b><span>Only with green CI and every approval</span></div>
+      <div class="step" role="listitem"><b>Release</b><span>Automatic, or when you approve it</span></div>
+    </div>
+    <div class="loop-note"><span>The team learns: reviewers' lessons go into every later prompt.</span>
+      <span>·</span><span>A scoreboard shows what each member costs and how often it's approved first time.</span></div>
+  </div>
+</section>
+
+<section class="alt" id="rules">
+  <div class="wrap">
+    <p class="eyebrow">Guardrails</p>
+    <h2 class="title">Rules in code, not in prompts.</h2>
+    <p class="intro">Models are asked nicely; the tools they act through check. A shift can't merge what the rules
+      don't allow, whatever the model says.</p>
+    <div class="grid g3">
+      <div class="card rule"><div class="icon">✓</div><div><h3>Approvals tied to a commit</h3>
+        <p>Green CI, the lead's approval and every owner's sign-off, all on the exact head commit. A new commit needs them again.</p></div></div>
+      <div class="card rule"><div class="icon">◆</div><div><h3>You decide what matters</h3>
+        <p>Paths like auth/ or dependency files wait for your approval, and releases can too.</p></div></div>
+      <div class="card rule"><div class="icon">▣</div><div><h3>Sandboxed tests</h3>
+        <p>The code the team writes runs in a throwaway container, with no network and none of your keys.</p></div></div>
+      <div class="card rule"><div class="icon">⚿</div><div><h3>No secrets pushed</h3>
+        <p>Every push is scanned for keys, tokens and private keys first. Keys stay in your environment.</p></div></div>
+      <div class="card rule"><div class="icon">$</div><div><h3>Spend limits</h3>
+        <p>Per run, per day and per milestone, checked before every model call, with an estimate before you start.</p></div></div>
+      <div class="card rule"><div class="icon">⌧</div><div><h3>Outside text is data</h3>
+        <p>Issues, PR text and comments reach the models marked untrusted, never as instructions.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="models">
+  <div class="wrap">
+    <p class="eyebrow">Any model, any machine</p>
+    <h2 class="title">Mix Claude, local models and your own hardware.</h2>
+    <p class="intro">A team runs entirely on Ollama with no API key, entirely on Claude, or anything in between.
+      A weaker model hands its work to a stronger one after a rejected round.</p>
+    <div class="models">
+      <div class="card model-card"><div class="kind">anthropic</div><h3>Claude</h3><p>Opus to lead and review, Sonnet to build and ship, Haiku for routine checks.</p></div>
+      <div class="card model-card"><div class="kind">ollama</div><h3>Local models</h3><p>Ollama on this machine or another: Qwen, Llama and friends, at no per-token cost.</p></div>
+      <div class="card model-card"><div class="kind">openai</div><h3>Any compatible server</h3><p>vLLM, LM Studio, llama.cpp or a hosted gateway.</p></div>
+      <div class="card model-card"><div class="kind">agent-http</div><h3>Your other machines</h3><p>A GPU box runs <code>agent-team serve</code>; the team finds it on the network.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="dashboard">
+  <div class="wrap">
+    <p class="eyebrow">The dashboard</p>
+    <h2 class="title">See everything. Change anything. Approve with a click.</h2>
+    <p class="intro"><code>agent-team ui</code> runs on your machine: the team and its health, every run with each
+      member's verdicts, costs and the scoreboard, live activity, easy settings and templates, and every project you have.</p>
+    <div data-gallery>
+      <div class="gallery-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected="true" data-shot="overview" data-caption="Overview: the team's health, recent runs, spend and GitHub at a glance.">Overview</button>
+        <button type="button" role="tab" aria-selected="false" data-shot="team" data-caption="Team: every member's model, machine, files and health; edit them and review the diff before saving.">Team</button>
+        <button type="button" role="tab" aria-selected="false" data-shot="costs" data-caption="Costs: spend by member and day, and the scoreboard: approval rates, rounds and cost per merged PR.">Costs</button>
+        <button type="button" role="tab" aria-selected="false" data-shot="settings" data-caption="Settings: team templates and the switches people change most, always previewed as a diff.">Settings</button>
+        <button type="button" role="tab" aria-selected="false" data-shot="runs" data-caption="Runs: start a build, a shift or autopilot in the background and follow every run's verdicts.">Runs</button>
+      </div>
+      <div class="shot">
+        <div class="chrome"><i></i><i></i><i></i><span>127.0.0.1:8790/#overview</span></div>
+        <img data-name="overview" src="{{ '/assets/img/dashboard-overview.png' | relative_url }}" alt="The dashboard's overview of the todo-py team" loading="lazy" width="1600" height="1059">
+        <img data-name="team" src="{{ '/assets/img/dashboard-team.png' | relative_url }}" alt="The dashboard's team page" loading="lazy" width="1600" height="1059" hidden>
+        <img data-name="costs" src="{{ '/assets/img/dashboard-costs.png' | relative_url }}" alt="The dashboard's costs and scoreboard" loading="lazy" width="1600" height="1059" hidden>
+        <img data-name="settings" src="{{ '/assets/img/dashboard-settings.png' | relative_url }}" alt="The dashboard's settings and templates" loading="lazy" width="1600" height="1059" hidden>
+        <img data-name="runs" src="{{ '/assets/img/dashboard-runs.png' | relative_url }}" alt="The dashboard's runs page" loading="lazy" width="1600" height="1059" hidden>
+      </div>
+      <p class="caption">Overview: the team's health, recent runs, spend and GitHub at a glance.</p>
+    </div>
+  </div>
+</section>
+
+<section id="claude-code">
+  <div class="wrap">
+    <p class="eyebrow">Claude Code</p>
+    <h2 class="title">Drive the team from Claude Code.</h2>
+    <p class="intro">The plugin adds slash commands and a side panel with the team, its health, recent runs, spend
+      and anything waiting for your approval. Claude runs the workflow where you can watch, checks the result, and reports.</p>
+    <div class="cmds">
+      <div class="cmd"><code>/team-init</code><span>set up a team</span></div>
+      <div class="cmd"><code>/team-plan</code><span>agree a roadmap</span></div>
+      <div class="cmd"><code>/team-build</code><span>build a task as a PR</span></div>
+      <div class="cmd"><code>/team-ship</code><span>one devops shift</span></div>
+      <div class="cmd"><code>/team-fix</code><span>apply a review to a PR</span></div>
+      <div class="cmd"><code>/team-autopilot</code><span>work through a milestone</span></div>
+      <div class="cmd"><code>/team-issues</code><span>the to-do list on GitHub</span></div>
+      <div class="cmd"><code>/team-schedule</code><span>shifts on a timer</span></div>
+      <div class="cmd"><code>/team-panel</code><span>the side panel</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="start">
+  <div class="wrap">
+    <p class="eyebrow">Get started</p>
+    <h2 class="title">Three commands to a working team.</h2>
+    <p class="intro">macOS or Linux with Python 3.11+ and git. GitHub's CLI for the pull-request workflows.
+      An Anthropic key only if members use Claude.</p>
+    <div class="grid g3 steps3">
+      <div class="card"><h3>Install</h3><p>The CLI, and the Claude Code plugin if you use it.</p>
+        <div class="code"><button class="copy" type="button" data-copy="pipx install agent-team">Copy</button>pipx install agent-team</div>
+        <p class="muted" style="margin-top:10px;font-size:14px">or the one-line installer from the <a href="https://github.com/lakeba/agent-team#install">README</a></p></div>
+      <div class="card"><h3>Set up a project</h3><p>A checklist of what's missing, then a team file you can edit.</p>
+        <div class="code"><button class="copy" type="button" data-copy="cd my-project && agent-team ready && agent-team init">Copy</button>cd my-project
+agent-team ready
+agent-team init <span class="c-dim"># --no-claude: all local</span></div></div>
+      <div class="card"><h3>Put it to work</h3><p>Plan, build, or open the dashboard.</p>
+        <div class="code"><button class="copy" type="button" data-copy='agent-team build "add an export command" --branch team/export --pr'>Copy</button>agent-team discuss "next features"
+agent-team build "add export" \
+  --branch team/export --pr
+agent-team ui</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-band">
+  <div class="wrap">
+    <h2 class="title">Give your repository a team.</h2>
+    <p class="intro" style="margin:0 auto 26px">Open source, runs on your machine, works with the models you already have.</p>
+    <div class="ctas">
+      <a class="btn primary" href="#start">Get started</a>
+      <a class="btn" href="{{ '/architecture.html' | relative_url }}">Read the guides</a>
+      <a class="btn" href="https://github.com/lakeba/agent-team">Star on GitHub</a>
+    </div>
+  </div>
+</section>
