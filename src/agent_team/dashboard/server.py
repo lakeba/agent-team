@@ -31,7 +31,10 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/app.css": ("app.css", "text/css; charset=utf-8"),
           "/edit.js": ("edit.js", "text/javascript; charset=utf-8"),
-          "/runs.js": ("runs.js", "text/javascript; charset=utf-8")}
+          "/runs.js": ("runs.js", "text/javascript; charset=utf-8"),
+          "/settings.js": ("settings.js", "text/javascript; charset=utf-8"),
+          "/activity.js": ("activity.js", "text/javascript; charset=utf-8"),
+          "/projects.js": ("projects.js", "text/javascript; charset=utf-8")}
 HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
     "X-Content-Type-Options": "nosniff",
@@ -229,6 +232,26 @@ def make_handler(root: Path, port: int, token: str | None = None):
                     return self._json({"runs": logs.parse(team.root)})
                 if path == "/api/usage":
                     return self._json(usage_info(team))
+                if path == "/api/estimate":
+                    from .. import estimate
+                    query = dict(q.split("=", 1) for q in self.path.partition("?")[2].split("&") if "=" in q)
+                    wf = query.get("workflow", "build")
+                    if wf not in ("build", "fix", "ship", "discuss", "market", "setup", "autopilot"):
+                        return self._json({"error": "unknown workflow"}, 400)
+                    cycles = int(query["cycles"]) if query.get("cycles", "").isdigit() else 1
+                    return self._json(estimate.estimate(team, wf, cycles))
+                if path == "/api/metrics":
+                    from .. import metrics
+                    return self._json(metrics.compute(team))
+                if path == "/api/templates":
+                    from .. import templates
+                    return self._json({"templates": templates.TEMPLATES})
+                if path == "/api/projects":
+                    from .. import projects
+                    return self._json({"current": str(team.root), "projects": projects.all_summaries()})
+                if path == "/api/evals":
+                    from .. import evals
+                    return self._json({"runs": evals.history(team.root)})
                 if path == "/api/scoreboard":
                     from .. import scoreboard
                     return self._json(scoreboard.compute(team))
@@ -294,6 +317,19 @@ def make_handler(root: Path, port: int, token: str | None = None):
                 if path == "/api/jobs/start":
                     config.load(root)   # refuse to start anything on a broken config
                     return self._json(jobs.start(root, str(body.get("workflow", "")), body.get("params") or {}))
+                if path == "/api/templates/apply":
+                    from .. import templates
+                    try:
+                        data = templates.apply(body.get("data") or {}, str(body.get("id", "")))
+                    except ValueError as e:
+                        return self._json({"error": str(e)}, 422)
+                    return self._json({"data": data, "preview": config_io.plan_change(root, data)})
+                if path == "/api/projects/open":
+                    from .. import projects
+                    target = str(body.get("root", ""))
+                    if target not in projects.registered():
+                        return self._json({"error": "unknown project"}, 404)
+                    return self._json({"url": _open_dashboard(target)})
                 if path == "/api/approve":
                     from .. import gates, github as gh_mod
                     team = config.load(root)
@@ -322,6 +358,25 @@ def make_handler(root: Path, port: int, token: str | None = None):
             pass   # quiet: the terminal stays readable
 
     return Handler
+
+
+def _open_dashboard(root: str) -> str:
+    """Start another project's dashboard on a free port (detached) and return its address."""
+    import socket
+    import subprocess
+    import sys
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    subprocess.Popen([sys.executable, "-m", "agent_team.cli", "ui", "--no-open", "--port", str(port), "-C", root],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
+    for _ in range(40):
+        time.sleep(0.25)
+        with socket.socket() as s:
+            if s.connect_ex(("127.0.0.1", port)) == 0:
+                break
+    return f"http://127.0.0.1:{port}/"
 
 
 def _test_provider(body: dict) -> dict:

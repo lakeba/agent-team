@@ -326,7 +326,12 @@ function table(headers, rows, numericCols = []) {
     h("tbody", {}, rows.map(r => h("tr", {}, r.map((c, i) => h("td", { class: numericCols.includes(i) ? "num" : null }, c))))));
 }
 
-function render() { renderHeader(); renderOverview(); renderTeam(); renderRuns(); renderCosts(); }
+function render() {
+  renderHeader(); renderOverview(); renderTeam(); renderRuns(); renderCosts();
+  if (typeof renderActivity === "function" && activity.data) renderActivity();
+  if (typeof renderProjects === "function" && projectsView.data) renderProjects();
+  if (typeof renderSettings === "function" && !settings.draft) renderSettings();
+}
 
 // ---------- tabs ----------
 document.querySelectorAll("[role=tab]").forEach(tab => tab.addEventListener("click", () => {

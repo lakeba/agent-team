@@ -46,6 +46,7 @@ class AgentConfig:
     prompt: str = ""                # optional path (relative to the project) to a custom prompt
     skills: list[str] = field(default_factory=list)   # Markdown files or skill folders added to the prompt
     escalate_to: str = ""           # a stronger member who takes over this member's work after failed rounds
+    github_token_env: str = ""      # variable holding this member's own GitHub token (its bot account or app)
     color: str = ""
 
 
@@ -69,6 +70,7 @@ class ProjectConfig:
 class LimitsConfig:
     per_run: float = 0.0            # US dollars; 0 means no limit
     per_day: float = 0.0            # US dollars, per UTC day, across every run in this project
+    milestones: dict = field(default_factory=dict)   # milestone name -> US dollars autopilot may spend on it
 
 
 @dataclass
@@ -85,6 +87,14 @@ class NotifyConfig:
 
 
 @dataclass
+class SandboxConfig:
+    mode: str = "off"               # off: tests run on this machine; container: in a throwaway container
+    image: str = ""                 # default: chosen from the project's stack
+    network: bool = False           # allow network inside the container (to download dependencies)
+    engine: str = ""                # docker | podman; default: whichever is installed
+
+
+@dataclass
 class Team:
     root: Path
     project: ProjectConfig
@@ -94,6 +104,7 @@ class Team:
     limits: LimitsConfig = field(default_factory=LimitsConfig)
     routing: RoutingConfig = field(default_factory=RoutingConfig)
     notify: NotifyConfig = field(default_factory=NotifyConfig)
+    sandbox: SandboxConfig = field(default_factory=SandboxConfig)
 
     def by_role(self, role: str, required: bool = True) -> AgentConfig | None:
         found = [a for a in self.agents.values() if a.role == role]
@@ -202,6 +213,9 @@ def parse(data: dict, root: Path) -> Team:
         if bad or not all(isinstance(v, (int, float)) for v in table.values()):
             raise ConfigError(f"[pricing.\"{model}\"]: use numeric input, output, cache_read, cache_write (USD per million tokens)")
     limits = _take(dict(data.get("limits") or {}), LimitsConfig, "[limits]")
+    if not isinstance(limits.milestones, dict) or not all(
+            isinstance(v, (int, float)) and v >= 0 for v in limits.milestones.values()):
+        raise ConfigError("[limits.milestones]: milestone = US dollars, e.g. M2 = 10.0")
     if not all(isinstance(v, (int, float)) and v >= 0 for v in (limits.per_run, limits.per_day)):
         raise ConfigError("[limits]: per_run and per_day are US dollars (0 or more; 0 means no limit)")
     routing = _take(dict(data.get("routing") or {}), RoutingConfig, "[routing]")
@@ -216,5 +230,10 @@ def parse(data: dict, root: Path) -> Team:
         raise ConfigError(f"[notify].events: unknown {unknown}; known: {sorted(EVENTS)}")
     if notify.webhook_env.startswith(("http://", "https://")):
         raise ConfigError("[notify].webhook_env names the variable holding the URL; keep the URL itself out of .team.toml")
+    sandbox = _take(dict(data.get("sandbox") or {}), SandboxConfig, "[sandbox]")
+    if sandbox.mode not in ("off", "container"):
+        raise ConfigError(f"[sandbox].mode: use off or container, not {sandbox.mode!r}")
+    if sandbox.engine not in ("", "docker", "podman"):
+        raise ConfigError(f"[sandbox].engine: use docker or podman, not {sandbox.engine!r}")
     return Team(root=root, project=project, providers=providers, agents=agents, pricing=pricing, limits=limits,
-                routing=routing, notify=notify)
+                routing=routing, notify=notify, sandbox=sandbox)

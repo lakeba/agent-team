@@ -48,6 +48,26 @@ def is_local(url: str) -> bool:
     return any(h in url for h in ("localhost", "127.0.0.1", "[::1]"))
 
 
+def _identity_check(member) -> Check:
+    """Whether a member's own GitHub token works, and which account it posts as."""
+    name, var = f"{member.name}'s GitHub identity", member.github_token_env
+    token = os.environ.get(var, "")
+    if not token:
+        return Check(name, False, f"{var} isn't set",
+                     f"agent-team keys set {var}   (the token of {member.name}'s bot account or app)")
+    if not shutil.which("gh"):
+        return Check(name, False, "the GitHub CLI isn't installed", "install the GitHub CLI (https://cli.github.com)")
+    try:
+        r = subprocess.run(["gh", "api", "user", "--jq", ".login"], capture_output=True, text=True, timeout=20,
+                           env={**os.environ, "GH_TOKEN": token})
+    except (OSError, subprocess.TimeoutExpired):
+        return Check(name, False, "GitHub didn't answer", "")
+    login = r.stdout.strip()
+    if r.returncode == 0 and login:
+        return Check(name, True, f"posts as {login}")
+    return Check(name, False, "GitHub refused the token", f"replace it: agent-team keys set {var}")
+
+
 def check(root: Path, ollama_url: str = "") -> list[Check]:
     root = Path(root).resolve()
     out: list[Check] = []
@@ -122,9 +142,19 @@ def check(root: Path, ollama_url: str = "") -> list[Check]:
         out.append(Check(f"key {var}", bool(found),
                          f"found in the {found}" if found else f"not found (needed by [providers.{provider}])",
                          "" if found else f"agent-team keys set {var}   (in your own terminal; it asks for the value)"))
+    if team:
+        for a in team.agents.values():
+            if a.github_token_env:
+                out.append(_identity_check(a))
     if keys.loose_permissions():
         out.append(Check("keys file permissions", False, f"{keys.path()} is readable by other users",
                          f"chmod 600 {keys.path()}"))
+
+    if team and team.sandbox.mode == "container":
+        from . import sandbox
+        ok, detail = sandbox.ready(team)
+        out.append(Check("test sandbox", ok, detail,
+                         "" if ok else "install or start Docker (or Podman), or set [sandbox].mode = \"off\""))
 
     # Ollama: every server a member uses, and whether its models are pulled.
     servers: dict[str, list[str]] = {}

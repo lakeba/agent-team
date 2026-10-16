@@ -7,7 +7,12 @@ import tempfile
 from collections import defaultdict, deque
 from pathlib import Path
 
-from agent_team import config
+import os
+
+# Tests never touch the real ~/.config/agent-team (keys file, project list).
+os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp(prefix="agent-team-test-config-")
+
+from agent_team import config  # noqa: E402
 from agent_team.providers.base import Provider, Reply, register
 
 # label substring (the agent's name) -> queue of replies

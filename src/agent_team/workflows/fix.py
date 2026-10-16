@@ -159,7 +159,8 @@ def run(team: Team, number: int, rounds: int = 2, lead: str = "", builder: str =
         github.gh("pr", "comment", str(number), "-R", repo, "--body",
                   f"Addressed the review feedback in {new_head[:10]}: {', '.join(f'`{p}`' for p in paths)}.\n\n"
                   f"{files.strip_files(reply).strip()[:1500]}\n\n— {builder_cfg.name} (builder agent, automated); "
-                  f"{lead_cfg.name} confirmed the blocking points are addressed. The next devops shift reviews the new commit.")
+                  f"{lead_cfg.name} confirmed the blocking points are addressed. The next devops shift reviews the new commit.",
+                  token=github.member_token(team, builder_cfg))
         ui.action(f"pushed {new_head[:10]} to {branch} and commented on PR #{number}")
         from .. import notify
         notify.send(team, "fix_pushed", f"Fixed the review on PR #{number} ({info['title']}) in {new_head[:10]}",

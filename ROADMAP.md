@@ -6,14 +6,14 @@
    generalising from todo-py missed.
 2. **Claude Code plugin.** Use it on that second project and refine the commands from what
    happens there.
-3. **Smarter focused context.** Rank files with the project's RAG index instead of the lead
-   reading a map, for codebases with thousands of files.
 
 ## Later
 
 - Notifications (Slack, email, GitHub) when a PR is ready, a sign-off is needed or a member is down.
 
 ## Done
+
+- 0.5: sandboxed tests, cost estimates and milestone budgets, ranked context, per-member GitHub identities, real-model evals, dashboard Activity/Settings/Projects, release workflow.
 
 - Patch edits, reviews with tools, fixes inside the shift, autopilot, team memory and a scoreboard (0.3).
 

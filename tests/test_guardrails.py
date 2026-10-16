@@ -39,7 +39,7 @@ class FakeGitHub:
             return {"title": "Change things", "body": "", "headRefOid": self.sha, "author": {"login": "lakeba"}}
         return []
 
-    def gh(self, *args, check=True, input=None):
+    def gh(self, *args, check=True, input=None, token=""):
         self.calls.append(args)
         return ""
 
@@ -84,7 +84,10 @@ class GuardrailScenarios(unittest.TestCase):
         finally:
             for p in patches:
                 p.stop()
-        return [m["content"] for m in ScriptedDevops.results]
+        out = [m["content"] for m in ScriptedDevops.results]
+        errors = [o for o in out if o.startswith("error:")]
+        self.assertEqual(errors, [], "a tool failed inside the shift")
+        return out
 
     def test_no_merge_without_the_leads_approval(self):
         gh = FakeGitHub(["app.py"])

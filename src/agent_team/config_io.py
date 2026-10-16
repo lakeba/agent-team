@@ -15,7 +15,7 @@ from dataclasses import asdict, fields
 from pathlib import Path
 
 from .config import (CONFIG_NAME, AgentConfig, ConfigError, LimitsConfig, NotifyConfig, ProjectConfig, ProviderConfig,
-                     RoutingConfig, Team, parse)
+                     RoutingConfig, SandboxConfig, Team, parse)
 
 HEADER = ("# agent-team configuration. Docs: https://github.com/lakeba/agent-team/blob/main/docs/configuration.md\n"
           "# Secrets never go here: providers name the environment variable that holds them.\n")
@@ -94,8 +94,9 @@ def to_data(team: Team) -> dict:
     limits = {k: v for k, v in asdict(team.limits).items() if v}
     routing = {k: v for k, v in asdict(team.routing).items() if v != getattr(RoutingConfig(), k)}
     notify = {k: v for k, v in asdict(team.notify).items() if v != getattr(NotifyConfig(), k)}
+    sandbox = {k: v for k, v in asdict(team.sandbox).items() if v != getattr(SandboxConfig(), k)}
     return {"project": project, "providers": providers, "pricing": dict(team.pricing), "limits": limits,
-            "routing": routing, "notify": notify, "agents": agents}
+            "routing": routing, "notify": notify, "sandbox": sandbox, "agents": agents}
 
 
 def render(data: dict) -> str:
@@ -115,6 +116,9 @@ def render(data: dict) -> str:
     notify = {k: v for k, v in (data.get("notify") or {}).items() if v not in ("", None, [])}
     if notify:
         parts += ["", "[notify]", *_lines(notify)]
+    sandbox = {k: v for k, v in (data.get("sandbox") or {}).items() if v not in ("", None)}
+    if sandbox and sandbox != {"mode": "off"}:
+        parts += ["", "[sandbox]", *_lines(sandbox, skip_empty=False)]
     for model, price in (data.get("pricing") or {}).items():
         parts += ["", f"[pricing.{_key(model)}]", *_lines(price, skip_empty=False)]
     for a in data.get("agents") or []:
@@ -154,6 +158,15 @@ def clean(data: dict) -> dict:
                for m, p in (data.get("pricing") or {}).items()}
     limits = {}
     for k, v in (data.get("limits") or {}).items():
+        if k == "milestones":
+            if isinstance(v, dict):
+                try:
+                    ms = {str(m).strip(): float(x) for m, x in v.items() if str(m).strip() and x not in (None, "")}
+                except (TypeError, ValueError):
+                    raise ConfigError("[limits.milestones] values must be US dollars") from None
+                if ms:
+                    limits[k] = ms
+            continue
         if k in {f.name for f in fields(LimitsConfig)} and v not in (None, ""):
             try:
                 limits[k] = float(v)
@@ -172,8 +185,10 @@ def clean(data: dict) -> dict:
               if k in {f.name for f in fields(NotifyConfig)} and v not in (None, "")}
     if isinstance(notify.get("events"), list):
         notify["events"] = [e for e in notify["events"] if isinstance(e, str) and e.strip()]
+    sandbox = {k: v for k, v in (data.get("sandbox") or {}).items()
+               if k in {f.name for f in fields(SandboxConfig)} and v not in (None, "")}
     return {"project": project, "providers": providers, "pricing": pricing, "limits": limits, "routing": routing,
-            "notify": notify, "agents": agents}
+            "notify": notify, "sandbox": sandbox, "agents": agents}
 
 
 def plan_change(root: Path, data: dict) -> dict:

@@ -37,7 +37,7 @@ PRICES: dict[str, dict[str, float]] = {
 FREE_KINDS = {"ollama", "openai", "agent-http"}   # self-hosted unless the project prices them
 
 _lock = threading.Lock()
-_current_run = {"id": ""}
+_current_run = {"id": "", "milestone": ""}
 
 
 def now() -> str:
@@ -49,6 +49,15 @@ def set_run(run_id: str) -> None:
     _current_run["id"] = run_id
 
 
+def set_milestone(name: str) -> None:
+    """Tag the calls that follow with the milestone autopilot is working on (for milestone budgets)."""
+    _current_run["milestone"] = name
+
+
+def current_milestone() -> str:
+    return _current_run["milestone"]
+
+
 def current_run() -> str:
     return _current_run["id"]
 
@@ -56,7 +65,8 @@ def current_run() -> str:
 def record(root: Path, agent: str, kind: str, model: str, usage: dict | None) -> None:
     if not usage:
         return
-    entry = {"at": now(), "run": _current_run["id"], "agent": agent, "kind": kind, "model": model,
+    entry = {"at": now(), "run": _current_run["id"], **({"milestone": _current_run["milestone"]} if _current_run["milestone"] else {}),
+             "agent": agent, "kind": kind, "model": model,
              **{k: int(usage.get(k) or 0) for k in ("input", "output", "cache_read", "cache_write")}}
     folder = Path(root) / ".team"
     folder.mkdir(parents=True, exist_ok=True)

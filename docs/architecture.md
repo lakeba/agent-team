@@ -132,3 +132,18 @@ the page's session token and a same-origin request, and are refused if the file 
 - `tests/test_guardrails.py` runs whole devops shifts against a stand-in GitHub with a scripted devops
   member, so the merge rules are checked end to end, whatever a model asks for.
 
+## Safety, proof and reach (0.5)
+
+- `sandbox.py`: the test command runs through `docker`/`podman run --rm` with only the project
+  mounted, no network unless allowed, no environment, and resource limits; `build`, `fix` and the
+  reviewers' `run_tests` all go through it.
+- `estimate.py` predicts run costs from past runs; `[limits.milestones]` budgets autopilot per
+  milestone (usage entries carry the milestone).
+- `rank.py`: BM25 over paths and contents gives the lead a ranked shortlist in focused context.
+- Per-member `github_token_env` posts comments and real GitHub reviews as that member.
+- `evals.py`: fixed scenarios with real models in a throwaway project, saved under `.team/evals/`.
+- Dashboard: `metrics.py` (Activity), `templates.py` (Settings), `projects.py` (the control room,
+  from `~/.config/agent-team/projects.json`).
+- `.github/workflows/release.yml` publishes tagged versions to PyPI (trusted publishing) and GitHub
+  Releases; `packaging/homebrew/` holds the tap formula; `docs/` is the GitHub Pages site.
+

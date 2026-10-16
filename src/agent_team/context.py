@@ -25,6 +25,9 @@ builder will need to change or read), one per line as `FILE: path/to/file`. Choo
 the files to change, their tests, and the interfaces they depend on. Together they must stay under
 {limit:,} characters. The README and PLAN.md are added for you.
 
+# Most likely relevant (ranked by a search for the task's words; a starting point, not the answer)
+{ranked}
+
 # Project map
 {overview}"""
 
@@ -95,14 +98,16 @@ def choose(team: Team, chooser, task: str) -> Focus:
     if not needs_focus(team):
         return Focus(team, None)
     skip = tuple(team.project.context_skip)
+    from . import rank
     reply = chooser.turn(SELECT_PROMPT.format(task=task, limit=team.project.context_limit,
+                                              ranked=rank.shortlist(team.root, task, skip),
                                               overview=files.overview(team.root, skip=skip)))
     focus = Focus(team, default_paths(team))
     focus.add_from_reply(reply)
     return focus
 
 
-def for_topic(team: Team, paths: set[str] | None = None, skip_extra: tuple[str, ...] = ()) -> str:
+def for_topic(team: Team, paths: set[str] | None = None, skip_extra: tuple[str, ...] = (), query: str = "") -> str:
     """Project files for a workflow without a lead's choice (discuss, setup, market, reviews):
     everything when it fits, else the key files and the given paths plus a map of the rest."""
     skip, limit = tuple(team.project.context_skip) + skip_extra, team.project.context_limit
@@ -113,6 +118,9 @@ def for_topic(team: Team, paths: set[str] | None = None, skip_extra: tuple[str, 
             if team.project.context == "full":
                 raise
     chosen = default_paths(team) | {p for p in (paths or ()) if (team.root / p).is_file()}
+    if query:   # add the files that best match the topic, as far as they fit
+        from . import rank
+        chosen |= {rel for rel, _ in rank.rank(team.root, query, skip, top=15)}
     budget = max(limit - 20_000, limit // 2)
     return (f"(The project is too large to send whole: the key files follow, then a map of all files.)\n\n"
             f"{_fit(team.root, chosen, skip, budget)}\n\n# Project map\n{files.overview(team.root, skip=skip)[:18_000]}")

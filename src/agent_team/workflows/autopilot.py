@@ -107,6 +107,7 @@ def run(team: Team, milestone: str = "", max_cycles: int = 6, rounds: int = 3, m
         usage.set_run(autopilot_run)
         log.record("Autopilot", text)
 
+    usage.set_milestone(milestone)
     with schedule.lock(team.root, "autopilot"):
         for cycle in range(1, max_cycles + 1):
             github.git(team.root, "fetch", "-q", "origin", check=False)
@@ -155,6 +156,7 @@ def run(team: Team, milestone: str = "", max_cycles: int = 6, rounds: int = 3, m
                 break
         else:
             note(f"Stopped after {max_cycles} cycles (--max-cycles). Run autopilot again to continue.")
+    usage.set_milestone("")
     notify.send(team, "autopilot_stopped", f"Autopilot {'finished' if outcome else 'stopped'}: {last_note[0][:300]}",
                 f"https://github.com/{repo}/pulls")
     ui.say(f"Log: {log.path}")

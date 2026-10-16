@@ -54,7 +54,30 @@ finishes, so a run can go over by at most one reply.
 [limits]
 per_run = 5.0    # one workflow run
 per_day = 20.0   # all runs in this project, per UTC day
+
+[limits.milestones]
+M2 = 10.0        # what autopilot may spend on milestone M2, across all its builds and shifts
 ```
+
+`agent-team estimate build` (or `ship`, `autopilot --cycles 3` ...) predicts a run's cost from this
+project's past runs, and the CLI and the dashboard show that estimate before a run starts.
+
+## `[sandbox]`
+
+Run the test command, which executes code the team just wrote, in a throwaway container instead
+of on your machine. Optional; `off` by default.
+
+```toml
+[sandbox]
+mode = "container"      # off | container
+image = ""              # default: from the stack (python:3.12-slim, node:22-bookworm-slim, the .NET SDK ...)
+network = false         # true if the tests download dependencies
+engine = ""             # docker | podman; default: whichever is installed
+```
+
+Only the project folder is mounted; none of your environment variables or keys go in; memory,
+CPU and processes are limited. If the engine is missing or not running, runs fail rather than
+run unsandboxed (`agent-team ready` shows it).
 
 ## `[routing]`
 
@@ -92,6 +115,7 @@ The URL itself never goes in `.team.toml`. `agent-team notify` sends a test mess
 | `description` | `""` | Shown to the team; also this member's perspective in discussions. |
 | `owns` | `[]` | Path prefixes this member must sign off before a PR touching them can merge. `"*"` means every path. For `qa` and `docs` members it is also where they may write (defaults: test folders; README, `docs/`, CHANGELOG). |
 | `prompt` | `""` | A Markdown file (relative to the project) replacing this member's role prompt. Placeholders such as `{name}`, `{project}`, `{roster}`, `{guarantees}` are filled in. |
+| `github_token_env` | `""` | The variable holding this member's own GitHub token (a bot account or GitHub App installation). Its comments are posted as that account, and its sign-offs and the lead's verdicts become real GitHub reviews (approve or request changes), so branch protection can require them. |
 | `escalate_to` | `""` | A stronger member who takes over this member's build or fix after `[routing].escalate_after` rejected rounds. |
 | `skills` | `[]` | Markdown files, or folders holding a `SKILL.md` (a Claude Code skill works as it is), added to this member's prompt after its role prompt. Relative to the project; `~` is the home folder. See below. |
 | `color` | by role | Terminal colour: orange, cyan, pink, green, yellow, blue, magenta, red. |

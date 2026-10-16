@@ -195,7 +195,8 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
             number: The issue or PR number.
             body: Markdown text.
         """
-        github.gh("issue", "comment", str(number), "-R", repo, "--body", body + sign)
+        github.gh("issue", "comment", str(number), "-R", repo, "--body", body + sign,
+                  token=github.member_token(team, devops_cfg))
         act(f"commented on #{number}: {body[:160]}")
         return "posted"
 
@@ -266,9 +267,14 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
                 signoffs[(number, member)] = sha
             log.record(f"{member}: sign-off on PR #{number} at {sha[:10]}", reply)
             memory.learn(team, reply, member)
-            github.gh("pr", "comment", str(number), "-R", repo, "--body",
-                      f"{reply}\n\n— {member} ({cfg.role} agent, automated), reviewing commit {sha[:10]}; "
-                      f"recorded by the team's tooling")
+            body = (f"{reply}\n\n— {member} ({cfg.role} agent, automated), reviewing commit {sha[:10]}; "
+                    f"recorded by the team's tooling")
+            token = github.member_token(team, team.get(member))
+            why_not = github.review(repo, number, yes, body, token) if token else "no identity"
+            if why_not:
+                github.gh("pr", "comment", str(number), "-R", repo, "--body", body, token=token)
+                if token:
+                    ui.warn(f"{member}'s GitHub review wasn't accepted ({why_not}); posted a comment instead")
             act(f"{member} {'signed off' if yes else 'did not sign off'} PR #{number} at {sha[:10]}")
             results.append(f"## {member}: {'YES' if yes else 'NO'}\n{reply}")
         return "\n\n".join(results)
@@ -297,6 +303,13 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
             github.untrusted(f"Title: {info['title']}\n\n{info['body']}\n\nDiff:\n{github.diff_for(repo, number)}"))
         log.record(f"{lead_cfg.name}: review of PR #{number} at {sha[:10]}", review)
         memory.learn(team, review, lead_cfg.name)
+        lead_token = github.member_token(team, lead_cfg)
+        if lead_token:
+            verdict = files.last_marker(files.VERDICT_RE, review) == "APPROVED"
+            why_not = github.review(repo, number, verdict, f"{review}\n\n— {lead_cfg.name} (lead agent), commit {sha[:10]}",
+                                    lead_token)
+            if why_not:
+                ui.warn(f"{lead_cfg.name}'s GitHub review wasn't accepted ({why_not})")
         if files.last_marker(files.VERDICT_RE, review) == "APPROVED":
             approvals[number] = sha
             if lead_cfg.name in owners:
@@ -359,6 +372,7 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
         green, summary = github.ci_status(repo, number)
         blocker = merge_blockers(team, number, sha, paths, green, summary, approvals, signoffs, gates.approvals(root))
         if blocker:
+            log.record(f"{devops_cfg.name}: refused", f"merge of PR #{number} at {sha[:10]}: {blocker}")
             if "owners' approval" in blocker:
                 already = any(r["number"] == number and r["sha"] == sha for r in gates.requests(root))
                 gates.request(root, number, sha, info["title"], gates.gated(team, paths))

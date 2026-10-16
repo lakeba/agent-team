@@ -23,7 +23,7 @@ It grew out of todo-py, a small command-line app this team planned, built, marke
 | Market | `agent-team market` | The marketing member writes a brief, a website and a pitch deck; a fact-checker checks claims and the lead reviews with screenshots. |
 | Set up | `agent-team setup --license "MIT, copyright 2026 Lakeba"` | The devops member drafts README, CONTRIBUTING, CHANGELOG, CI and templates. |
 | Ship | `agent-team ship` | One devops shift on GitHub: triage, owner sign-offs, lead review, merge, release (or, with `release = "ask"`, a release proposal you approve with `ship --release X.Y.Z`), feedback digest. `agent-team schedule --every 6h` runs shifts unattended, never two at once. |
-| Dashboard | `agent-team ui` | A page on this machine: the team and whether each member is reachable, every run with each member's verdicts, estimated costs per member, day and run, and the GitHub state. Edit members, connections, guarantees and prices there, add a machine with a guided wizard, and review the diff before saving. Start runs there and follow their output live. |
+| Dashboard | `agent-team ui` | Overview, Team, Runs, Costs, live Activity charts (spend, runs, merges, problems, latest events), Settings (easy switches and team templates, always previewed as a diff) and Projects (every project on this Mac). A page on this machine: the team and whether each member is reachable, every run with each member's verdicts, estimated costs per member, day and run, and the GitHub state. Edit members, connections, guarantees and prices there, add a machine with a guided wizard, and review the diff before saving. Start runs there and follow their output live. |
 
 Guardrails are enforced in code, not left to the models. A PR merges only when CI is green, the
 lead approved the exact head commit, and every member who owns a changed path signed off that
@@ -37,7 +37,8 @@ that doesn't match is refused and sent back. Reviewers read files, search, see t
 the tests themselves. When a reviewer blocks for a reason that will matter again, the lesson is
 kept and every member sees it in later work.
 
-Every push is checked for secrets first (key and token formats, private keys, `.env` files, and
+With `[sandbox] mode = "container"`, the code the team writes is tested in a throwaway container
+with no network and none of your keys. Every push is checked for secrets first (key and token formats, private keys, `.env` files, and
 the values in your keys file). Paths you list in `require_approval` wait for your approval of the
 exact commit. Weaker models hand work to a stronger member after rejected rounds (`escalate_to`),
 and `[notify]` posts to Slack or any webhook when PRs open or merge, approvals or releases wait
@@ -103,6 +104,9 @@ agent-team ship                                          # one devops shift on G
 | `agent-team issues [sync --milestone M2 --yes]` | The team's to-do list: `team:build` issues, created from the roadmap by the lead (shown first, created with `--yes`). Autopilot builds them and its PRs close them. |
 | `agent-team approve [PR]` | Approve a PR's current commit when it changes paths in `require_approval`; with no number, list what's waiting. |
 | `agent-team notify` | Send a test message to the `[notify]` webhook. |
+| `agent-team eval [--only feature,bug]` | Runs fixed scenarios with your real models in a throwaway project (no GitHub): pass/fail, rounds and cost. Asks before spending. |
+| `agent-team estimate build` | Predicts a run's cost from this project's past runs. |
+| `agent-team projects` | Every project you use agent-team in: spend, runs, what waits for you. |
 | `agent-team scoreboard` | Each builder's approval and first-round rate, average rounds and cost; each reviewer's pushback; cost per merged PR. |
 | `agent-team memory [add TEXT \| forget N]` | The lessons the team learned from its reviews, which every member sees in later work. |
 | `agent-team agents`, `agent-team doctor` | List the team; check every member can be reached. |

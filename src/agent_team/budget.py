@@ -31,8 +31,20 @@ def spent(team: Team, run: str | None = None) -> dict:
     return {k: round(v, 4) for k, v in out.items()}
 
 
+def milestone_spent(team: Team, milestone: str) -> float:
+    return round(sum(usage.price_for(e.get("model", ""), e.get("kind", ""), team.pricing).cost(e)
+                     for e in usage.load(team.root) if e.get("milestone") == milestone), 4)
+
+
 def check(team: Team) -> None:
     limits = team.limits
+    milestone = usage.current_milestone()
+    cap = limits.milestones.get(milestone) if milestone else None
+    if cap:
+        spent_m = milestone_spent(team, milestone)
+        if spent_m >= cap:
+            raise SpendLimitError(f"milestone {milestone} has spent an estimated ${spent_m:.2f}, reaching its "
+                                  f"[limits.milestones] budget of ${cap:.2f}")
     if not (limits.per_run or limits.per_day):
         return
     s = spent(team)

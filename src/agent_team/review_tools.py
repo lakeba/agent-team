@@ -118,11 +118,14 @@ def make_tools(team: Team, base: str | None = None, touched: set[str] | None = N
         cmd = team.project.test_command
         if not cmd:
             return "No test command is configured."
+        from . import sandbox
         try:
-            r = subprocess.run(cmd, shell=True, cwd=root, capture_output=True, text=True, timeout=600)
-            return f"exit code {r.returncode}\n" + (r.stdout + r.stderr)[-8000:]
+            code, out = sandbox.run(team, cmd)
+            return f"exit code {code}\n" + out[-8000:]
         except subprocess.TimeoutExpired:
             return "Timed out after 600 seconds."
+        except sandbox.SandboxError as e:
+            return f"Can't run the tests: {e}"
 
     return [read_file, list_files, search, diff, run_tests]
 

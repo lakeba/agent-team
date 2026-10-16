@@ -10,9 +10,12 @@ from . import __version__, config, providers, ui
 
 def _team(args) -> config.Team:
     try:
-        return config.load(Path(args.project).resolve())
+        team = config.load(Path(args.project).resolve())
     except config.ConfigError as e:
         raise SystemExit(f"Config error: {e}")
+    from . import projects
+    projects.register(team.root)
+    return team
 
 
 def print_checklist(checks) -> None:
@@ -89,7 +92,9 @@ def cmd_build(args) -> int:
     bad = set(skip) - set(build.OPTIONAL)
     if bad:
         raise SystemExit(f"--skip takes {', '.join(build.OPTIONAL)}; not {', '.join(sorted(bad))}")
-    ok = build.run(_team(args), args.task, args.rounds, args.lead, args.builder, args.branch, args.pr,
+    team = _team(args)
+    print_estimate(team, "build")
+    ok = build.run(team, args.task, args.rounds, args.lead, args.builder, args.branch, args.pr,
                    parallel=args.parallel, skip=skip)
     return 0 if ok else 2
 
@@ -103,7 +108,9 @@ def cmd_autopilot(args) -> int:
     from . import schedule
     from .workflows import autopilot
     try:
-        return 0 if autopilot.run(_team(args), args.milestone, args.max_cycles, args.rounds) else 2
+        team = _team(args)
+        print_estimate(team, "autopilot", args.max_cycles)
+        return 0 if autopilot.run(team, args.milestone, args.max_cycles, args.rounds) else 2
     except schedule.AlreadyRunning as e:
         ui.warn(f"Not starting: {e}.")
         return 4
@@ -298,6 +305,55 @@ def cmd_keys(args) -> int:
     return 0
 
 
+def print_estimate(team, workflow: str, cycles: int = 1) -> None:
+    from . import estimate
+    e = estimate.estimate(team, workflow, cycles)
+    if e["typical"] is not None:
+        ui.say(f"  Estimated cost: {e['note']}")
+    if e["warning"]:
+        ui.warn(e["warning"])
+
+
+def cmd_estimate(args) -> int:
+    import json as _json
+    from . import estimate
+    team = _team(args)
+    e = estimate.estimate(team, args.workflow, args.cycles)
+    if args.json:
+        print(_json.dumps(e))
+        return 0
+    ui.say(e["note"])
+    if e["warning"]:
+        ui.warn(e["warning"])
+    for m, cap in team.limits.milestones.items():
+        from . import budget
+        ui.say(f"  Milestone {m}: ${budget.milestone_spent(team, m):.2f} of ${cap:.2f} spent")
+    return 0
+
+
+def cmd_eval(args) -> int:
+    from . import evals
+    team = _team(args)
+    names = [n.strip() for n in args.only.split(",") if n.strip()]
+    known = {s[0] for s in evals.SCENARIOS}
+    if set(names) - known:
+        raise SystemExit(f"unknown scenarios {sorted(set(names) - known)}; known: {sorted(known)}")
+    if not args.yes:
+        ui.say(f"This runs {len(names) or len(known)} scenario(s) with your team's real models in a throwaway "
+               "project (no GitHub). It costs real tokens: several builds' worth.")
+        if not sys.stdin.isatty() or input("Run them? [y/N] ").strip().lower() != "y":
+            ui.say("Not run. Add --yes to skip this question.")
+            return 1
+    report = evals.run(team, names or None, args.keep)
+    ui.heading(f"Evals: {report['passed']}/{report['total']} passed · ${report['cost']:.2f} · lead {report['lead']}, "
+               f"builders {', '.join(report['builders'])}")
+    for r in report["results"]:
+        mark = "\033[32m✓\033[0m" if r["passed"] else "\033[31m✕\033[0m"
+        ui.say(f"  {mark} {r['scenario']:<13} {r['checks']}\n      {r['detail']} · {r['rounds']} round(s) · "
+               f"{r['seconds']}s · ${r['cost']:.2f}")
+    return 0 if report["passed"] == report["total"] else 2
+
+
 def cmd_notify(args) -> int:
     from . import notify
     team = _team(args)
@@ -404,6 +460,26 @@ def cmd_memory(args) -> int:
         ui.say("No lessons yet. Reviewers add them (LESSON: lines) when they block for a general reason.")
     for n, i in enumerate(items, 1):
         ui.say(f"  {n:>2}. {i['text']}" + (f"  ({i['source']})" if i["source"] else ""))
+    return 0
+
+
+def cmd_projects(args) -> int:
+    from . import projects
+    if args.action == "forget":
+        ui.say("Forgotten." if projects.forget(args.path or ".") else "That project wasn't remembered.")
+        return 0
+    rows = projects.all_summaries()
+    if not rows:
+        ui.say("No projects yet: they're remembered when you run agent-team in them.")
+    for r in rows:
+        if not r["ok"]:
+            ui.say(f"  {r['name']:<20} {r['root']}  ({r['problem']})")
+            continue
+        last = r["last_run"]
+        ui.say(f"  {r['name']:<20} {r['repo'] or '-':<28} today ${r['cost_today']:.2f}  total ${r['cost_total']:.2f}  "
+               f"{'running ' + ', '.join(r['running']) if r['running'] else ''}"
+               f"{'  waits for you: ' + '; '.join(r['waiting']) if r['waiting'] else ''}"
+               f"\n      {r['root']}" + (f"  · last: {last['workflow']} ({last['outcome'] or '—'})" if last else ""))
     return 0
 
 
@@ -523,6 +599,14 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("name", nargs="?", default="", help="e.g. ANTHROPIC_API_KEY")
     s.add_argument("--from-env", action="store_true", help="copy the value this shell already has")
     s.set_defaults(fn=cmd_keys)
+    s = add("eval", cmd_eval, "run scenarios with your real models in a throwaway project (costs tokens)")
+    s.add_argument("--only", default="", help="comma-separated: feature,bug,edit,injection,fake-release")
+    s.add_argument("--keep", action="store_true", help="keep the practice projects for inspection")
+    s.add_argument("--yes", action="store_true", help="don't ask before spending")
+    s = add("estimate", cmd_estimate, "estimate what a run will cost, from this project's past runs")
+    s.add_argument("workflow", choices=["build", "fix", "ship", "discuss", "market", "setup", "autopilot"])
+    s.add_argument("--cycles", type=int, default=3, help="for autopilot")
+    s.add_argument("--json", action="store_true")
     add("notify", cmd_notify, "send a test notification to the [notify] webhook")
     s = add("approve", cmd_approve, "approve a PR's current commit for gated paths (no number: list what's waiting)")
     s.add_argument("number", nargs="?", type=int, default=None)
@@ -535,6 +619,10 @@ def main(argv: list[str] | None = None) -> int:
     s = add("memory", cmd_memory, "what the team learned from its reviews: list, add or forget lessons")
     s.add_argument("action", nargs="?", default="list", choices=["list", "add", "forget"])
     s.add_argument("text", nargs="?", default="", help="the lesson to add, or the number to forget")
+    s = sub.add_parser("projects", help="every project you use agent-team in: spend, runs, what waits for you")
+    s.add_argument("action", nargs="?", default="list", choices=["list", "forget"])
+    s.add_argument("path", nargs="?", default="")
+    s.set_defaults(fn=cmd_projects)
     s = add("ui", cmd_ui, "open the dashboard: see and edit the team, start runs, follow costs")
     s.add_argument("--port", type=int, default=8790)
     s.add_argument("--no-open", action="store_true", help="don't open a browser")

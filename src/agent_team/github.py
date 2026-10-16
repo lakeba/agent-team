@@ -17,11 +17,32 @@ class GitHubError(RuntimeError):
     pass
 
 
-def gh(*args: str, check: bool = True, input: str | None = None) -> str:
-    r = subprocess.run(["gh", *args], capture_output=True, text=True, timeout=180, input=input)
+def gh(*args: str, check: bool = True, input: str | None = None, token: str = "") -> str:
+    """Run the GitHub CLI; with `token`, as that identity (a member's own bot account or app)."""
+    env = None
+    if token:
+        import os
+        env = {**os.environ, "GH_TOKEN": token}
+    r = subprocess.run(["gh", *args], capture_output=True, text=True, timeout=180, input=input, env=env)
     if check and r.returncode != 0:
         raise GitHubError(r.stderr.strip() or r.stdout.strip())
     return r.stdout
+
+
+def member_token(team, cfg) -> str:
+    """The member's own GitHub token, if it has one ([[agents]].github_token_env), else ""."""
+    import os
+    return os.environ.get(cfg.github_token_env, "") if getattr(cfg, "github_token_env", "") else ""
+
+
+def review(repo: str, number: int, verdict: bool, body: str, token: str) -> str:
+    """Post a real GitHub review as a member: approve, or request changes. Returns "" or why not."""
+    try:
+        gh("pr", "review", str(number), "-R", repo, "--approve" if verdict else "--request-changes",
+           "--body", body[:60000], token=token)
+        return ""
+    except GitHubError as e:    # e.g. the bot opened the PR itself, or lacks permission
+        return str(e)[:300]
 
 
 def gh_json(*args: str, check: bool = True):

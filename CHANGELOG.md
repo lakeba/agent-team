@@ -41,6 +41,23 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - A Claude Code side panel in the plugin (`/team-panel`, opened automatically in projects with a
   team): members with health marks, recent runs and spend, with Refresh, Check health and
   Start/Open dashboard buttons.
+- 0.5.0:
+  - Sandboxed test runs: `[sandbox] mode = "container"` runs the test command in a throwaway
+    Docker/Podman container with only the project mounted, no network (unless allowed), none of
+    your keys, and resource limits; it never falls back to running unsandboxed.
+  - Cost estimates before runs (`agent-team estimate`, shown by `build`, `autopilot` and the
+    dashboard) and milestone budgets (`[limits.milestones]`).
+  - Ranked context: a BM25 search ranks files by relevance to the task for focused context and
+    discussions in big codebases.
+  - Per-member GitHub identities: `github_token_env` posts that member's comments and real GitHub
+    reviews under its own account.
+  - `agent-team eval`: fixed scenarios with your real models in a throwaway project, with
+    pass/fail, rounds and cost, kept for comparison.
+  - Dashboard: Activity (live charts of spend, calls, runs, merges, problems, latest events, evals),
+    Settings (easy switches and five team templates, previewed as a diff before saving) and
+    Projects (a control room for every project on this Mac, opening each one's dashboard).
+  - `agent-team projects`; release workflow for PyPI and GitHub Releases, a Homebrew formula, and a
+    GitHub Pages docs site (docs/publishing.md).
 - 0.4.0:
   - Issues as the to-do list: `agent-team issues sync` (the lead turns roadmap items into
     `team:build` issues; created only with `--yes`); autopilot builds the oldest open one first and

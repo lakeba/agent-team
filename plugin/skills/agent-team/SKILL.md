@@ -59,6 +59,12 @@ report. The team does the work; you don't do it for them unless the user asks yo
 - `/team-run <autopilot [milestone] | build task | fix PR | discuss topic | ship | market | doctor>`: start a run in the
   background; the panel follows it. For runs the user wants to watch here, use the commands above.
 
+## Checking the team
+
+- `agent-team eval` tests the team's real models on fixed scenarios (it costs tokens: ask first).
+- `agent-team estimate <workflow>` predicts a run's cost; mention it before long runs.
+- `agent-team projects` lists every project using agent-team on this machine.
+
 ## Growing the team
 
 Members, roles, owned paths and machines are all in `.team.toml`; see the agent-team docs

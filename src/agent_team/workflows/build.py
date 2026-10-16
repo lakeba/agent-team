@@ -44,12 +44,15 @@ def run_tests(team: Team) -> str:
     cmd = team.project.test_command
     if not cmd:
         return ""
+    from .. import sandbox
+    where = "" if team.sandbox.mode != "container" else f", sandboxed: {sandbox.describe(team)}"
     try:
-        r = subprocess.run(cmd, shell=True, cwd=team.root, capture_output=True, text=True, timeout=600)
-        out = (r.stdout + r.stderr)[-8000:]
-        return f"\n\n## Test output (`{cmd}`, exit code {r.returncode})\n```\n{out}\n```"
+        code, out = sandbox.run(team, cmd)
+        return f"\n\n## Test output (`{cmd}`{where}, exit code {code})\n```\n{out[-8000:]}\n```"
     except subprocess.TimeoutExpired:
-        return f"\n\n## Test output (`{cmd}`)\nTimed out after 600 seconds."
+        return f"\n\n## Test output (`{cmd}`{where})\nTimed out after 600 seconds."
+    except sandbox.SandboxError as e:
+        raise SystemExit(f"Can't run the tests: {e}. Install it, or set [sandbox].mode = \"off\".")
 
 
 def parse_parts(team: Team, text: str, builders: list[AgentConfig]) -> list[Part]:

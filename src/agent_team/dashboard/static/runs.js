@@ -80,9 +80,16 @@ function renderLauncher() {
     ? `Spend limits apply: ${[lim.per_run ? fmtUsd(lim.per_run) + " per run" : "", lim.per_day ? fmtUsd(lim.per_day) + " per day" : ""].filter(Boolean).join(", ")}.`
     : "No spend limits are set; add them under Team → Edit team.";
 
+  const est = h("p", { class: "secondary small" });
+  if (launch.workflow !== "doctor") {
+    getJSON(`/api/estimate?workflow=${launch.workflow}&cycles=${launch.workflow === "autopilot" ? (p.max_cycles || 6) : 1}`)
+      .then(e => { est.textContent = e.note + (e.warning ? " " + e.warning : ""); if (e.warning) est.classList.add("warn-text"); })
+      .catch(() => {});
+  }
   const start = h("button", { type: "button", class: "primary", disabled: launch.busy ? true : null, onclick: startRun }, launch.busy ? "Starting…" : "Start");
   wrap.append(h("div", { class: "card" }, h("h2", {}, "Start a run"),
     field("Workflow", choose, about), ...fields,
+    est,
     h("p", { class: "muted small" }, limits, " Runs go on in the background on this Mac, as if started in a terminal."),
     h("div", { class: "actions" }, start)));
 
