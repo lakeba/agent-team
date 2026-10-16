@@ -11,6 +11,9 @@ product towards it, and question it openly if you think part of it is wrong or t
 
 {vision}
 
+# What the scout observed
+{research}
+
 # Your perspective
 {perspective}
 

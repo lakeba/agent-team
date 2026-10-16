@@ -208,7 +208,7 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
                     rejected = 0
             continue
 
-        findings = _security_review(team, extra["security"], task, touched, log)
+        findings = _security_review(team, extra["security"], task, touched, log, checks)
         if findings:
             ui.heading(f"{lead_cfg.name} approved, but the security review found problems.")
             note = f"# Security review (the lead had approved; fix these)\n\n{findings}{tests}"
@@ -259,11 +259,18 @@ def _build_round(team: Team, parts: list[Part], note: str, focus: context.Focus)
         return list(pool.map(buffered, parts))
 
 
-def _security_review(team: Team, members: list[AgentConfig], task: str, touched: set[str], log) -> str:
-    """Each security member checks the changed files; returns the findings of any NO, else ""."""
+def _security_review(team: Team, members: list[AgentConfig], task: str, touched: set[str], log,
+                     checks: list | None = None) -> str:
+    """Each security member checks the changed files and what the build ships; returns the findings
+    of any NO, else ""."""
     if not members or not touched:
         return ""
     changed = files.snapshot(team.root, paths=set(touched), limit=team.project.context_limit)
+    from .. import outside_in
+    shipped = outside_in.scan(team, checks)
+    if shipped:
+        log.record("What the build ships", shipped)
+        changed += "\n\n" + github.untrusted(shipped)
     found = []
     for cfg in members:
         reviewer = agent.make(team, cfg, "security")

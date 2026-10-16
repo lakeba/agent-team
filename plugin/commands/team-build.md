@@ -27,6 +27,10 @@ once, let the user watch, verify, report, never bypass the guardrails).
      choose (the "context" entry)?
    - `git diff <default-branch>...<branch> --stat` and the actual diff for anything surprising;
    - the project's tests (`test_command` in `.team.toml`) pass on the branch;
+   - with behaviour checks (REA): the "Behaviour checks" entries in the log. For each journey that
+     behaves differently, did the lead say whether it was intended? Did QA (or the lead) add or
+     change journeys in `team/behaviour.toml`? The evidence is under `.team/evidence/` and in the
+     dashboard's Behaviour tab (`/team-ui`);
    - the PR exists on GitHub (`gh pr view`) and CI has started. Its title comes from the plan's
      heading, and the plan is in its description, not committed (unless the project already
      tracks a PLAN.md).

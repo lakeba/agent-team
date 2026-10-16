@@ -6,6 +6,35 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- REA, set up without hand configuration: `agent-team rea setup` finds REA (agent-team's own
+  pinned copy, the PATH, or Claude Code's registration), installs REA 6.5.0 into agent-team's folder
+  when asked, and writes `[mcp.rea]` and `[behaviour]`; `init` does it when REA is installed
+  (`--no-rea` to skip); `rea status` includes REA's own doctor; `ready` offers it.
+- The team writes the behaviour checks: journeys live in `team/behaviour.toml`; `build` has the QA
+  member (or the lead) add the ones a task needs before the builders start, checked before they're
+  kept (`--skip journeys`); `agent-team behaviour suggest|run|list`.
+- Behaviour checks for web apps (`kind = "browser"`: serve the app, follow plain-words steps with
+  REA's Playwright browser, compare the page's accessibility text, URL, errors and screenshot) and
+  for libraries (`kind = "api"`: the public API of a built .NET assembly or a JavaScript package).
+- Evidence: every check is kept under `.team/evidence/`; the dashboard's new Behaviour tab shows
+  before and now side by side, with screenshots.
+- Releases follow the evidence: with `api` scenarios the devops member gets `check_api_changes`,
+  and a release smaller than the public API changes allow is refused.
+- Security from the outside: after approval, the security member also reviews what the build
+  ships (credentials, internal addresses and source maps in build output, and strings REA reads
+  from built .NET assemblies).
+- A scout (`role = "scout"`, `[research] sites`) observes other products from the outside before
+  `discuss`; its brief goes to the discussion only.
+
+### Changed
+
+- With `[sandbox] mode = "container"`, behaviour checks run their prepare, run and serve commands in
+  the container (they were skipped), and don't run at all if the container engine isn't ready.
+- Guardrails in the team file: members who write code (builder, QA, docs) can't be given tools that
+  look inside other software, and the scout may only use observation tools.
+
 ## [0.7.0] - 2026-10-17
 
 ### Added

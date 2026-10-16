@@ -73,6 +73,10 @@ something missing must not fail: `agent-team ready` always exits 0 and reports w
    needs no entry). Check that `test_count_pattern` matches what the
    test command prints; fix it if not. CI logs put a timestamp before every line, so the pattern
    must not start with `^`. Show the changes and apply them when the user agrees.
-8. **Confirm:** run `agent-team doctor` and report the checklist and each member. If anything is
+8. **Behaviour checks:** if `agent-team rea status` says REA isn't installed, offer `agent-team rea
+   setup` (it asks before installing, so run it where the user can answer, or with `--yes` once they
+   agree). `init` already set REA up if it was installed. Then offer `agent-team behaviour suggest`,
+   which has the lead write the first journeys from VISION.md.
+9. **Confirm:** run `agent-team doctor` and report the checklist and each member. If anything is
    still missing, say exactly which command fixes it. Remind the user that `.team.toml` holds no
    secrets and can be committed, and suggest `/team-plan` as a first step once everything is ✓.

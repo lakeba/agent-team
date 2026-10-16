@@ -162,7 +162,7 @@ class ClientTests(unittest.TestCase):
             build.return_value.check.return_value = "ok"
             cli.main(["doctor", "-C", str(root)])
         self.assertIn("Tool servers (MCP)", out.getvalue())
-        self.assertIn("ok: fake 1.0, 8 tools, 3 allowed for members", out.getvalue())
+        self.assertRegex(out.getvalue(), r"ok: fake 1\.0, \d+ tools, 3 allowed for members")
 
 
 class BehaviourTests(unittest.TestCase):

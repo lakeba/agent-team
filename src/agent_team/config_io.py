@@ -15,8 +15,8 @@ from dataclasses import asdict, fields
 from pathlib import Path
 
 from .config import (CONFIG_NAME, AgentConfig, BehaviourConfig, BehaviourScenario, ConfigError, LimitsConfig,
-                     McpServerConfig, NotifyConfig, ProjectConfig, ProviderConfig, RoutingConfig, SandboxConfig, Team,
-                     parse)
+                     McpServerConfig, NotifyConfig, ProjectConfig, ProviderConfig, ResearchConfig, RoutingConfig,
+                     SandboxConfig, Team, parse)
 
 HEADER = ("# agent-team configuration. Docs: https://github.com/lakeba/agent-team/blob/main/docs/configuration.md\n"
           "# Secrets never go here: providers name the environment variable that holds them.\n")
@@ -112,9 +112,10 @@ def to_data(team: Team) -> dict:
                      "scenarios": [{k: v for k, v in asdict(sc).items()
                                     if k != "source" and (k == "name" or v != getattr(sdef, k))}
                                    for sc in team.behaviour.scenarios if sc.source == ".team.toml"]}
+    research = {k: v for k, v in asdict(team.research).items() if v != getattr(ResearchConfig(), k)}
     return {"project": project, "providers": providers, "pricing": dict(team.pricing), "limits": limits,
             "routing": routing, "notify": notify, "sandbox": sandbox, "mcp": mcp, "behaviour": behaviour,
-            "agents": agents}
+            "research": research, "agents": agents}
 
 
 def render(data: dict) -> str:
@@ -141,6 +142,9 @@ def render(data: dict) -> str:
         parts += ["", f"[pricing.{_key(model)}]", *_lines(price, skip_empty=False)]
     for name, s in (data.get("mcp") or {}).items():
         parts += ["", f"[mcp.{_key(name)}]", *_lines(s)]
+    research = {k: v for k, v in (data.get("research") or {}).items() if v not in ("", None, [])}
+    if research:
+        parts += ["", "[research]", *_lines(research)]
     behaviour = dict(data.get("behaviour") or {})
     scenarios = behaviour.pop("scenarios", None) or []
     if behaviour.get("server") and (scenarios or behaviour["server"] != BehaviourConfig().server
@@ -224,8 +228,13 @@ def clean(data: dict) -> dict:
                      **({"browser": str(btable["browser"])} if btable.get("browser") else {}),
                      "scenarios": [{k: v for k, v in (sc or {}).items() if k in sf - {"source"}}
                                    for sc in btable.get("scenarios") or [] if isinstance(sc, dict)]}
+    rf = {f.name for f in fields(ResearchConfig)}
+    research = {k: v for k, v in (data.get("research") or {}).items() if k in rf and v not in (None, "", [])}
+    if isinstance(research.get("sites"), list):
+        research["sites"] = [u.strip() for u in research["sites"] if isinstance(u, str) and u.strip()]
     return {"project": project, "providers": providers, "pricing": pricing, "limits": limits, "routing": routing,
-            "notify": notify, "sandbox": sandbox, "mcp": mcp, "behaviour": behaviour, "agents": agents}
+            "notify": notify, "sandbox": sandbox, "mcp": mcp, "behaviour": behaviour, "research": research,
+            "agents": agents}
 
 
 def plan_change(root: Path, data: dict) -> dict:

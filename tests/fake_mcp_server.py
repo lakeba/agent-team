@@ -20,6 +20,7 @@ TOOLS = [
     {"name": "capture_browser_scenario", "description": "Drive a browser.", "inputSchema": {"type": "object"}},
     {"name": "compare_web_screenshots", "description": "Compare two PNGs.", "inputSchema": {"type": "object"}},
     {"name": "inspect_managed_members", "description": "Read a .NET assembly.", "inputSchema": {"type": "object"}},
+    {"name": "analyze_javascript_application", "description": "Read a JS package.", "inputSchema": {"type": "object"}},
 ]
 
 
@@ -39,6 +40,20 @@ def browse(args):
                               "screenshot": {"state": "captured", "value": png}}
     errors = [{"kind": "page-error", "text": "boom"}] if "boom" in html else []
     return {"normalized_result": {"steps": steps, "events": {"items": errors}}}
+
+
+def javascript(args):
+    """Pretend static analysis: `export function|const NAME` lines in each .js file."""
+    import re
+    root = args["input_path"]
+    obs = []
+    for folder, _, names in os.walk(root):
+        for n in names:
+            if n.endswith(".js"):
+                rel = os.path.relpath(os.path.join(folder, n), root)
+                for name in re.findall(r"^export (?:function|const) (\w+)", open(os.path.join(folder, n)).read(), re.M):
+                    obs.append({"properties": {"semantic_role": "export-binding", "module_path": rel, "exported_name": name}})
+    return {"normalized_result": {"semantic_graph": {"nodes": [{"observations": obs}]}}}
 
 
 def assembly(args):
@@ -98,9 +113,9 @@ for line in sys.stdin:
         elif name == "big":
             result(rid, {"content": [{"type": "text", "text": "y" * 50_000}]})
         elif name in ("capture_process_scenario", "compare_process_captures", "capture_browser_scenario",
-                      "inspect_managed_members", "compare_web_screenshots"):
+                      "inspect_managed_members", "compare_web_screenshots", "analyze_javascript_application"):
             value = {"capture_process_scenario": capture, "capture_browser_scenario": browse,
-                     "inspect_managed_members": assembly,
+                     "inspect_managed_members": assembly, "analyze_javascript_application": javascript,
                      "compare_web_screenshots": lambda a: {"normalized_result": {"changed_pixel_ratio": 0.05}},
                      "compare_process_captures": lambda a: {"normalized_result": compare(a)}}[name](args)
             result(rid, {"content": [{"type": "text", "text": json.dumps(value)}], "structuredContent": value})

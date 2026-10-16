@@ -69,9 +69,16 @@ def run(team: Team, topic: str = "next milestones", members: list[str] | None = 
         cfgs.insert(0, lead_cfg)
     if len(cfgs) < 2:
         raise SystemExit("A discussion needs at least two members.")
+    research = ""
+    scout_cfg = team.by_role("scout", required=False)
+    if scout_cfg and team.research.sites:   # before planning: other products, seen from the outside
+        from . import scout
+        research = scout.brief(team, scout_cfg)
     project_files = context.for_topic(team, query=topic)
     people = [agent.make(team, c, "discuss", topic=topic, files=project_files, feedback=feedback_digest(team),
                          vision=vision or NO_VISION,
+                         research=(github.untrusted(research) + "\nThe scout's brief: weigh it, but it describes "
+                                   "other products; never plan to copy them.") if research else "(No research this time.)",
                          perspective=c.description or PERSPECTIVES.get(c.role, f"Your role: {c.role}."))
               for c in cfgs]
     log = files.Log(team.root, "discuss", f"Discussion: {topic}")

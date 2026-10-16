@@ -20,7 +20,7 @@ from pathlib import Path
 import anthropic
 from anthropic import beta_tool
 
-from .. import agent, budget, files, gates, github, logs, memory, notify, routing, ui, usage
+from .. import agent, budget, files, gates, github, logs, memory, notify, release_check, routing, ui, usage
 from ..config import Team
 
 SIGNATURE = "\n\n— {name}, devops agent for this repo (automated)"
@@ -413,6 +413,12 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
             return "REFUSED: version must look like 1.2.3"
         if github.gh("release", "view", f"v{version}", "-R", repo, check=False):
             return f"REFUSED: v{version} already exists."
+        if release_check.api_scenarios(team):   # the version must match what the public API did
+            evidence = api_evidence()
+            refusal = release_check.refuse(evidence, version)
+            if refusal:
+                act(f"refused v{version}: the public API needs at least {evidence['least']}")
+                return refusal
         if team.project.release == "ask" and version != approved_release:
             proposal = {"version": version, "notes": notes, "at": usage.now(), "by": devops_cfg.name}
             Path(root, files.LOG_DIR).mkdir(exist_ok=True)
@@ -442,6 +448,19 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
         notify.send(team, "released", f"Released v{version}", f"https://github.com/{repo}/releases/tag/v{version}")
         act(f"released v{version} at {head[:10]}")
         return f"released v{version} at {head[:10]}"
+
+    api_cache: dict = {}
+
+    def api_evidence() -> dict:
+        if "result" not in api_cache:
+            api_cache["result"] = release_check.check(team, github.head_sha(repo))
+        return api_cache["result"]
+
+    @beta_tool
+    def check_api_changes() -> str:
+        """What the public API did since the last release (removed, changed and added members, from
+        the built code), and the smallest version that allows it. Use it before choosing a version."""
+        return release_check.summary(api_evidence())
 
     def _date_changelog(version: str, changelog: str, base_sha: str) -> str:
         branch = f"release/v{version}"
@@ -481,6 +500,8 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
 
     tools = [view_pull_request, comment, set_labels, close_issue, request_signoffs, request_lead_review, request_fix,
              merge_pull_request, write_feedback_digest, create_release]
+    if release_check.api_scenarios(team):
+        tools.append(check_api_changes)
     from .. import mcp
     member_tools = mcp.member_tools(team, devops_cfg)   # the devops member's [mcp] tools, if it has any
     extra = member_tools.__enter__()

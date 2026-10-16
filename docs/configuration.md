@@ -129,44 +129,132 @@ args = ["--mcp"]
 tools = ["capture_process_scenario"]   # each allowed tool's description is sent on every call: this one is ~8,000 characters
 ```
 
-## `[behaviour]` and `[[behaviour.scenarios]]`
+## `[behaviour]` and behaviour scenarios
 
-Behaviour checks run your program the way a user would, once on the version a build started from
-and once with the team's changes, and compare the two runs: the screen, the exit code and the files
-it left. `build` runs them every round, after the tests. The lead reviews with the results (screens
-included); the builders get them with any requested changes; the pull request lists them.
+Behaviour checks use your program the way a user would, once on the version a build started from
+and once with the team's changes, and compare what a user would notice. `build` runs them every
+round, after the tests: the lead reviews with the results (screens and pages included), the builders
+get them with any requested changes, and the pull request lists them. Every check's evidence is kept
+under `.team/evidence/` and shown in the dashboard's **Behaviour** tab.
+
+They're captured by [REA](https://rea.tools). `agent-team rea setup` installs REA (a pinned version,
+in agent-team's own folder) if it isn't on your machine already, and adds `[mcp.rea]` and
+`[behaviour]` to the team file; `agent-team init` does the same when REA is installed. REA you
+installed yourself, or registered with Claude Code (`rea-agents setup`), is used as it is.
+
+Scenarios live in `team/behaviour.toml` (as `[[scenarios]]`), which the team writes and keeps up to
+date, and can also go in `.team.toml` (as `[[behaviour.scenarios]]`). `agent-team behaviour suggest`
+has the lead write the first ones from `VISION.md`; during `build`, the QA member (or the lead) adds
+the journeys a task needs before anyone builds it, the way QA writes tests first (`--skip journeys`
+leaves this out). A file that doesn't parse is sent back and never kept.
+
+```bash
+agent-team rea setup          # install and configure REA
+agent-team behaviour suggest  # the lead writes team/behaviour.toml from VISION.md
+agent-team behaviour run      # compare HEAD with your working tree now
+agent-team behaviour list
+```
 
 | Key | Default | Meaning |
 |---|---|---|
-| `[behaviour].server` | `rea` | The `[mcp.*]` server that captures the runs (it needs `capture_process_scenario`). agent-team compares them: the final screen line by line, the exit code, and the files by content. |
+| `[behaviour].server` | `rea` | The `[mcp.*]` server that captures the runs. |
+| `[behaviour].browser` | found | Chrome or Chromium for browser scenarios. |
 | `name` | required | A short name for the journey, shown in reviews and the PR. |
-| `run` | required | Shell commands. They run in an empty folder; `$PROJECT` is the version under test. |
+| `kind` | `terminal` | `terminal`, `browser` or `api`. |
 | `prepare` | `""` | Run first in `$PROJECT` and not captured, e.g. a build, so the run itself is quick. |
-| `input` | `[]` | Lines typed into the program, one after another. |
-| `input_delay` | `2.0` | Seconds before the first line is typed. |
-| `input_every` | `1.0` | Seconds between lines. |
 | `timeout` | `120` | Seconds the run may take. |
+
+**terminal**: a command-line program. The final screen is compared line by line, then the exit code
+and the files the run left (files whose content alone differs, such as ones storing times, are noted,
+not counted).
+
+| Key | Default | Meaning |
+|---|---|---|
+| `run` | required | Shell commands. They run in an empty folder; `$PROJECT` is the version under test. |
+| `input` | `[]` | Lines typed into the program, one after another. |
+| `input_delay`, `input_every` | `2.0`, `1.0` | Seconds before the first line, and between lines. |
 | `watch` | `["."]` | Paths in the run's folder whose files are compared. |
 
-```toml
-[behaviour]
-server = "rea"
+**browser**: a web app. `serve` starts it, a browser follows the steps, and the page as a user (or a
+screen reader) perceives it is compared, then the final URL, new console and page errors, and the
+screenshot (2% of pixels or more counts as looking different).
 
-[[behaviour.scenarios]]
-name = "timer journey"
+| Key | Default | Meaning |
+|---|---|---|
+| `serve` | `""` | Starts the app in `$PROJECT`, e.g. `npm run preview -- --port 5173 --strictPort`; stopped after. |
+| `url` | required | Where the browser starts. Only this machine (`http://127.0.0.1:...` or `localhost`). |
+| `steps` | `[]` | What the user does, in plain words (below). |
+
+Steps name elements the way a screen reader does, a role and its name: `goto /about`,
+`click button "Start"`, `fill textbox "Project" with "client-a"`, `press textbox "Project" Enter`,
+`check checkbox "Remember me"` (or `uncheck`), `select combobox "Plan" option "Pro"`,
+`wait for text "Running"` (or `wait for button "Stop"`), `wait 500`. Where a page has no good names,
+`css "#start"` and `testid "start"` work too.
+
+**api**: a library's public API, read from what was built (nothing runs). Removing or changing a
+public member breaks callers; adding one doesn't.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `assembly` | `""` | .NET: the built assembly, relative to the project, e.g. `out/MyLib.dll` (with `prepare` building it). Public and protected types, methods and fields count. |
+| `package` | `""` | JavaScript: the package folder, e.g. `.`. The exports of its entry modules (`exports`, `main`, `module` in package.json) count. |
+
+```toml
+# team/behaviour.toml
+[[scenarios]]
+name = "start and stop a timer"
 prepare = "dotnet build -c Release -o out"
 run = 'tally() { dotnet "$PROJECT/out/Tally.dll" "$@"; }; tally start client-a; tally stop; tally status'
 
-[[behaviour.scenarios]]
-name = "asks for a project name"
+[[scenarios]]
+name = "add a todo"
+kind = "browser"
+prepare = "npm ci && npm run build"
+serve = "npm run preview -- --port 5173 --strictPort"
+url = "http://127.0.0.1:5173/"
+steps = ['fill textbox "New todo" with "buy milk"', 'press textbox "New todo" Enter', 'wait for text "buy milk"']
+
+[[scenarios]]
+name = "public API"
+kind = "api"
 prepare = "dotnet build -c Release -o out"
-run = 'dotnet "$PROJECT/out/Tally.dll" start'
-input = ["client-b"]
+assembly = "out/MyLib.dll"
 ```
 
-The program runs with your user's permissions on this machine, as the tests do when `[sandbox]`
-is off. With `[sandbox] mode = "container"`, behaviour checks are skipped for now. They need git
-(the base version is checked out in a temporary worktree) and are skipped without it.
+**Releases.** With `api` scenarios, the devops member checks the public API since the last release
+(`check_api_changes`) before choosing a version, and a release smaller than the changes allow is
+refused: removed or changed members need a major version (a minor one while the project is 0.x),
+added ones at least a minor one.
+
+**Security from the outside.** After the lead approves, the security member also reviews what the
+build ships: the output of the scenarios' `prepare` steps (`out/`, `dist/`, `publish/`, ...) is
+searched for credentials, internal addresses (localhost, private networks, staging hosts) and
+source maps, and so are the strings REA reads from built .NET assemblies.
+
+**Where it runs.** The program runs with your user's permissions on this machine, as the tests do
+when `[sandbox]` is off. With `[sandbox] mode = "container"`, `prepare`, `run` and `serve` run in
+the container instead (a browser app is published on this machine's loopback only, so the browser
+here can reach it); if the container engine isn't ready, behaviour checks don't run at all rather
+than run outside it. Behaviour checks need git: the base version is checked out in a temporary
+worktree.
+
+## `[research]` and the scout
+
+A member with `role = "scout"` looks at other products from the outside before the team plans:
+with `[research] sites = ["https://..."]`, `discuss` has REA open each page in a browser and read it
+the way a visitor or a screen reader does, and the scout writes a short brief for the discussion
+(kept under `.team/research/`). It never reaches the builders, and the scout may only be given
+observation tools. A cookie or consent dialog that covers a page hides the rest of it from the
+scout, as it does from a screen reader.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `sites` | `[]` | Public pages the scout observes, up to five. |
+| `max_chars` | `6000` | Page text read per site. |
+
+**Guardrails.** Tools that look inside other software (decompilers, disassemblers, debuggers,
+extractors) are never given to members who write the project's code (`builder`, `qa`, `docs`), and
+the scout may only use observation tools: the team file is refused otherwise.
 
 ## `[[agents]]`
 

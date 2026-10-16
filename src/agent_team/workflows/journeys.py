@@ -85,8 +85,8 @@ def current(team: Team) -> str:
     return path.read_text(encoding="utf-8") if path.is_file() else "(none yet)"
 
 
-def check(text: str) -> str:
-    """"" if the file is a valid set of journeys, else what's wrong."""
+def check(text: str, taken: set[str] | None = None) -> str:
+    """"" if the file is a valid set of journeys, else what's wrong. `taken`: names .team.toml uses."""
     try:
         data = tomllib.loads(text)
     except tomllib.TOMLDecodeError as e:
@@ -101,6 +101,9 @@ def check(text: str) -> str:
         return str(e)
     if len(names) != len(set(names)):
         return "two journeys share a name"
+    clash = sorted(set(names) & (taken or set()))
+    if clash:
+        return f"{clash[0]!r} is already a scenario in .team.toml: use another name"
     return ""
 
 
@@ -119,7 +122,7 @@ def write(team: Team, cfg: AgentConfig, request: str, log=None) -> list[str]:
             if log:
                 log.record(f"{cfg.name}: journeys", reply)
             return []
-        problem = check(text)
+        problem = check(text, {sc.name for sc in team.behaviour.scenarios if sc.source != SCENARIOS_FILE})
         if not problem:
             path = Path(team.root) / SCENARIOS_FILE
             path.parent.mkdir(parents=True, exist_ok=True)

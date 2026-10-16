@@ -54,7 +54,7 @@ MAC_BROWSERS = ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
                 "/Applications/Chromium.app/Contents/MacOS/Chromium",
                 "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge")
 TOOLS = {"terminal": ["capture_process_scenario"], "browser": ["capture_browser_scenario", "compare_web_screenshots"],
-         "api": ["inspect_managed_members"]}
+         "api": ["inspect_managed_members", "analyze_javascript_application"]}
 
 
 @dataclass
@@ -325,21 +325,69 @@ def public_api(evidence: dict) -> list[str]:
     return sorted(out)
 
 
+def _entry_modules(package: Path) -> set[str]:
+    """A JavaScript package's public modules, from package.json (exports, main, module), relative
+    to the package; empty when it names none (then every module's exports count)."""
+    try:
+        meta = json.loads((package / "package.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    found: set[str] = set()
+
+    def walk(v):
+        if isinstance(v, str) and v.startswith("./"):
+            found.add(v[2:])
+        elif isinstance(v, dict):
+            for x in v.values():
+                walk(x)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x)
+    walk(meta.get("exports"))
+    for key in ("main", "module"):
+        if isinstance(meta.get(key), str):
+            found.add(meta[key].removeprefix("./"))
+    return found
+
+
+def js_exports(evidence: dict, entries: set[str]) -> list[str]:
+    """The exported names of a JavaScript package's public modules, one per line."""
+    out: set[str] = set()
+
+    def walk(v):
+        if isinstance(v, dict):
+            props = v.get("properties")
+            if isinstance(props, dict) and props.get("semantic_role") == "export-binding" and props.get("exported_name"):
+                module = str(props.get("module_path", ""))
+                if not entries or module in entries:
+                    out.add(f"export {module}: {props['exported_name']}")
+            for x in v.values():
+                walk(x)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x)
+    walk(evidence.get("normalized_result") or {})
+    return sorted(out)
+
+
 def run_api(team: Team, client: mcp.Client, sc: BehaviourScenario, project: Path) -> Observation:
     problem = prepare(team, sc, project)
     if problem:
         return Observation(problem=problem)
-    path = project / sc.assembly
-    if not path.is_file():
-        return Observation(problem=f"{sc.assembly} wasn't built (check prepare)")
+    path = project / (sc.assembly or sc.package)
+    if not path.exists():
+        return Observation(problem=f"{sc.assembly or sc.package} wasn't found (check prepare)")
+    tool, args = (("inspect_managed_members", {"path": str(path)}) if sc.assembly else
+                  ("analyze_javascript_application", {"input_path": str(path)}))
     try:
-        result = client.call("inspect_managed_members", {"path": str(path)}, timeout=sc.timeout + 60)
+        result = client.call(tool, args, timeout=sc.timeout + 60)
     except mcp.McpError as e:
         return Observation(problem=str(e))
     evidence = result.get("structuredContent")
     if result.get("isError") or not isinstance(evidence, dict):
         return Observation(problem=mcp.text_of(result)[:1500])
-    return Observation(view="\n".join(public_api(evidence)), exit="inspected", evidence=evidence)
+    members = public_api(evidence) if sc.assembly else js_exports(evidence, _entry_modules(path))
+    return Observation(view="\n".join(members), exit="inspected", evidence=evidence)
 
 
 # ---------------------------------------------------------------------------------------------

@@ -128,16 +128,25 @@ from a vision you've written elsewhere:
 agent-team discuss --vision ~/notes/tipsplit-pitch.md    # saved as VISION.md if there's none yet
 ```
 
-### Behaviour checks and tool servers (MCP)
+### Behaviour checks with REA
 
-Tests check what their authors thought of. A behaviour check runs the program the way a user would,
-before and after the team's change, and compares the two runs, so a review can say "after `stop`,
-`status` still shows the timer running" with the screens as evidence. List a few user journeys
-under `[[behaviour.scenarios]]`; `build` runs them every round and gives the lead the results.
-They're captured by [REA](https://github.com/morluto/rea) (`npm install --global rea-agents`),
-one of the tool servers the team can use over MCP: any `[mcp.*]` server's allowed tools can also
-be given to members (`mcp = ["rea"]`) for their reviews and shifts. `agent-team doctor` checks that
-each server starts. See [configuration](docs/configuration.md#mcpname).
+Tests check what their authors thought of. A behaviour check uses the program the way a user
+would, before and after the team's change, and shows the lead what changed: "after `stop`,
+`status` still shows the timer running", with the screens as evidence. It works for command-line
+programs, web apps (a browser follows plain-words steps like `click button "Start"`) and libraries
+(the public API of a .NET assembly or a JavaScript package).
+
+```bash
+agent-team rea setup          # installs REA (https://rea.tools) if needed and sets it up
+agent-team behaviour suggest  # the lead writes the first journeys from VISION.md
+```
+
+From then on, `build` has the QA member (or the lead) add the journeys each task needs and runs them
+every round; the dashboard's **Behaviour** tab shows before and after side by side. Releases follow
+the evidence (removing a public member needs a major version), the security member also reviews
+what the build ships, and an optional scout looks at other products from the outside before the
+team plans. REA is one of the tool servers the team can use over MCP: any `[mcp.*]` server's allowed
+tools can be given to members (`mcp = ["rea"]`). See [configuration](docs/configuration.md#behaviour-and-behaviour-scenarios).
 
 ### Other commands
 

@@ -15,7 +15,21 @@ CONFIG_NAME = ".team.toml"
 
 # Roles the built-in workflows understand. Any other role is allowed: such agents can join
 # discussions and sign off the paths they own, using their own prompt file.
-KNOWN_ROLES = {"lead", "builder", "devops", "marketing", "factcheck", "reviewer", "security", "qa", "docs"}
+KNOWN_ROLES = {"lead", "builder", "devops", "marketing", "factcheck", "reviewer", "security", "qa", "docs", "scout"}
+
+# Tools that look inside other people's software (decompilers, disassemblers, debuggers, extractors).
+# Members who write the project's code never get them, so nothing taken from third-party internals
+# can reach a build; the scout may only observe from the outside.
+REVERSE_TOOL = ("decompile", "disassemble", "function", "rizin", "cutter", "gdb", "lldb", "frida", "jeb", "jadx",
+                "native", "extract", "recover", "reconstruct", "swift", "dart", "smali", "apk", "class", "method",
+                "bytecode", "symbol", "xref", "patch", "annotate")
+WRITES_CODE = ("builder", "qa", "docs")
+SCOUT_TOOLS = {"capture_browser_scenario", "capture_web_screenshot", "inspect_web_page", "list_browser_targets",
+               "compare_web_screenshots", "observe_web_session"}
+
+
+def reverse_tool(name: str) -> bool:
+    return any(word in name for word in REVERSE_TOOL)
 
 # Filled by providers.register(); kinds are validated against it once providers are imported.
 PROVIDER_KINDS: set[str] = set()
@@ -129,7 +143,8 @@ class BehaviourScenario:
     url: str = ""                   # where the browser starts, e.g. http://127.0.0.1:5173/
     steps: list[str] = field(default_factory=list)   # e.g. 'fill textbox "Project" with "client-a"', 'click button "Start"'
     # api
-    assembly: str = ""              # the built assembly, relative to $PROJECT, e.g. "out/Tally.dll"
+    assembly: str = ""              # .NET: the built assembly, relative to $PROJECT, e.g. "out/Tally.dll"
+    package: str = ""               # JavaScript: the package folder, relative to $PROJECT (its entry modules' exports)
     timeout: int = 120              # seconds
     source: str = ".team.toml"      # where it was defined (set when loading)
 
@@ -139,6 +154,12 @@ class BehaviourConfig:
     server: str = "rea"             # the [mcp] server that captures the runs
     browser: str = ""               # Chrome or Chromium for browser scenarios; default: found on this machine
     scenarios: list[BehaviourScenario] = field(default_factory=list)
+
+
+@dataclass
+class ResearchConfig:
+    sites: list[str] = field(default_factory=list)   # public pages the scout observes before a discussion
+    max_chars: int = 6000           # page text per site the scout reads
 
 
 @dataclass
@@ -154,6 +175,7 @@ class Team:
     sandbox: SandboxConfig = field(default_factory=SandboxConfig)
     mcp: dict[str, McpServerConfig] = field(default_factory=dict)
     behaviour: BehaviourConfig = field(default_factory=BehaviourConfig)
+    research: ResearchConfig = field(default_factory=ResearchConfig)
 
     def by_role(self, role: str, required: bool = True) -> AgentConfig | None:
         found = [a for a in self.agents.values() if a.role == role]
@@ -203,7 +225,7 @@ def scenario(table: dict, where: str, source: str = ".team.toml") -> BehaviourSc
         raise ConfigError(f"{where}: needs a name")
     if sc.kind not in SCENARIO_KINDS:
         raise ConfigError(f"{label}: kind is {', '.join(SCENARIO_KINDS)}, not {sc.kind!r}")
-    texts = [sc.prepare, sc.run, sc.serve, sc.url, sc.assembly]
+    texts = [sc.prepare, sc.run, sc.serve, sc.url, sc.assembly, sc.package]
     lists = [sc.input, sc.watch, sc.steps]
     if not all(isinstance(x, str) for x in texts) or not all(isinstance(l, list) and all(isinstance(x, str) for x in l)
                                                              for l in lists):
@@ -225,8 +247,11 @@ def scenario(table: dict, where: str, source: str = ".team.toml") -> BehaviourSc
             parse_steps(sc.steps)
         except StepError as e:
             raise ConfigError(f"{label}: {e}") from None
-    if sc.kind == "api" and (not sc.assembly.strip() or sc.assembly.startswith("/") or ".." in sc.assembly.split("/")):
-        raise ConfigError(f"{label}: assembly is the built .dll, relative to the project, e.g. \"out/App.dll\"")
+    if sc.kind == "api":
+        target = sc.assembly or sc.package
+        if bool(sc.assembly) == bool(sc.package) or target.startswith("/") or ".." in target.split("/"):
+            raise ConfigError(f"{label}: an api scenario names either assembly (a built .NET .dll, e.g. \"out/App.dll\") "
+                              f"or package (a JavaScript package folder, e.g. \".\"), relative to the project")
     return sc
 
 
@@ -356,6 +381,19 @@ def parse(data: dict, root: Path) -> Team:
         if empty:
             raise ConfigError(f"agent {a.name!r} uses [mcp.{empty[0]}], which allows no tools yet: list the ones "
                               f"members may call in its tools")
+    for a in agents.values():   # guardrails on what members may be given
+        tools = [t for m in a.mcp for t in mcp[m].tools]
+        if a.role in WRITES_CODE and any(reverse_tool(t) for t in tools):
+            bad = next(t for t in tools if reverse_tool(t))
+            raise ConfigError(f"agent {a.name!r} ({a.role}) writes the project's code, so it can't be given {bad!r}: "
+                              f"tools that look inside other software never reach the members who build")
+        if a.role == "scout" and any(t not in SCOUT_TOOLS for t in tools):
+            bad = next(t for t in tools if t not in SCOUT_TOOLS)
+            raise ConfigError(f"agent {a.name!r} is a scout: it observes from the outside, so {bad!r} isn't allowed "
+                              f"(only {', '.join(sorted(SCOUT_TOOLS))})")
+    research = _take(dict(data.get("research") or {}), ResearchConfig, "[research]")
+    if not all(isinstance(u, str) and u.startswith(("https://", "http://")) for u in research.sites):
+        raise ConfigError("[research].sites are web addresses (https://...)")
     btable = dict(data.get("behaviour") or {})
     scenarios = [scenario(dict(t), f"[[behaviour.scenarios]] #{i + 1}") for i, t in enumerate(btable.pop("scenarios", None) or [])]
     scenarios += scenarios_file(root)
@@ -368,4 +406,4 @@ def parse(data: dict, root: Path) -> Team:
         raise ConfigError(f"[behaviour].server is {behaviour.server!r}, but there's no [mcp.{behaviour.server}] to "
                           f"capture the runs with")
     return Team(root=root, project=project, providers=providers, agents=agents, pricing=pricing, limits=limits,
-                routing=routing, notify=notify, sandbox=sandbox, mcp=mcp, behaviour=behaviour)
+                routing=routing, notify=notify, sandbox=sandbox, mcp=mcp, behaviour=behaviour, research=research)

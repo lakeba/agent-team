@@ -65,7 +65,7 @@ class StepsTests(unittest.TestCase):
 class ScenarioConfigTests(unittest.TestCase):
     def test_kinds_need_their_fields_and_browsers_stay_local(self):
         cases = [('kind = "browser"\nurl = "https://example.com/"', "don't visit other sites"),
-                 ('kind = "api"', "assembly"), ('kind = "terminal"', "needs run"), ('kind = "gui"\nrun = "x"', "kind is"),
+                 ('kind = "api"', "assembly"), ('kind = "api"\nassembly = "a.dll"\npackage = "."', "either"), ('kind = "terminal"', "needs run"), ('kind = "gui"\nrun = "x"', "kind is"),
                  ('kind = "browser"\nurl = "http://127.0.0.1:1/"\nsteps = ["tap x"]', "steps start with")]
         for body, words in cases:
             root = project_with(f'\n[[behaviour.scenarios]]\nname = "a"\n{body}\n')
@@ -134,6 +134,60 @@ class KindsTests(unittest.TestCase):
         self.assertIn("method Lib.Store.Version(): class", o.added)
         self.assertNotIn("Hidden", " ".join(o.breaking + o.added))
         self.assertIn("breaks callers", behaviour.report([o], for_pr=True))
+
+
+    def test_javascript_exports(self):
+        root, base = git_project("true\n", "true\n")
+        text = (root / ".team.toml").read_text().split("[[behaviour.scenarios]]")[0]
+        (root / ".team.toml").write_text(text + '\n[[behaviour.scenarios]]\nname = "library"\nkind = "api"\npackage = "lib"\n')
+        (root / "lib/src").mkdir(parents=True)
+        (root / "lib/package.json").write_text('{"exports": {".": "./src/index.js"}}')
+        (root / "lib/src/index.js").write_text("export function start() {}\nexport function stop() {}\n")
+        (root / "lib/src/internal.js").write_text("export function helper() {}\n")
+        for args in (["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "js"]):
+            subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+        base = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+        (root / "lib/src/index.js").write_text("export function start() {}\nexport const VERSION = 2\n")
+        (root / "lib/src/internal.js").write_text("")
+        with quiet():
+            o = behaviour.run(config.load(root), base)[0]
+        self.assertEqual(o.breaking, ["export src/index.js: stop"])   # internal.js isn't public
+        self.assertEqual(o.added, ["export src/index.js: VERSION"])
+
+
+class ReleaseCheckTests(unittest.TestCase):
+    def test_the_smallest_version_the_changes_allow(self):
+        from agent_team import release_check as rc
+        self.assertEqual(rc.needed((1, 4, 2), breaking=True, added=False), (2, 0, 0))
+        self.assertEqual(rc.needed((0, 4, 2), breaking=True, added=True), (0, 5, 0))   # 0.x: minor
+        self.assertEqual(rc.needed((1, 4, 2), breaking=False, added=True), (1, 5, 0))
+        self.assertEqual(rc.needed((1, 4, 2), breaking=False, added=False), (1, 4, 3))
+
+    def test_a_too_small_release_is_refused_with_the_evidence(self):
+        from agent_team import release_check as rc
+        root, _ = git_project("true\n", "true\n")
+        text = (root / ".team.toml").read_text().split("[[behaviour.scenarios]]")[0]
+        (root / ".team.toml").write_text(text + '\n[[behaviour.scenarios]]\nname = "library"\nkind = "api"\npackage = "lib"\n')
+        (root / "lib").mkdir()
+        (root / "lib/package.json").write_text('{"exports": {".": "./index.js"}}')
+        (root / "lib/index.js").write_text("export function start() {}\nexport function stop() {}\n")
+        git = lambda *a: subprocess.run(["git", "-C", str(root), *a], check=True, capture_output=True, text=True).stdout
+        git("add", "-A"); git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "1.4.0")
+        git("tag", "v1.4.0")
+        (root / "lib/index.js").write_text("export function start() {}\n")    # stop is gone
+        git("add", "-A"); git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "drop stop")
+        head = git("rev-parse", "HEAD").strip()
+        with quiet():
+            result = rc.check(config.load(root), head)
+        self.assertEqual((result["since"], result["breaking"], result["least"]), ("v1.4.0", ["export index.js: stop"], "2.0.0"))
+        self.assertIn("must be at least 2.0.0", rc.refuse(result, "1.5.0"))
+        self.assertEqual(rc.refuse(result, "2.0.0"), "")
+        self.assertIn("breaks callers", rc.summary(result))
+
+    def test_nothing_to_compare(self):
+        from agent_team import release_check as rc
+        self.assertEqual(rc.check(config.load(project_with()), "HEAD"), {})
+        self.assertEqual(rc.refuse({}, "0.0.1"), "")
 
 
 class SandboxTests(unittest.TestCase):
