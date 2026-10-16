@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 100" role="img" aria-label="Lakeba">
+  <defs>
+    <path id="petal" d="M15 11C21 4.5 28 1.5 36 1.5C43 1.5 46.5 3.5 50 5.5C53.5 3.5 57 1.5 64 1.5C72 1.5 79 4.5 85 11L63 33C58 38 54.5 39.5 50 39.5C45.5 39.5 42 38 37 33Z"/>
+  </defs>
+  <g>
+    <use href="#petal" fill="#276AE7"/>
+    <use href="#petal" fill="#EB802B" transform="rotate(90 50 50)"/>
+    <use href="#petal" fill="#DD3B2D" transform="rotate(180 50 50)"/>
+    <use href="#petal" fill="#35A954" transform="rotate(270 50 50)"/>
+  </g>
+  <text x="122" y="74" font-family="Montserrat, 'Helvetica Neue', Arial, sans-serif" font-weight="800" font-size="76" letter-spacing="-1" fill="#0B1D37">Lakeba</text>
+</svg>

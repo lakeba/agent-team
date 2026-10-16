@@ -1,4 +1,9 @@
-# agent-team
+<p align="center"><a href="https://lakeba.com"><img src="https://raw.githubusercontent.com/lakeba/agent-team/main/docs/assets/brand/lakeba-mark.svg" alt="Lakeba" width="72"></a></p>
+
+<h1 align="center">agent-team</h1>
+
+<p align="center"><b>by <a href="https://lakeba.com">Lakeba</a></b> · Conceive · Create · Commercialise<br>
+<a href="https://lakeba.github.io/agent-team/">Website</a> · <a href="https://pypi.org/project/agent-team/">PyPI</a> · <a href="CHANGELOG.md">Changelog</a></p>
 
 A configurable team of AI agents that works on a software project the way a small team would:
 it plans a roadmap, builds features, reviews them, writes marketing material, and ships through

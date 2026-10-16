@@ -6,6 +6,16 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Changed
+
+- agent-team is presented as a Lakeba product: the website, the dashboard and the README carry
+  the Lakeba mark and colours, with a "Conceive. Create. Commercialise." section, a "Built by
+  Lakeba" section, a favicon and a social preview image.
+
+### Fixed
+
+- The website's "Get started" cards no longer overflow the page width on narrower screens.
+
 ## [0.5.1] - 2026-10-16
 
 ### Changed

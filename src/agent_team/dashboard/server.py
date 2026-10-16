@@ -34,7 +34,8 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/runs.js": ("runs.js", "text/javascript; charset=utf-8"),
           "/settings.js": ("settings.js", "text/javascript; charset=utf-8"),
           "/activity.js": ("activity.js", "text/javascript; charset=utf-8"),
-          "/projects.js": ("projects.js", "text/javascript; charset=utf-8")}
+          "/projects.js": ("projects.js", "text/javascript; charset=utf-8"),
+          "/lakeba-mark.svg": ("lakeba-mark.svg", "image/svg+xml")}
 HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
     "X-Content-Type-Options": "nosniff",

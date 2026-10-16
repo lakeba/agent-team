@@ -4,10 +4,10 @@
   --surface-1: #fcfcfb;
   --surface-2: #efefec;
   --border: #e0dfdb;
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #77766f;
-  --accent: #2a78d6;           /* series slot 1, also the single-series bar colour */
+  --text-primary: #0b1d37;
+  --text-secondary: #3f4b5e;
+  --text-muted: #6b7484;
+  --accent: #276ae7;           /* series slot 1, also the single-series bar colour */
   --accent-ink: #ffffff;
   --grid: #e7e6e2;
   --good: #0ca30c;
@@ -56,7 +56,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .top { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
        padding: 18px 24px 10px; max-width: 1200px; margin: 0 auto; }
 .brand { display: flex; gap: 12px; align-items: center; }
-.logo { font-size: 26px; color: var(--accent); }
+.logo { display: flex; }
+.logo img { width: 30px; height: 30px; display: block; }
 .brand h1 { font-size: 20px; }
 .sub { margin: 0; color: var(--text-secondary); font-size: 13px; }
 .sub span { margin-left: 8px; color: var(--text-muted); }
@@ -212,3 +213,7 @@ pre.job-output { font: 12px/1.45 var(--mono); background: var(--surface-0); bord
 @media (forced-colors: active) {
   .bar, .column { background: CanvasText; }
 }
+
+.made { text-align: center; padding: 28px 16px 36px; font-size: 12px; }
+.made a { color: var(--text-muted); text-decoration: none; display: inline-flex; gap: 6px; align-items: center; }
+.made a:hover { color: var(--accent); }
