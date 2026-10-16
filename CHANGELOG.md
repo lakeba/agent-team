@@ -6,7 +6,26 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- `agent-team init` asks, in a terminal, where the models run (Claude with Ollama builders, only
+  Ollama, or only Claude), which optional members to add, how many builders and any spend limits,
+  then shows the team and asks before writing. Flags answer the same questions for scripts:
+  `--models`, `--members`, `--builders`, `--per-run`, `--per-day`; `--yes` takes the defaults.
+  `/team-init` passes the answers it collects as these flags.
+- `init` finds Ollama by itself: on this machine, at `OLLAMA_HOST`, on the machine a VM or
+  container runs on (Parallels, VirtualBox, UTM, Docker, Lima) or at the gateway.
+  `agent-team discover --ollama` lists what it finds.
+- The dashboard's Settings has a **Team composition** card with the same choices for an existing
+  team, including **Find Ollama** and a model list from the chosen server, shown as a diff first.
+- Tab completion for bash and zsh: commands, options, choices and the team's member names.
+  The installer sets it up for bash; `agent-team completion install` does it for zsh.
+- `install.sh --uninstall --purge` also deletes the saved keys and project list (asking first).
+
 ### Changed
+
+- `install.sh --uninstall` says where your saved keys are kept, and warns when another copy (such
+  as a pipx install) is still on the `PATH`. Its list of slash commands is complete.
 
 - agent-team carries the Lakeba brand, as an open-source project Lakeba shares with its partners,
   clients and the developer community: the website, the dashboard and the README use the Lakeba

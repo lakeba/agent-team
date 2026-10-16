@@ -318,6 +318,25 @@ def make_handler(root: Path, port: int, token: str | None = None):
                 if path == "/api/jobs/start":
                     config.load(root)   # refuse to start anything on a broken config
                     return self._json(jobs.start(root, str(body.get("workflow", "")), body.get("params") or {}))
+                if path == "/api/composition":
+                    from .. import composition as comp
+                    current = comp.from_data(body.get("data") or {})
+                    return self._json({"composition": {"models": current.models, "ollama_url": current.ollama_url,
+                                                       "ollama_model": current.ollama_model, "extras": list(current.extras),
+                                                       "builders": current.builders, "per_run": current.per_run,
+                                                       "per_day": current.per_day},
+                                       "models": comp.MODELS, "max_builders": comp.MAX_BUILDERS,
+                                       "extras": {r: {"name": n, "about": a} for r, (n, a) in comp.EXTRAS.items()}})
+                if path == "/api/composition/apply":
+                    from .. import composition as comp
+                    try:
+                        data = comp.apply(body.get("data") or {}, comp.from_form(body.get("composition") or {}))
+                    except ValueError as e:
+                        return self._json({"error": str(e)}, 422)
+                    return self._json({"data": data, "preview": config_io.plan_change(root, data)})
+                if path == "/api/ollama/find":
+                    from ..readiness import find_ollama
+                    return self._json({"servers": [{"url": u, "models": m} for u, m in find_ollama()]})
                 if path == "/api/templates/apply":
                     from .. import templates
                     try:

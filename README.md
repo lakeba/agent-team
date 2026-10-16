@@ -68,19 +68,40 @@ curl -fsSL https://raw.githubusercontent.com/lakeba/agent-team/main/scripts/inst
 Run it again to update, then run `/reload-plugins` in any open Claude Code session (or start a new
 one): an open session keeps the commands it started with. Options go after `bash -s --`, for example `| bash -s -- --ref v0.1.0`
 for a specific version, `--no-plugin` to skip the plugin, or `--uninstall` to remove everything
-it installed. If you prefer pipx: `pipx install git+https://github.com/lakeba/agent-team.git`
-(that installs the CLI only).
+it installed. `--uninstall` keeps your saved keys and project list in `~/.config/agent-team`; add
+`--purge` to delete them too (it asks first). If you prefer pipx:
+`pipx install git+https://github.com/lakeba/agent-team.git` (that installs the CLI only). Keep one
+copy: two installs mean two versions, and the one first on your `PATH` wins.
+
+Tab completes commands, options, choices and your members' names: the installer sets it up for
+bash; for zsh, run `agent-team completion install` once (it asks before adding one line to
+`~/.zshrc`).
 
 ## Quick start
 
 ```bash
 cd ~/code/my-project
 agent-team ready      # checklist: git, GitHub, keys, Ollama, with the fix for anything missing
-agent-team init       # writes .team.toml; --ollama-url http://HOST:11434 for Ollama on another machine,
-                      # --no-claude to put every member on Ollama (no API key needed)
+agent-team init       # asks where the models run (Claude, Ollama or both), which members, how many
+                      # builders and any spend limits, then writes .team.toml
 agent-team keys set ANTHROPIC_API_KEY    # only if members use Claude: asks for the key (hidden)
 agent-team doctor     # the checklist again, then checks every member can be reached
 ```
+
+`init` finds Ollama on this machine, at `OLLAMA_HOST`, or on the machine a VM or container runs
+on, and offers what it finds. To set up without questions (scripts, CI), give the choices as flags;
+`--yes` takes the defaults for the rest:
+
+```bash
+agent-team init --yes --models ollama --ollama-url http://192.168.1.20:11434   # no Claude, no key
+agent-team init --yes --models claude --members security,qa --builders 2 --per-day 20
+```
+
+`--models` is `mixed` (Claude leads, reviews, ships and markets; the builders run on Ollama; the
+default), `ollama` or `claude`. `--members` adds the optional members (`security`, `qa`, `docs`,
+`all`). With a `.team.toml` already there, `agent-team init --ollama-url URL` only changes the
+team's Ollama address. The dashboard's **Settings → Team composition** offers the same choices for
+an existing team, shown as a diff before anything is saved.
 
 Keys live in `~/.config/agent-team/env`, readable only by you, so they work the same from any shell,
 the dashboard, background runs and schedules (Ubuntu's `~/.bashrc`, for one, is skipped by

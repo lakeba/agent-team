@@ -49,6 +49,89 @@ def is_local(url: str) -> bool:
     return any(h in url for h in ("localhost", "127.0.0.1", "[::1]"))
 
 
+# Where a VM or container usually reaches the machine it runs on.
+HOST_NAMES = ("host.docker.internal", "host.containers.internal", "host.lima.internal")
+HOST_ADDRESSES = ("10.0.2.2",          # VirtualBox, QEMU and WSL1-style user networking
+                  "192.168.64.1",      # UTM and Apple's Virtualization framework
+                  "10.211.55.2", "10.37.129.2")   # Parallels shared and host-only networks
+
+
+def _ollama_url(host: str) -> str:
+    """http://HOST:11434 from OLLAMA_HOST-style values: "0.0.0.0", "host:port", "http://host"."""
+    host = host.strip().rstrip("/")
+    if not host:
+        return ""
+    if "://" not in host:
+        host = "http://" + host
+    scheme, rest = host.split("://", 1)
+    name = rest.split("/", 1)[0]
+    if name.startswith(("0.0.0.0", "[::]")):
+        name = "localhost" + name[len("0.0.0.0" if name.startswith("0.0.0.0") else "[::]"):]
+    if ":" not in name.split("]")[-1]:
+        name += ":11434"
+    return f"{scheme}://{name}"
+
+
+def _gateways() -> list[str]:
+    """The default gateways of this machine: in a VM, usually the machine it runs on."""
+    out: list[str] = []
+    try:   # Linux: /proc/net/route lists the default route with destination 00000000
+        for line in Path("/proc/net/route").read_text().splitlines()[1:]:
+            f = line.split()
+            if len(f) > 2 and f[1] == "00000000":
+                g = int(f[2], 16)
+                out.append(".".join(str((g >> s) & 255) for s in (0, 8, 16, 24)))
+    except (OSError, ValueError):
+        pass
+    if not out and sys.platform == "darwin":
+        code, text = _run(["route", "-n", "get", "default"], Path.cwd(), timeout=3)
+        out += [line.split()[-1] for line in text.splitlines() if code == 0 and "gateway:" in line]
+    return [g for g in out if g and g != "0.0.0.0"]
+
+
+def _own_addresses() -> set[str]:
+    """This machine's IPv4 addresses (not loopback)."""
+    import re
+    code, text = _run(["ip", "-4", "-o", "addr"], Path.cwd(), timeout=3)
+    if code != 0:
+        code, text = _run(["ifconfig"], Path.cwd(), timeout=3)
+    return {m for m in re.findall(r"inet (\d+\.\d+\.\d+\.\d+)", text if code == 0 else "") if not m.startswith("127.")}
+
+
+def _neighbours(mine: set[str]) -> list[str]:
+    """x.y.z.1 and x.y.z.2 on each of this machine's own IPv4 networks: where a hypervisor puts
+    the host (Parallels uses .2, many others .1)."""
+    out = []
+    for ip in sorted(mine):
+        base = ip.rsplit(".", 1)[0]
+        out += [f"{base}.{n}" for n in (1, 2)]
+    return out
+
+
+def ollama_candidates() -> list[str]:
+    """Addresses worth trying for an Ollama server, nearest first, without duplicates."""
+    mine = _own_addresses()
+    urls = [_ollama_url(os.environ.get("OLLAMA_HOST", "")), "http://localhost:11434"]
+    urls += [f"http://{h}:11434" for h in (*HOST_NAMES, *_gateways(), *HOST_ADDRESSES, *_neighbours(mine))
+             if h not in mine]   # this machine's own addresses reach the same server as localhost
+    seen, out = set(), []
+    for u in urls:
+        if u and u not in seen:
+            seen.add(u)
+            out.append(u)
+    return out[:24]
+
+
+def find_ollama(timeout: float = 1.5, candidates: list[str] | None = None) -> list[tuple[str, list[str]]]:
+    """Every Ollama server that answers, as (url, models), in the order of ollama_candidates().
+    Tries them all at once, so it takes about `timeout` seconds at most."""
+    from concurrent.futures import ThreadPoolExecutor
+    urls = candidates if candidates is not None else ollama_candidates()
+    with ThreadPoolExecutor(max_workers=max(1, len(urls))) as pool:
+        found = list(pool.map(lambda u: ollama_models(u, timeout=timeout), urls))
+    return [(u, m) for u, m in zip(urls, found) if m is not None]
+
+
 def _identity_check(member) -> Check:
     """Whether a member's own GitHub token works, and which account it posts as."""
     name, var = f"{member.name}'s GitHub identity", member.github_token_env

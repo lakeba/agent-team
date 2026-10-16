@@ -2,7 +2,8 @@
 // Settings: the options people change most, as plain switches, and team templates. Every change is
 // previewed as a diff of .team.toml and saved only when you press Save, like the full editor.
 
-const settings = { draft: null, sha: null, preview: null, templates: [], loading: false, error: "" };
+const settings = { draft: null, sha: null, preview: null, templates: [], loading: false, error: "",
+  comp: null, compInfo: null, servers: null, finding: false };
 
 async function loadSettings() {
   settings.loading = true;
@@ -11,6 +12,8 @@ async function loadSettings() {
     settings.draft = JSON.parse(JSON.stringify(cfg.data));
     for (const k of ["project", "limits", "routing", "sandbox", "notify", "pricing"]) settings.draft[k] = settings.draft[k] || {};
     settings.sha = cfg.sha; settings.templates = tpl.templates; settings.preview = null; settings.error = "";
+    const info = await postJSON("/api/composition", { data: settings.draft });
+    settings.comp = info.composition; settings.compInfo = info;
   } catch (e) { settings.error = e.message; }
   settings.loading = false;
   renderSettings();
@@ -46,6 +49,8 @@ function renderSettings() {
     return;
   }
   const d = settings.draft, pr = d.project, sb = d.sandbox;
+
+  const ccard = compositionCard();
 
   // Templates
   const tcard = h("div", { class: "card" }, h("h2", {}, "Templates"),
@@ -89,7 +94,7 @@ function renderSettings() {
       } }, "Review changes"),
       h("button", { type: "button", onclick: () => { settings.draft = null; loadSettings(); } }, "Discard")));
 
-  el.append(tcard, ui);
+  el.append(ccard, tcard, ui);
   if (settings.preview) el.append(settingsPreview());
 }
 
@@ -114,4 +119,66 @@ function settingsPreview() {
       } catch (e) { settings.preview = { ...settings.preview, valid: false, error: e.message }; renderSettings(); }
     } }, "Save .team.toml")));
   return box;
+}
+
+// Team composition: where the models run, which members, how many builders, spend limits. The
+// same choices `agent-team init` asks about; applied to the current team and reviewed as a diff.
+function compositionCard() {
+  const c = settings.comp, info = settings.compInfo;
+  const card = h("div", { class: "card" }, h("h2", {}, "Team composition"),
+    h("p", { class: "muted small" }, "Where the members' models run, who is on the team and how many builders. " +
+      "Members that stay keep their names, skills and other settings."));
+  if (!c || !info) return card;
+  const choose = (key, value) => { c[key] = value; renderSettings(); };
+  const models = h("div", { class: "segmented", role: "radiogroup" }, Object.entries(info.models).map(([v, about]) =>
+    h("button", { type: "button", role: "radio", "aria-checked": String(c.models === v), title: about,
+      onclick: () => choose("models", v) }, { mixed: "Claude + Ollama builders", ollama: "Only Ollama", claude: "Only Claude" }[v] || v)));
+  card.append(setting("Models", info.models[c.models], models));
+
+  if (c.models !== "claude") {
+    const url = h("input", { type: "text", value: c.ollama_url, placeholder: "http://localhost:11434" });
+    url.addEventListener("input", () => { c.ollama_url = url.value.trim(); });
+    const find = h("button", { type: "button", disabled: settings.finding ? true : null, onclick: async () => {
+      settings.finding = true; renderSettings();
+      try { settings.servers = (await postJSON("/api/ollama/find", {})).servers; }
+      catch (e) { toast(e.message); }
+      settings.finding = false;
+      if (settings.servers && settings.servers.length && !settings.servers.some(s => s.url === c.ollama_url)) c.ollama_url = settings.servers[0].url;
+      renderSettings();
+    } }, settings.finding ? "Looking…" : "Find Ollama");
+    const found = settings.servers;
+    const server = found ? found.find(s => s.url === c.ollama_url) : null;
+    const pick = found && found.length ? h("div", { class: "inline" }, found.map(s =>
+      h("label", { class: "choice" }, (() => { const r = h("input", { type: "radio", name: "ollama-server", checked: s.url === c.ollama_url ? true : null });
+        r.addEventListener("change", () => choose("ollama_url", s.url)); return r; })(), ` ${s.url} (${s.models.length} models)`)))
+      : found ? h("p", { class: "hint" }, "No Ollama answered on this machine, its host or the gateway. Type its address.") : null;
+    const modelEl = server && server.models.length
+      ? (() => { const m = h("select", {}, server.models.map(n => h("option", { value: n, selected: n === c.ollama_model ? true : null }, n)));
+          m.addEventListener("change", () => { c.ollama_model = m.value; }); return m; })()
+      : (() => { const m = h("input", { type: "text", value: c.ollama_model }); m.addEventListener("input", () => { c.ollama_model = m.value.trim(); }); return m; })();
+    card.append(setting("Ollama", "The server the Ollama members use, and their model.",
+      h("div", {}, h("div", { class: "inline" }, url, find), pick,
+        h("label", { class: "field" }, h("span", { class: "field-label" }, "Model"), modelEl))));
+  }
+
+  const extras = h("div", { class: "inline" }, Object.entries(info.extras).map(([role, x]) =>
+    h("label", { class: "choice", title: x.about }, (() => { const b = h("input", { type: "checkbox", checked: c.extras.includes(role) ? true : null });
+      b.addEventListener("change", () => { c.extras = b.checked ? [...c.extras, role] : c.extras.filter(r => r !== role); }); return b; })(),
+      ` ${x.name} (${role})`)));
+  card.append(setting("Optional members", "Security reviews every build, QA writes tests first, Docs updates the docs.", extras));
+
+  const builders = h("select", {}, Array.from({ length: info.max_builders }, (_, i) =>
+    h("option", { value: String(i + 1), selected: c.builders === i + 1 ? true : null }, String(i + 1))));
+  builders.addEventListener("change", () => { c.builders = Number(builders.value); });
+  card.append(setting("Builders", "More than one lets build --parallel split a plan between them.", builders));
+
+  card.append(h("div", { class: "actions" }, h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      const { per_run, per_day, ...team } = c;   // limits are set in Settings below
+      const r = await postJSON("/api/composition/apply", { composition: team, data: settings.draft });
+      settings.draft = r.data; settings.preview = r.preview; renderSettings();
+      document.getElementById("settings-preview")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (e) { toast(e.message); }
+  } }, "Preview this team")));
+  return card;
 }

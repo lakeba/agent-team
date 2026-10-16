@@ -77,9 +77,19 @@ def cmd_agents(args) -> int:
 
 def cmd_init(args) -> int:
     from .workflows import init
+    extras = None
+    if args.members is not None:
+        extras = tuple(x.strip().lower() for x in args.members.split(",") if x.strip() and x.strip().lower() != "none")
+        if "all" in extras:
+            from .composition import EXTRAS
+            extras = tuple(EXTRAS)
+    # In a terminal, init asks about every choice the flags leave open; --yes (or a script) takes the defaults.
+    interactive = not args.yes and sys.stdin.isatty() and sys.stdout.isatty()
     init.run(Path(args.project).resolve(), args.builder_provider, args.builder_model, args.force, args.ollama_url,
-             args.no_claude)
-    if args.no_claude:
+             args.no_claude, models=args.models, extras=extras, builders=args.builders,
+             per_run=args.per_run, per_day=args.per_day,
+             interactive=interactive)
+    if args.no_claude or args.models == "ollama":
         ui.say("Every member runs on Ollama, so no Anthropic key is needed. The devops member acts through tool "
                "calls: pick a model that's good at them (see agent-team doctor).")
     return 0
@@ -508,6 +518,19 @@ def cmd_serve(args) -> int:
 
 def cmd_discover(args) -> int:
     import json as _json
+    if args.ollama:   # Ollama servers: this machine, OLLAMA_HOST, a VM's or container's host, the gateway
+        from .readiness import find_ollama
+        servers = find_ollama(timeout=args.timeout)
+        if args.json:
+            print(_json.dumps([{"url": u, "models": m} for u, m in servers]))
+            return 0
+        if not servers:
+            ui.say("No Ollama server answered on this machine, its host or the gateway. On another machine, "
+                   "Ollama must listen on the network (OLLAMA_HOST=0.0.0.0) with port 11434 open.")
+            return 1
+        for u, m in servers:
+            ui.say(f"  {u:<32} {len(m)} models: {', '.join(m)[:80]}")
+        return 0
     from . import discovery
     nodes = discovery.discover(args.timeout)
     if args.json:
@@ -523,7 +546,7 @@ def cmd_discover(args) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="agent-team", description="A configurable team of AI agents for a project.")
     p.add_argument("--version", action="version", version=f"agent-team {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -541,7 +564,16 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--ollama-url", default="", help="Ollama on another machine, e.g. http://192.168.64.1:11434 "
                    "(with a team file already there, only its Ollama address is changed)")
     s.add_argument("--no-claude", action="store_true", help="every member on the Ollama server: no Anthropic key needed")
-    s.add_argument("--force", action="store_true")
+    s.add_argument("--models", choices=["mixed", "ollama", "claude"], default=None,
+                   help="where the models run: mixed (Claude, with Ollama builders; the default), ollama or claude")
+    s.add_argument("--members", default=None, metavar="LIST",
+                   help="optional members to add: security, qa, docs, all or none (comma-separated)")
+    s.add_argument("--builders", type=int, default=None, metavar="N", help="how many builders (1 to 4; default 1)")
+    s.add_argument("--per-run", type=float, default=None, metavar="USD", help="spend limit per run")
+    s.add_argument("--per-day", type=float, default=None, metavar="USD", help="spend limit per day")
+    s.add_argument("-y", "--yes", action="store_true",
+                   help="ask nothing: take the defaults for every choice the flags leave open")
+    s.add_argument("--force", action="store_true", help="replace an existing .team.toml")
     add("doctor", cmd_doctor, "check this machine is ready and every member is reachable")
     s = add("ready", cmd_ready, "checklist: git, GitHub, keys, Ollama, models (exit 0 unless --strict)")
     s.add_argument("--ollama-url", default="", help="also check an Ollama server before there's a team")
@@ -644,11 +676,35 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--node", default="", help="node name shown to callers (default: hostname)")
     s.add_argument("--no-announce", action="store_true", help="don't answer discovery probes on the network")
     s.set_defaults(fn=cmd_serve)
-    s = sub.add_parser("discover", help="find agent-team nodes on the local network")
+    s = sub.add_parser("discover", help="find agent-team nodes on the local network (--ollama: Ollama servers)")
+    s.add_argument("--ollama", action="store_true",
+                   help="find Ollama servers instead: this machine, OLLAMA_HOST, a VM's host, the gateway")
     s.add_argument("--timeout", type=float, default=2.0)
     s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_discover)
+    s = sub.add_parser("completion", help="Tab completion for bash and zsh: print the script, or install it")
+    s.add_argument("action", nargs="?", default="install", choices=["install", "bash", "zsh"],
+                   help="install (for your shell), or print the bash or zsh script")
+    s.add_argument("--shell", default="", choices=["", "bash", "zsh"], help="for install: default, your $SHELL")
+    s.add_argument("--yes", action="store_true", help="for install: add the line to ~/.zshrc without asking")
+    s.set_defaults(fn=cmd_completion)
+    return p
 
+
+def cmd_completion(args) -> int:
+    from . import completion
+    if args.action in ("bash", "zsh"):
+        sys.stdout.write(completion.script(args.action))
+        return 0
+    return completion.install(args.shell, args.yes)
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["__complete"]:   # called by the shell on Tab: print the candidates, one per line
+        from . import completion
+        return completion.main(build_parser(), argv[1:])
+    p = build_parser()
     args = p.parse_args(argv)
     from . import keys
     keys.load_into_env()   # before anything reads a key: works the same from any shell, launchd or cron

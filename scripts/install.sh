@@ -10,6 +10,10 @@
 #   --no-plugin          don't install the Claude Code plugin
 #   --force              replace an `agent-team` command this script didn't create
 #   --uninstall          remove the CLI, its environment, its source copy and the plugin
+#                        (your saved keys and project list are kept)
+#   --purge              with --uninstall: also delete your saved keys and project list
+#                        (~/.config/agent-team); asks first unless --yes
+#   --yes                don't ask before --purge deletes them
 #
 # Environment: AGENT_TEAM_HOME (default ~/.agent-team), BIN_DIR (default ~/.local/bin),
 #              AGENT_TEAM_REPO (default lakeba/agent-team), AGENT_TEAM_SOURCE (a git URL or local
@@ -26,6 +30,10 @@ REF="main"
 PLUGIN=1
 FORCE=0
 UNINSTALL=0
+PURGE=0
+YES=0
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/agent-team"
+COMPLETIONS="${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions/agent-team"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -33,7 +41,9 @@ while [ $# -gt 0 ]; do
     --no-plugin) PLUGIN=0; shift ;;
     --force) FORCE=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
-    -h|--help) sed -n '2,19p' "$0" 2>/dev/null || true; exit 0 ;;
+    --purge) PURGE=1; shift ;;
+    --yes|-y) YES=1; shift ;;
+    -h|--help) sed -n '2,23p' "$0" 2>/dev/null || true; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -44,6 +54,22 @@ die() { printf '\033[31mx\033[0m %s\n' "$*" >&2; exit 1; }
 
 ours() { [ -L "$BIN_DIR/agent-team" ] && [ "$(readlink "$BIN_DIR/agent-team")" = "$VENV/bin/agent-team" ]; }
 
+[ "$PURGE" = 1 ] && [ "$UNINSTALL" = 0 ] && die "--purge goes with --uninstall."
+
+# A yes/no question, read from the terminal even when this script arrives through a pipe.
+confirm() {
+  [ "$YES" = 1 ] && return 0
+  local answer=""
+  if [ -r /dev/tty ]; then
+    printf '%s [y/N] ' "$1" > /dev/tty
+    read -r answer < /dev/tty || answer=""
+  else
+    warn "no terminal to ask in; add --yes to confirm"
+    return 1
+  fi
+  case "$answer" in y|Y|yes|YES) return 0 ;; *) return 1 ;; esac
+}
+
 if [ "$UNINSTALL" = 1 ]; then
   if command -v claude >/dev/null 2>&1; then
     claude plugin uninstall agent-team@lakeba-agent-team >/dev/null 2>&1 && say "removed the Claude Code plugin" || true
@@ -52,7 +78,24 @@ if [ "$UNINSTALL" = 1 ]; then
   if ours; then rm "$BIN_DIR/agent-team"; say "removed $BIN_DIR/agent-team"; fi
   rm -rf "$VENV" "$SRC"
   rmdir "$HOME_DIR" 2>/dev/null || true
+  if [ -f "$COMPLETIONS" ] && grep -q "agent-team" "$COMPLETIONS" 2>/dev/null; then rm -f "$COMPLETIONS"; say "removed the bash completion"; fi
   say "agent-team uninstalled (project .team.toml files and .team/ logs are left alone)"
+  if command -v pipx >/dev/null 2>&1 && pipx list --short 2>/dev/null | grep -q '^agent-team '; then
+    warn "agent-team is also installed with pipx; remove that copy with: pipx uninstall agent-team"
+  elif command -v agent-team >/dev/null 2>&1; then
+    warn "another agent-team is still on your PATH: $(command -v agent-team)"
+  fi
+  if [ -d "$CONFIG_DIR" ]; then
+    if [ "$PURGE" = 1 ]; then
+      if confirm "Delete $CONFIG_DIR (your saved API keys and the dashboard's project list)?"; then
+        rm -rf "$CONFIG_DIR"; say "deleted $CONFIG_DIR"
+      else
+        say "kept $CONFIG_DIR"
+      fi
+    else
+      say "kept your saved keys and project list in $CONFIG_DIR (delete them with --uninstall --purge)"
+    fi
+  fi
   exit 0
 fi
 
@@ -115,6 +158,12 @@ case ":$PATH:" in
   *) warn "$BIN_DIR is not on your PATH. Add this to your shell profile: export PATH=\"$BIN_DIR:\$PATH\"" ;;
 esac
 say "installed $("$VENV/bin/agent-team" --version)"
+if "$VENV/bin/agent-team" completion install --shell bash >/dev/null 2>&1; then
+  say "Tab completion for bash installed (new terminals)"
+fi
+case "${SHELL:-}" in
+  *zsh) say "Tab completion for zsh: run  agent-team completion install  (it adds one line to ~/.zshrc)" ;;
+esac
 
 # 5. The Claude Code plugin, read from the local copy so updates arrive with the next run.
 if [ "$PLUGIN" = 1 ] && command -v claude >/dev/null 2>&1; then
@@ -124,7 +173,7 @@ if [ "$PLUGIN" = 1 ] && command -v claude >/dev/null 2>&1; then
     # A new install, or one already loading in place from $SRC. An install from another source
     # (a cached copy, e.g. /plugin marketplace add lakeba/agent-team) moves with the version.
     claude plugin update agent-team@lakeba-agent-team --scope user -y >/dev/null 2>&1 || true
-    say "Claude Code plugin ready: /team-init, /team-doctor, /team-plan, /team-build, /team-ship, /team-schedule, /team-market, /team-ui, /team-panel, /team-run"
+    say "Claude Code plugin ready: /team-init, /team-doctor, /team-plan, /team-build, /team-fix, /team-ship, /team-autopilot, /team-issues, /team-schedule, /team-market, /team-ui, /team-panel, /team-run"
     say "Open Claude Code sessions keep the old commands: run /reload-plugins in each, or start a new one."
   else
     warn "the Claude Code plugin could not be installed; in Claude Code run: /plugin marketplace add $SRC, then /plugin install agent-team@lakeba-agent-team"
@@ -137,7 +186,8 @@ cat <<EOF
 
 Next:
   1. In a project:  agent-team ready  &&  agent-team init  (or /team-init in Claude Code)
-     Only local or network models (Ollama)?  agent-team init --no-claude   (no API key needed)
+     init asks where the models run (Claude, Ollama or both), which members and how many builders.
   2. Members on Claude need your Anthropic key, saved once:  agent-team keys set ANTHROPIC_API_KEY
-  Update later by running this script again; remove with --uninstall.
+  Press Tab twice after agent-team for its commands, options and your members' names.
+  Update later by running this script again; remove with --uninstall (add --purge to delete saved keys).
 EOF

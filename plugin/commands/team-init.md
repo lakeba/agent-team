@@ -31,7 +31,7 @@ something missing must not fail: `agent-team ready` always exits 0 and reports w
 4. **Ask which models the team uses** (one question):
    - Claude leads and reviews, the builder on Ollama (the default team);
    - Everything on Ollama, on this machine or other machines: no Claude and no Anthropic key
-     (`agent-team init --no-claude`). Mention that the devops member acts through tool calls, so
+     (`agent-team init --models ollama`). Mention that the devops member acts through tool calls, so
      its model should be good at them;
    - Everything on Claude (no local model needed).
    If Claude is used and the checklist found no key, tell the user to run
@@ -39,8 +39,10 @@ something missing must not fail: `agent-team ready` always exits 0 and reports w
    showing it and saves it where every agent-team command finds it, whatever the shell). Never ask
    them to paste a key into the chat. If it's already exported in their terminal,
    `agent-team keys set ANTHROPIC_API_KEY --from-env` copies it. They can also add the key later.
-   Then, if Ollama is used, **ask where it runs** (one question):
-   - Ollama on this machine (only offer if the checklist found it reachable);
+   Then, if Ollama is used, **ask where it runs** (one question). First run
+   `agent-team discover --ollama --json`: it lists every Ollama server that answers on this
+   machine, at `OLLAMA_HOST`, on the host of a VM or container, or at the gateway, with its models.
+   Offer those, plus:
    - Ollama on another machine: ask for its address, then check it with
      `agent-team ready --ollama-url http://HOST:11434 --json`. If it isn't reachable, explain that
      Ollama on that machine must listen on the network (`OLLAMA_HOST=0.0.0.0`, then restart it) and
@@ -49,15 +51,18 @@ something missing must not fail: `agent-team ready` always exits 0 and reports w
    which one it chose and the others, so the user can change it.
 5. **Ask which optional members to add** (multi-select, "None" allowed): Sentinel (security review
    of every build and sign-off of every PR), Probe (QA: writes tests first) and Quill (docs).
-   Then ask whether to set spend limits (`[limits] per_run`, `per_day` in US dollars); "No limits"
-   is a fine answer.
-6. **Write the file:** `agent-team init` with `--ollama-url`, `--no-claude` (everything on Ollama)
-   and `--builder-provider` (`local` for Ollama, `claude` for Claude) / `--builder-model` from the
-   answers. `init` checks the file it
+   Ask how many builders (1 to 4; more than one lets `build --parallel` split a plan). Then ask
+   whether to set spend limits (`[limits] per_run`, `per_day` in US dollars); "No limits" is a fine
+   answer.
+6. **Write the file:** `agent-team init --yes` with the answers as flags: `--models`
+   (`mixed`, `ollama` or `claude`), `--ollama-url`, `--members` (comma-separated: `security`,
+   `qa`, `docs`; `none` for none), `--builders N`, `--per-run` / `--per-day`, and `--builder-model`
+   if the user picked a model. Always pass `--yes`: in Claude Code there is no terminal for `init`'s
+   own questions. `init` checks the file it
    writes, so a successful run needs no repair. It detects the test command and the test-count pattern
    (Python, Jest, Vitest, Mocha, Node's built-in runner, Go, Cargo, .NET's `dotnet test`) and the
    test folder (`tests/`, or a .NET `App.Tests/` project), and adds `.team/` and `.team.toml.bak` to
-   `.gitignore` (and `bin/`, `obj/` for .NET). Uncomment the optional members chosen and add any limits.
+   `.gitignore` (and `bin/`, `obj/` for .NET). The chosen members and limits are written by the flags.
 7. **Make it specific to this project:** read the README, main source files, tests and CI, and
    propose concrete `guarantees` (the rules every change must keep) and `context_skip` entries
    (vendored code, large assets; files git ignores are never sent, so build output in `.gitignore`

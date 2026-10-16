@@ -13,6 +13,11 @@ import os
 os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp(prefix="agent-team-test-config-")
 
 from agent_team import config  # noqa: E402
+from agent_team import readiness  # noqa: E402
+
+# Nor do they search the network for Ollama servers: only the addresses a test names are tried.
+REAL_OLLAMA_CANDIDATES = readiness.ollama_candidates
+readiness.ollama_candidates = lambda: []
 from agent_team.providers.base import Provider, Reply, register
 
 # label substring (the agent's name) -> queue of replies

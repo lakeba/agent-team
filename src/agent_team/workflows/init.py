@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 from .. import ui
+from ..composition import DEFAULT_MODEL, DEFAULT_OLLAMA, EXTRAS, MAX_BUILDERS, MODELS, Composition
 from ..config import CONFIG_NAME
 
 TEMPLATE = '''# agent-team configuration. Docs: https://github.com/lakeba/agent-team/blob/main/docs/configuration.md
@@ -30,75 +31,8 @@ brief = "BRIEF.md"
 site = "site/index.html"
 deck = "deck/index.html"
 
-# Providers: how to reach models. Add as many as you like, on this machine or others.
-[providers.claude]
-kind = "anthropic"                    # uses ANTHROPIC_API_KEY (or set api_key_env)
-
-[providers.local]
-kind = "ollama"
-url = "{ollama_url}"
-
-# [providers.gpu-box]                 # another machine running Ollama
-# kind = "ollama"
-# url = "http://gpu-box.local:11434"
-
-# [providers.remote-forge]            # a teammate running `agent-team serve` elsewhere
-# kind = "agent-http"
-# url = "http://10.0.0.20:8765"
-# api_key_env = "FORGE_NODE_TOKEN"
-
-# Team members. Add, remove or rename freely; workflows find members by role.
-[[agents]]
-name = "Atlas"
-role = "lead"
-provider = "claude"
-model = "claude-opus-5-5"
-owns = ["ROADMAP.md"]
-
-[[agents]]
-name = "Forge"
-role = "builder"
-provider = "{builder_provider}"
-model = "{builder_model}"
-
-[[agents]]
-name = "Spark"
-role = "marketing"
-provider = "claude"
-model = "claude-sonnet-5-5"
-owns = ["BRIEF.md", "site/", "deck/"]
-
-[[agents]]
-name = "Harbor"
-role = "devops"
-provider = "claude"
-model = "claude-sonnet-5-5"
-effort = "medium"
-
-# Any member can take skills: Markdown files or skill folders (with SKILL.md) added to its prompt.
-#   skills = ["team/skills/conventions.md", "~/.claude/skills/security-review"]
-
-# Optional members. Uncomment any of them; `build` uses them automatically (skip with --skip).
-# [[agents]]                          # reviews every approved build; a NO sends it back
-# name = "Sentinel"
-# role = "security"
-# provider = "claude"
-# model = "claude-sonnet-5-5"
-# owns = ["*"]                        # "*": must also sign off every pull request
-
-# [[agents]]                          # writes the tests for a plan before anyone builds it
-# name = "Probe"
-# role = "qa"
-# provider = "claude"
-# model = "claude-sonnet-5-5"
-# owns = ["{test_dir}"]
-
-# [[agents]]                          # updates README, docs/ and CHANGELOG.md after approval
-# name = "Quill"
-# role = "docs"
-# provider = "claude"
-# model = "claude-haiku-5-5"
-
+{providers}
+{agents}
 # Paths whose changes need your approval before merging (agent-team approve <PR>):
 # require_approval = ["auth/", "package.json"]      (goes under [project])
 
@@ -111,14 +45,8 @@ effort = "medium"
 # [notify]
 # webhook_env = "AGENT_TEAM_WEBHOOK"
 
-# Spend limits in US dollars; a run stops before the next model call once it reaches one.
-# [limits]
-# per_run = 5.0
-# per_day = 20.0
-'''
+{limits}'''
 
-DEFAULT_OLLAMA = "http://localhost:11434"
-DEFAULT_MODEL = "qwen3.8:27b-mlx"
 TEST_DIRS = ("tests/", "test/", "__tests__/", "spec/")
 # `dotnet test` summary lines: VSTest prints "Passed!  - Failed: 0, Passed: 12, ...", the
 # Microsoft.Testing.Platform runner prints "succeeded: 12".
@@ -235,17 +163,6 @@ def github_repo(root: Path) -> str:
 BUILDER_PROVIDERS = {"local": "local", "ollama": "local", "claude": "claude", "anthropic": "claude"}
 
 
-def without_claude(text: str, model: str) -> str:
-    """The starter file with every member on the Ollama connection and no Claude connection."""
-    for claude_model in ("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"):
-        text = text.replace(f'provider = "claude"\nmodel = "{claude_model}"', f'provider = "local"\nmodel = "{model}"')
-        text = text.replace(f'# provider = "claude"\n# model = "{claude_model}"', f'# provider = "local"\n# model = "{model}"')
-    text = text.replace('[providers.claude]\nkind = "anthropic"                    # uses ANTHROPIC_API_KEY (or set api_key_env)\n',
-                        '# [providers.claude]                 # add Claude later: uncomment, point members at it, and\n'
-                        '# kind = "anthropic"                 # save the key with: agent-team keys set ANTHROPIC_API_KEY\n')
-    return text
-
-
 def set_ollama_url(path: Path, url: str) -> list[tuple[str, str]]:
     """Point the team's Ollama connections at url, editing only their url lines so comments and
     the rest of the file stay as they are. Connections already on another machine (not localhost)
@@ -279,8 +196,114 @@ def set_ollama_url(path: Path, url: str) -> list[tuple[str, str]]:
     return sorted(targets.items())
 
 
+class Cancelled(SystemExit):
+    pass
+
+
+def _ask(question: str, default: str = "") -> str:
+    try:
+        answer = input(f"{question}{f' [{default}]' if default else ''}: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        ui.say()
+        raise Cancelled("Cancelled; nothing was written.")
+    return answer or default
+
+
+def ask_choice(question: str, options: list[tuple[str, str]], default: str) -> str:
+    """One of the option keys: by number or by key, Enter for the default."""
+    ui.say(question)
+    for i, (key, about) in enumerate(options, 1):
+        ui.say(f"  {i}. {about}{'  (default)' if key == default else ''}")
+    keys = [k for k, _ in options]
+    while True:
+        a = _ask("Choose", str(keys.index(default) + 1)).lower()
+        if a.isdigit() and 1 <= int(a) <= len(keys):
+            return keys[int(a) - 1]
+        if a in keys:
+            return a
+        ui.say(f"  Type a number from 1 to {len(keys)}.")
+
+
+def ask_number(question: str, default: float, low: float, high: float, whole: bool = False) -> float:
+    while True:
+        a = _ask(question, f"{default:g}")
+        try:
+            v = int(a) if whole else float(a.lstrip("$"))
+        except ValueError:
+            v = None
+        if v is not None and low <= v <= high:
+            return v
+        ui.say(f"  A {'whole ' if whole else ''}number from {low:g} to {high:g}.")
+
+
+def ask_yes(question: str, default: bool = True) -> bool:
+    while True:
+        a = _ask(question + (" [Y/n]" if default else " [y/N]")).lower()
+        if not a:
+            return default
+        if a in ("y", "yes", "n", "no"):
+            return a.startswith("y")
+
+
+def find_server(given: str, interactive: bool) -> tuple[str, list[str] | None, str]:
+    """(url, its models or None, note): the address given, else the first Ollama that answers on
+    this machine, its host (in a VM or container) or the gateway; in a terminal, the user picks."""
+    from ..readiness import find_ollama, ollama_models
+    if given:
+        url = given.rstrip("/")
+        return url, ollama_models(url), ""
+    found = find_ollama()
+    if not interactive:
+        if found:
+            url, models = found[0]
+            return url, models, ("" if url == DEFAULT_OLLAMA else f"found Ollama at {url}")
+        models = ollama_models(DEFAULT_OLLAMA)
+        return DEFAULT_OLLAMA, models, ("" if models is not None else "no Ollama answered here or on the host; set its "
+                                        "address later with agent-team init --ollama-url http://HOST:11434")
+    options = [(u, f"{u}  ({len(m)} models)") for u, m in found] + [("other", "Another address")]
+    if not found:
+        ui.say("No Ollama server answered on this machine, its host or the gateway.")
+    choice = ask_choice("Which Ollama server should the team use?", options, options[0][0]) if found else "other"
+    if choice != "other":
+        return choice, dict(found)[choice], ""
+    while True:
+        from ..readiness import _ollama_url
+        url = _ollama_url(_ask("Ollama address (e.g. http://192.168.1.20:11434)", DEFAULT_OLLAMA))
+        models = ollama_models(url)
+        if models is not None or ask_yes(f"{url} doesn't answer. Use it anyway?", default=False):
+            return url, models, ""
+
+
+def ask_composition(c: Composition, asked: dict) -> None:
+    """Fill in, by asking, every choice the flags left open (keys of `asked` that are None)."""
+    if asked["models"] is None:
+        c.models = ask_choice("Where should the members' models run?", list(MODELS.items()), "mixed")
+    if asked["extras"] is None:
+        ui.say("Optional members (the core team is a lead, builder, marketing and devops):")
+        for role, (name, about) in EXTRAS.items():
+            ui.say(f"  {name} ({role}): {about}")
+        picked = _ask("Add which? (e.g. security,qa,docs; all; none)", "none").lower().replace(" ", "")
+        names = {name.lower(): role for role, (name, _) in EXTRAS.items()}
+        chosen = list(EXTRAS) if picked == "all" else [names.get(x, x) for x in picked.split(",") if x and x != "none"]
+        unknown = [x for x in chosen if x not in EXTRAS]
+        if unknown:
+            ui.say(f"  Skipping {', '.join(unknown)}: the optional members are {', '.join(EXTRAS)}.")
+        c.extras = tuple(x for x in EXTRAS if x in chosen)
+    if asked["builders"] is None:
+        c.builders = int(ask_number(f"How many builders? (more than one lets build --parallel split a plan)", 1, 1,
+                                    MAX_BUILDERS, whole=True))
+    if asked["limits"] is None and c.uses_claude:
+        if ask_yes("Set spend limits for Claude calls?", default=False):
+            c.per_run = ask_number("Limit per run, US dollars (0: none)", 5, 0, 10000)
+            c.per_day = ask_number("Limit per day, US dollars (0: none)", 20, 0, 100000)
+
+
 def run(root: Path, builder_provider: str = "local", builder_model: str = "", force: bool = False,
-        ollama_url: str = "", no_claude: bool = False) -> Path:
+        ollama_url: str = "", no_claude: bool = False, *, models: str | None = None,
+        extras: tuple[str, ...] | None = None, builders: int | None = None,
+        per_run: float | None = None, per_day: float | None = None, interactive: bool = False) -> Path:
+    """Write a starter .team.toml. Every choice left as None is asked in a terminal (interactive)
+    or takes its default."""
     path = root / CONFIG_NAME
     if path.exists() and not force:
         if ollama_url:   # the team exists: point it at that Ollama server and keep everything else
@@ -298,22 +321,40 @@ def run(root: Path, builder_provider: str = "local", builder_model: str = "", fo
     builder_provider = BUILDER_PROVIDERS[builder_provider]   # accept the kind ("ollama") as well as the name
     if no_claude and builder_provider == "claude":
         raise SystemExit("--no-claude puts every member on Ollama; leave out --builder-provider claude")
+    if models is None and (no_claude or builder_provider == "claude"):
+        models = "ollama" if no_claude else "claude"
+    if models is not None and models not in MODELS:
+        raise SystemExit(f"--models is one of {', '.join(MODELS)}, not {models!r}")
     test_command, pattern = detect(root)
-    from ..readiness import ollama_models
-    ollama_url = (ollama_url or DEFAULT_OLLAMA).rstrip("/")
+    c = Composition(models=models or "mixed", extras=tuple(extras or ()), builders=builders or 1,
+                    per_run=per_run or 0.0, per_day=per_day or 0.0, test_dir=test_dir(root))
+    if interactive:
+        ui.heading(f"Setting up a team for {root.resolve().name}")
+        ui.say("Press Enter to take the default shown in brackets.\n")
+        ask_composition(c, {"models": models, "extras": extras, "builders": builders,
+                            "limits": None if per_run is None and per_day is None else True})
+    try:
+        c.check()
+    except ValueError as e:
+        raise SystemExit(str(e))
     note = ""
-    if builder_provider == "local":
-        builder_model, note = choose_model(ollama_models(ollama_url), builder_model)
-    elif not builder_model:
-        builder_model = "claude-sonnet-5-5" if builder_provider == "claude" else DEFAULT_MODEL
+    if c.uses_ollama:
+        c.ollama_url, server_models, found_note = find_server(ollama_url, interactive)
+        c.ollama_model, note = choose_model(server_models, builder_model)
+        note = "; ".join(n for n in (found_note, note) if n)
+    if builder_model and c.provider("builder") == "claude":
+        c.builder_model = builder_model
+    if interactive:
+        ui.say(f"\nThe team: {c.summary()}.")
+        if not ask_yes(f"Write {CONFIG_NAME}?"):
+            raise Cancelled("Nothing was written.")
     skip = [s for s in ["node_modules/", ".next/", "dist/", "build/", "site/", "deck/"]
             if (root / s.rstrip("/")).exists() or s in ("site/", "deck/")]
+    from ..composition import agents_text, limits_text, providers_text
     text = TEMPLATE.format(
         name=root.resolve().name, repo=github_repo(root), test_command=test_command, pattern=pattern,
-        skip=", ".join(f'"{s}"' for s in skip), builder_provider=builder_provider, builder_model=builder_model,
-        ollama_url=ollama_url, test_dir=test_dir(root))
-    if no_claude:
-        text = without_claude(text, builder_model)
+        skip=", ".join(f'"{s}"' for s in skip), providers=providers_text(c), agents=agents_text(c),
+        limits=limits_text(c))
     path.write_text(text, encoding="utf-8")
     from ..config import ConfigError, load
     try:
