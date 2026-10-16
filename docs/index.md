@@ -8,8 +8,8 @@ through Ollama, on any OpenAI-compatible server, or on another machine.
 ```bash
 pipx install agent-team          # or: curl -fsSL https://raw.githubusercontent.com/lakeba/agent-team/main/scripts/install.sh | bash
 cd my-project
-agent-team keys set ANTHROPIC_API_KEY
-agent-team ready && agent-team init
+agent-team ready && agent-team init   # --no-claude: every member on Ollama, no API key needed
+agent-team keys set ANTHROPIC_API_KEY  # only if members use Claude
 agent-team ui                     # the dashboard: team, runs, costs, live activity, settings
 ```
 

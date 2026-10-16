@@ -25,6 +25,7 @@ class Check:
     detail: str
     fix: str = ""
     needed_for: str = ""      # what doesn't work until it's fixed; "" means everything
+    optional: bool = False    # only needed for some setups: shown as ○, never counted as missing
 
 
 def _run(argv: list[str], cwd: Path, timeout: int = 15) -> tuple[int, str]:
@@ -129,19 +130,26 @@ def check(root: Path, ollama_url: str = "") -> list[Check]:
 
     # Keys: every variable a provider names, and the Anthropic key when a member uses Claude.
     needed: dict[str, str] = {}
-    if team:
+    if team:   # only the connections some member actually uses
+        used = {a.provider for a in team.agents.values()}
         for p in team.providers.values():
+            if p.name not in used:
+                continue
             if p.api_key_env:
                 needed[p.api_key_env] = p.name
             elif p.kind == "anthropic":
                 needed["ANTHROPIC_API_KEY"] = p.name
-    elif ollama_url == "":
-        needed["ANTHROPIC_API_KEY"] = "claude"
     for var, provider in needed.items():
         found = keys.where(var)
         out.append(Check(f"key {var}", bool(found),
                          f"found in the {found}" if found else f"not found (needed by [providers.{provider}])",
                          "" if found else f"agent-team keys set {var}   (in your own terminal; it asks for the value)"))
+    if not team:   # before a team exists, Claude is a choice, not a requirement
+        found = keys.where("ANTHROPIC_API_KEY")
+        out.append(Check("key ANTHROPIC_API_KEY", True if found else False,
+                         f"found in the {found}" if found else
+                         "not set: only needed if members will run on Claude (local and network models need none)",
+                         "" if found else "if you'll use Claude: agent-team keys set ANTHROPIC_API_KEY", optional=not found))
     if team:
         for a in team.agents.values():
             if a.github_token_env:

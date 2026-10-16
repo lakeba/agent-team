@@ -136,7 +136,8 @@ fi
 cat <<EOF
 
 Next:
-  1. Save your Anthropic key once:  agent-team keys set ANTHROPIC_API_KEY
-  2. In a project:  agent-team ready  &&  agent-team init  (or /team-init in Claude Code)
+  1. In a project:  agent-team ready  &&  agent-team init  (or /team-init in Claude Code)
+     Only local or network models (Ollama)?  agent-team init --no-claude   (no API key needed)
+  2. Members on Claude need your Anthropic key, saved once:  agent-team keys set ANTHROPIC_API_KEY
   Update later by running this script again; remove with --uninstall.
 EOF

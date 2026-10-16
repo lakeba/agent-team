@@ -185,3 +185,42 @@ class EvalTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OptionalKeyTests(unittest.TestCase):
+    def test_before_a_team_the_key_is_optional(self):
+        from agent_team import cli, readiness
+        root = tempfile.mkdtemp()
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+        key = {c.name: c for c in readiness.check(Path(root))}["key ANTHROPIC_API_KEY"]
+        self.assertFalse(key.ok)
+        self.assertTrue(key.optional)
+        self.assertIn("only needed if members will run on Claude", key.detail)
+
+    def test_an_unused_claude_connection_needs_no_key(self):
+        from agent_team import readiness
+        root = project()        # members on the fake provider
+        (root / ".team.toml").write_text((root / ".team.toml").read_text() + '\n[providers.claude]\nkind = "anthropic"\n')
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+        self.assertNotIn("key ANTHROPIC_API_KEY", {c.name for c in readiness.check(root)})
+
+    def test_init_no_claude_puts_everyone_on_ollama(self):
+        from agent_team import cli, config, readiness
+        root = Path(tempfile.mkdtemp())
+        with mock.patch.object(readiness, "ollama_models", return_value=["qwen3-coder:30b"]), quiet():
+            cli.main(["init", "-C", str(root), "--no-claude"])
+        team = config.load(root)
+        self.assertEqual({team.providers[a.provider].kind for a in team.agents.values()}, {"ollama"})
+        self.assertEqual({a.model for a in team.agents.values()}, {"qwen3-coder:30b"})
+        self.assertNotIn("claude", team.providers)
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+        with mock.patch.object(readiness, "ollama_models", return_value=["qwen3-coder:30b"]):
+            self.assertFalse(any(c.name.startswith("key ") for c in readiness.check(root)))
+        with self.assertRaises(SystemExit), quiet():
+            cli.main(["init", "-C", str(Path(tempfile.mkdtemp())), "--no-claude", "--builder-provider", "claude"])
+
+    def test_local_only_template(self):
+        root = project()
+        data = templates.apply(config_io.to_data(load(root)), "local-only")
+        self.assertEqual({data["providers"][a["provider"]]["kind"] for a in data["agents"]}, {"ollama"})
+        self.assertTrue(config_io.plan_change(root, data)["valid"])

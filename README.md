@@ -46,8 +46,9 @@ for you, or autopilot stops.
 
 ## Install
 
-Requirements: macOS or Linux, Python 3.11+ (on Ubuntu/Debian also `python3-venv`), git, and an
-Anthropic API key for Claude members. Optional: [Ollama](https://ollama.com/)
+Requirements: macOS or Linux, Python 3.11+ (on Ubuntu/Debian also `python3-venv`) and git. Members
+can run on Claude (an Anthropic API key), on [Ollama](https://ollama.com/) models on this machine or
+others, or both; a team on Ollama alone needs no API key. Optional: [Ollama](https://ollama.com/)
 for local models, on this machine or another. The workflows that work on GitHub (`build --pr`,
 `ship`, `setup` and the plugin's PR steps) also need the [GitHub CLI](https://cli.github.com/)
 signed in (`gh auth login`).
@@ -68,10 +69,11 @@ it installed. If you prefer pipx: `pipx install git+https://github.com/lakeba/ag
 ## Quick start
 
 ```bash
-agent-team keys set ANTHROPIC_API_KEY    # asks for the key (hidden); every agent-team command finds it
 cd ~/code/my-project
 agent-team ready      # checklist: git, GitHub, keys, Ollama, with the fix for anything missing
-agent-team init       # writes .team.toml; add --ollama-url http://HOST:11434 for Ollama on another machine
+agent-team init       # writes .team.toml; --ollama-url http://HOST:11434 for Ollama on another machine,
+                      # --no-claude to put every member on Ollama (no API key needed)
+agent-team keys set ANTHROPIC_API_KEY    # only if members use Claude: asks for the key (hidden)
 agent-team doctor     # the checklist again, then checks every member can be reached
 ```
 
@@ -146,5 +148,6 @@ MIT, see [LICENSE](LICENSE).
 
 ## Status
 
-Version 0.2.5. The workflows were proven on todo-py; see [ROADMAP.md](ROADMAP.md) for what's next
-and [CONTRIBUTING.md](CONTRIBUTING.md) to help.
+Released on [PyPI](https://pypi.org/project/agent-team/) and [GitHub](https://github.com/lakeba/agent-team/releases);
+see the [CHANGELOG](CHANGELOG.md) for what each version changed, [ROADMAP.md](ROADMAP.md) for what's
+next and [CONTRIBUTING.md](CONTRIBUTING.md) to help.

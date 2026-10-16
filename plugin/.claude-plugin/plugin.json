@@ -1,6 +1,6 @@
 {
   "name": "agent-team",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Drive your agent-team (lead, builders, marketing, devops, security, QA and docs on any model or machine) from Claude Code: plan a roadmap, build features as PRs, run devops shifts now or on a schedule, make marketing material, and follow the team, its runs and its spend in a side panel.",
   "author": {
     "name": "Lakeba"

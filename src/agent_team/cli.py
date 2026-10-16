@@ -20,7 +20,8 @@ def _team(args) -> config.Team:
 
 def print_checklist(checks) -> None:
     for c in checks:
-        mark = "\033[32m✓\033[0m" if c.ok else "\033[31m✕\033[0m"
+        mark = ("\033[32m✓\033[0m" if c.ok else "\033[2m○\033[0m" if getattr(c, "optional", False)
+                else "\033[31m✕\033[0m")
         need = f"  (needed for {c.needed_for})" if not c.ok and c.needed_for else ""
         ui.say(f"  {mark} {c.name}: {c.detail}{need}")
         if not c.ok and c.fix:
@@ -37,7 +38,7 @@ def cmd_ready(args) -> int:
         ui.heading("Readiness")
         print_checklist(checks)
     # Exit 0 even when something's missing: this is a report, not a failure. --strict for scripts.
-    return 1 if args.strict and not all(c.ok for c in checks) else 0
+    return 1 if args.strict and not all(c.ok or c.optional for c in checks) else 0
 
 
 def cmd_doctor(args) -> int:
@@ -76,7 +77,11 @@ def cmd_agents(args) -> int:
 
 def cmd_init(args) -> int:
     from .workflows import init
-    init.run(Path(args.project).resolve(), args.builder_provider, args.builder_model, args.force, args.ollama_url)
+    init.run(Path(args.project).resolve(), args.builder_provider, args.builder_model, args.force, args.ollama_url,
+             args.no_claude)
+    if args.no_claude:
+        ui.say("Every member runs on Ollama, so no Anthropic key is needed. The devops member acts through tool "
+               "calls: pick a model that's good at them (see agent-team doctor).")
     return 0
 
 
@@ -195,7 +200,7 @@ def status_data(team: config.Team, with_health: bool = False, recent: int = 8) -
         "release_proposal": ship.release_proposal(team.root),
         "approval_requests": gates.requests(team.root),
         "attention": [{"name": c.name, "detail": c.detail, "fix": c.fix}
-                      for c in readiness.check(team.root) if not c.ok],
+                      for c in readiness.check(team.root) if not c.ok and not c.optional],
         "jobs": [{k: j.get(k) for k in ("id", "workflow", "status", "started", "params")} for j in jobs.list_jobs(team.root, 5)],
     }
 
@@ -534,6 +539,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="local/ollama (an Ollama server) or claude/anthropic")
     s.add_argument("--builder-model", default="", help="default: chosen from the models the Ollama server has")
     s.add_argument("--ollama-url", default="", help="Ollama on another machine, e.g. http://192.168.64.1:11434")
+    s.add_argument("--no-claude", action="store_true", help="every member on the Ollama server: no Anthropic key needed")
     s.add_argument("--force", action="store_true")
     add("doctor", cmd_doctor, "check this machine is ready and every member is reachable")
     s = add("ready", cmd_ready, "checklist: git, GitHub, keys, Ollama, models (exit 0 unless --strict)")

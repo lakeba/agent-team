@@ -6,6 +6,17 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Changed
+
+- The Anthropic key is optional: the readiness checklist shows it as optional (○) until members
+  use Claude, and only counts connections a member actually uses. The installer, README and
+  `/team-init` no longer present it as a required step.
+
+### Added
+
+- `agent-team init --no-claude` puts every member on Ollama (this machine or another one), with
+  no Claude connection and no key; the dashboard's Settings has a matching "Local only" template.
+
 ## [0.5.0] - 2026-10-16
 
 The first release. agent-team is a configurable team of AI agents that plans, builds, reviews,

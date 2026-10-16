@@ -11,6 +11,9 @@ import copy
 TEMPLATES = [
     {"id": "claude-only", "name": "Claude only",
      "about": "Every member on Claude: Opus leads, Sonnet builds, ships and markets. No local model needed."},
+    {"id": "local-only", "name": "Local only",
+     "about": "Every member on your Ollama models (this machine or another one). No Claude, no Anthropic key, "
+              "no per-token cost. Pick models that are good at tool calls for the devops member."},
     {"id": "local-builder", "name": "Local builder, Claude backup",
      "about": "The builder runs on your Ollama model; after a rejected round, a Claude builder takes over. "
               "Sign-offs and fact-checks use Haiku."},
@@ -64,6 +67,22 @@ def apply(data: dict, template_id: str) -> dict:
             a.pop("escalate_to", None)
         _add(d, "Atlas", "lead", c, LEAD)
         _add(d, "Forge", "builder", c, BUILD)
+    elif template_id == "local-only":
+        local = next((n for n, p in d["providers"].items() if p.get("kind") == "ollama"), None)
+        if not local:
+            d["providers"]["local"] = {"kind": "ollama", "url": "http://localhost:11434"}
+            local = "local"
+        on_local = [a for a in d["agents"] if a.get("provider") == local and a.get("model")]
+        model = on_local[0]["model"] if on_local else "qwen3.8:27b-mlx"
+        for a in d["agents"]:
+            if d["providers"].get(a.get("provider"), {}).get("kind") != "ollama":
+                a["provider"], a["model"] = local, model
+            a.pop("escalate_to", None)
+        d["routing"].pop("light_model", None)       # it only applies to Claude members
+        d["providers"] = {n: p for n, p in d["providers"].items()
+                          if p.get("kind") != "anthropic" or any(a.get("provider") == n for a in d["agents"])}
+        _add(d, "Atlas", "lead", local, model)
+        _add(d, "Forge", "builder", local, model)
     elif template_id == "local-builder":
         c = _claude(d)
         local = next((n for n, p in d["providers"].items() if p.get("kind") == "ollama"), None)

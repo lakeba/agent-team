@@ -206,14 +206,27 @@ def github_repo(root: Path) -> str:
 BUILDER_PROVIDERS = {"local": "local", "ollama": "local", "claude": "claude", "anthropic": "claude"}
 
 
+def without_claude(text: str, model: str) -> str:
+    """The starter file with every member on the Ollama connection and no Claude connection."""
+    for claude_model in ("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"):
+        text = text.replace(f'provider = "claude"\nmodel = "{claude_model}"', f'provider = "local"\nmodel = "{model}"')
+        text = text.replace(f'# provider = "claude"\n# model = "{claude_model}"', f'# provider = "local"\n# model = "{model}"')
+    text = text.replace('[providers.claude]\nkind = "anthropic"                    # uses ANTHROPIC_API_KEY (or set api_key_env)\n',
+                        '# [providers.claude]                 # add Claude later: uncomment, point members at it, and\n'
+                        '# kind = "anthropic"                 # save the key with: agent-team keys set ANTHROPIC_API_KEY\n')
+    return text
+
+
 def run(root: Path, builder_provider: str = "local", builder_model: str = "", force: bool = False,
-        ollama_url: str = "") -> Path:
+        ollama_url: str = "", no_claude: bool = False) -> Path:
     path = root / CONFIG_NAME
     if path.exists() and not force:
         raise SystemExit(f"{path} already exists (use --force to overwrite).")
     if builder_provider not in BUILDER_PROVIDERS:
         raise SystemExit(f"--builder-provider is local (Ollama) or claude, not {builder_provider!r}")
     builder_provider = BUILDER_PROVIDERS[builder_provider]   # accept the kind ("ollama") as well as the name
+    if no_claude and builder_provider == "claude":
+        raise SystemExit("--no-claude puts every member on Ollama; leave out --builder-provider claude")
     test_command, pattern = detect(root)
     from ..readiness import ollama_models
     ollama_url = (ollama_url or DEFAULT_OLLAMA).rstrip("/")
@@ -224,11 +237,13 @@ def run(root: Path, builder_provider: str = "local", builder_model: str = "", fo
         builder_model = "claude-sonnet-5-5" if builder_provider == "claude" else DEFAULT_MODEL
     skip = [s for s in ["node_modules/", ".next/", "dist/", "build/", "site/", "deck/"]
             if (root / s.rstrip("/")).exists() or s in ("site/", "deck/")]
-    path.write_text(TEMPLATE.format(
+    text = TEMPLATE.format(
         name=root.resolve().name, repo=github_repo(root), test_command=test_command, pattern=pattern,
         skip=", ".join(f'"{s}"' for s in skip), builder_provider=builder_provider, builder_model=builder_model,
-        ollama_url=ollama_url, test_dir=test_dir(root)),
-        encoding="utf-8")
+        ollama_url=ollama_url, test_dir=test_dir(root))
+    if no_claude:
+        text = without_claude(text, builder_model)
+    path.write_text(text, encoding="utf-8")
     from ..config import ConfigError, load
     try:
         load(root)   # never leave a file the CLI can't read
