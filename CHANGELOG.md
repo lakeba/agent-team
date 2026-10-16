@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-16
+
 ### Added
 
 - The product vision: `VISION.md` tells the team what the product should be. Every workflow
