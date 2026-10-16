@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-16
+
 ### Changed
 
 - The Anthropic key is optional: the readiness checklist shows it as optional (○) until members
