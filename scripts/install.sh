@@ -60,7 +60,7 @@ ours() { [ -L "$BIN_DIR/agent-team" ] && [ "$(readlink "$BIN_DIR/agent-team")" =
 confirm() {
   [ "$YES" = 1 ] && return 0
   local answer=""
-  if [ -r /dev/tty ]; then
+  if { : > /dev/tty; } 2>/dev/null; then   # a terminal we can actually open, not just a device file
     printf '%s [y/N] ' "$1" > /dev/tty
     read -r answer < /dev/tty || answer=""
   else
