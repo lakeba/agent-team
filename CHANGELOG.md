@@ -15,6 +15,12 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ### Fixed
 
+- `agent-team init --ollama-url URL` in a project that already has a team file now points that
+  team's Ollama connection at URL (keeping the rest of the file) instead of refusing and leaving
+  `ready` checking `localhost`.
+- `init` picks pytest for a Python project only when the project uses it; otherwise it runs
+  unittest discovery in the tests folder. It writes `python3`, since many Linux machines have no
+  `python`.
 - The website's "Get started" cards no longer overflow the page width on narrower screens.
 
 ## [0.5.1] - 2026-10-16

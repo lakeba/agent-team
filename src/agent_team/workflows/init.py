@@ -135,13 +135,40 @@ NODE_RUNNERS = [
     ("jest", r"Tests:\s+(?:\d+ \w+, )*(\d+) total"),
 ]
 
-DETECT = [  # (marker file, test command, CI count regex)
+DETECT = [  # (marker file, test command, CI count regex); Python projects are handled by python_tests
     ("package.json", "npm test", r"Tests:\s+(?:\d+ \w+, )*(\d+) total"),
-    ("pyproject.toml", "python -m pytest -q", r"(\d+) passed"),
-    ("setup.py", "python -m pytest -q", r"(\d+) passed"),
     ("go.mod", "go test ./...", ""),   # go test prints no total; leave the count unverified
     ("Cargo.toml", "cargo test", r"test result: ok\. (\d+) passed"),
 ]
+PYTHON_MARKERS = ("pyproject.toml", "setup.py", "setup.cfg")
+PYTEST_CONFIG = ("pyproject.toml", "setup.cfg", "tox.ini", "pytest.ini", "requirements.txt",
+                 "requirements-dev.txt", "requirements-test.txt")
+UNITTEST_COUNT = r"Ran (\d+) tests?"
+
+
+def uses_pytest(root: Path) -> bool:
+    """Whether the project runs its tests with pytest: a conftest.py, pytest named in its config or
+    requirements, or a test file importing it. Otherwise its tests are plain unittest."""
+    if (root / "conftest.py").exists() or (root / "pytest.ini").exists():
+        return True
+    for name in PYTEST_CONFIG:
+        f = root / name
+        if f.is_file() and "pytest" in f.read_text(encoding="utf-8", errors="replace"):
+            return True
+    files = [*root.glob("test_*.py"), *root.glob("tests/**/test_*.py"), *root.glob("tests/**/conftest.py")]
+    return any(re.search(r"^\s*(import|from) pytest\b", f.read_text(encoding="utf-8", errors="replace"), re.M)
+               for f in files[:50])
+
+
+def python_tests(root: Path) -> tuple[str, str]:
+    """The test command for a Python project. `python3` because many Linux machines have no
+    `python`, and CI runners have both."""
+    if uses_pytest(root):
+        return "python3 -m pytest -q", r"(\d+) passed"
+    tests = next((d.rstrip("/") for d in ("tests/", "test/") if any((root / d).glob("**/test*.py"))), "")
+    if tests:
+        return f"python3 -m unittest discover -s {tests} -v", UNITTEST_COUNT
+    return "python3 -m unittest -v", UNITTEST_COUNT
 
 
 def is_dotnet(root: Path, nested: bool = True) -> bool:
@@ -165,11 +192,13 @@ def detect(root: Path) -> tuple[str, str]:
                 script = scripts["test"]
                 pattern = next((p for runner, p in NODE_RUNNERS if runner in script), pattern)
             return cmd, pattern
+    if any((root / m).exists() for m in PYTHON_MARKERS):
+        return python_tests(root)
     if is_dotnet(root):
         return DOTNET
     if any(root.glob("test_*.py")) or any(root.glob("tests/test_*.py")):
-        return "python3 -m unittest -v", r"Ran (\d+) tests?"
-    return "", r"Ran (\d+) tests?"
+        return python_tests(root)
+    return "", UNITTEST_COUNT
 
 
 def test_dir(root: Path) -> str:
@@ -217,11 +246,53 @@ def without_claude(text: str, model: str) -> str:
     return text
 
 
+def set_ollama_url(path: Path, url: str) -> list[tuple[str, str]]:
+    """Point the team's Ollama connections at url, editing only their url lines so comments and
+    the rest of the file stay as they are. Connections already on another machine (not localhost)
+    are left alone when there is also a local one. Returns [(connection, old url)] for each change."""
+    import tomllib
+    from ..readiness import is_local
+    url = url.rstrip("/")
+    providers = tomllib.loads(path.read_text(encoding="utf-8")).get("providers", {})
+    ollama = {n: p.get("url", "") for n, p in providers.items() if p.get("kind") == "ollama"}
+    local = {n: u for n, u in ollama.items() if not u or is_local(u)}
+    targets = {n: u for n, u in (local or ollama).items() if u.rstrip("/") != url}
+    if not targets:
+        return []
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    out, section, done = [], "", set()
+    for line in lines:
+        head = re.match(r"\s*\[([^\[\]]+)\]\s*(#.*)?$", line)
+        if head:
+            if section in targets and section not in done:   # the section had no url line: add one
+                out.append(f'url = "{url}"\n')
+                done.add(section)
+            section = head.group(1).strip().removeprefix("providers.") if head.group(1).strip().startswith("providers.") else ""
+        elif section in targets and re.match(r"\s*url\s*=", line):
+            out.append(re.sub(r'=\s*"[^"]*"', f'= "{url}"', line, count=1))
+            done.add(section)
+            continue
+        out.append(line)
+    if section in targets and section not in done:
+        out.append(f'url = "{url}"\n')
+    path.write_text("".join(out), encoding="utf-8")
+    return sorted(targets.items())
+
+
 def run(root: Path, builder_provider: str = "local", builder_model: str = "", force: bool = False,
         ollama_url: str = "", no_claude: bool = False) -> Path:
     path = root / CONFIG_NAME
     if path.exists() and not force:
-        raise SystemExit(f"{path} already exists (use --force to overwrite).")
+        if ollama_url:   # the team exists: point it at that Ollama server and keep everything else
+            changed = set_ollama_url(path, ollama_url)
+            if changed:
+                for name, old in changed:
+                    ui.say(f"Updated [providers.{name}] in {CONFIG_NAME}: {old or '(no url)'} -> {ollama_url.rstrip('/')}")
+                return path
+            raise SystemExit(f"{path} already exists and has no Ollama connection to point at {ollama_url}. "
+                             f"Add one under [providers], or rewrite the file with --force.")
+        raise SystemExit(f"{path} already exists, so nothing was changed. To point it at Ollama on another "
+                         f"machine: agent-team init --ollama-url http://HOST:11434. To start over: --force.")
     if builder_provider not in BUILDER_PROVIDERS:
         raise SystemExit(f"--builder-provider is local (Ollama) or claude, not {builder_provider!r}")
     builder_provider = BUILDER_PROVIDERS[builder_provider]   # accept the kind ("ollama") as well as the name

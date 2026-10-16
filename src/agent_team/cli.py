@@ -538,7 +538,8 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--builder-provider", default="local", choices=["local", "ollama", "claude", "anthropic"],
                    help="local/ollama (an Ollama server) or claude/anthropic")
     s.add_argument("--builder-model", default="", help="default: chosen from the models the Ollama server has")
-    s.add_argument("--ollama-url", default="", help="Ollama on another machine, e.g. http://192.168.64.1:11434")
+    s.add_argument("--ollama-url", default="", help="Ollama on another machine, e.g. http://192.168.64.1:11434 "
+                   "(with a team file already there, only its Ollama address is changed)")
     s.add_argument("--no-claude", action="store_true", help="every member on the Ollama server: no Anthropic key needed")
     s.add_argument("--force", action="store_true")
     add("doctor", cmd_doctor, "check this machine is ready and every member is reachable")

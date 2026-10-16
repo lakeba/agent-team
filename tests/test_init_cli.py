@@ -72,6 +72,43 @@ class InitTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             init.run(root)
 
+    def test_ollama_url_updates_an_existing_team(self):
+        root = Path(tempfile.mkdtemp())
+        with quiet():
+            init.run(root)                                   # first run: Ollama on this machine
+            (root / ".team.toml").write_text((root / ".team.toml").read_text() + "\n# my note\n")
+            init.run(root, ollama_url="http://10.37.129.2:11434/")
+        text = (root / ".team.toml").read_text()
+        self.assertEqual(config.load(root).providers["local"].url, "http://10.37.129.2:11434")
+        self.assertIn("# my note", text)                      # the rest of the file is kept
+        self.assertIn('# url = "http://gpu-box.local:11434"', text)   # commented examples untouched
+
+    def test_ollama_url_leaves_remote_connections_alone(self):
+        root = Path(tempfile.mkdtemp())
+        (root / ".team.toml").write_text(
+            '[project]\nname = "x"\n\n[providers.local]\nkind = "ollama"\n\n'
+            '[providers.gpu]\nkind = "ollama"\nurl = "http://gpu.local:11434"\n\n'
+            '[[agents]]\nname = "Forge"\nrole = "builder"\nprovider = "local"\nmodel = "m"\n')
+        with quiet():
+            init.run(root, ollama_url="http://10.0.0.5:11434")
+        providers = config.load(root).providers
+        self.assertEqual(providers["local"].url, "http://10.0.0.5:11434")   # had no url: one is added
+        self.assertEqual(providers["gpu"].url, "http://gpu.local:11434")
+
+    def test_python_test_command_follows_the_runner_the_project_uses(self):
+        root = Path(tempfile.mkdtemp())
+        (root / "pyproject.toml").write_text('[project]\nname = "x"\n')
+        (root / "tests").mkdir()
+        (root / "tests/test_a.py").write_text("import unittest\n")
+        cmd, pattern = init.detect(root)
+        self.assertEqual(cmd, "python3 -m unittest discover -s tests -v")
+        self.assertEqual(re.search(pattern, "Ran 3 tests in 0.01s").group(1), "3")
+        (root / "pyproject.toml").write_text('[project]\nname = "x"\n\n[tool.pytest.ini_options]\n')
+        self.assertEqual(init.detect(root)[0], "python3 -m pytest -q")
+        (root / "pyproject.toml").write_text('[project]\nname = "x"\n')
+        (root / "tests/test_a.py").write_text("import pytest\n")
+        self.assertEqual(init.detect(root)[0], "python3 -m pytest -q")
+
     def test_keeps_existing_gitignore(self):
         root = Path(tempfile.mkdtemp())
         (root / ".gitignore").write_text("node_modules\n")
