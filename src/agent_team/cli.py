@@ -99,6 +99,16 @@ def cmd_fix(args) -> int:
     return 0 if fix.run(_team(args), args.number, args.rounds, args.lead, args.builder) else 2
 
 
+def cmd_autopilot(args) -> int:
+    from . import schedule
+    from .workflows import autopilot
+    try:
+        return 0 if autopilot.run(_team(args), args.milestone, args.max_cycles, args.rounds) else 2
+    except schedule.AlreadyRunning as e:
+        ui.warn(f"Not starting: {e}.")
+        return 4
+
+
 def cmd_market(args) -> int:
     from .workflows import market
     return 0 if market.run(_team(args), args.rounds, args.reuse_brief) else 2
@@ -158,7 +168,7 @@ def cmd_schedule(args) -> int:
 
 def status_data(team: config.Team, with_health: bool = False, recent: int = 8) -> dict:
     """A compact snapshot for the Claude panel and scripts: team, recent runs, spend, optional health."""
-    from . import budget, jobs, logs, readiness, schedule, usage
+    from . import budget, jobs, logs, memory, readiness, schedule, usage
     from .workflows import ship
     from .dashboard.server import health, team_info
     info = team_info(team)
@@ -174,6 +184,7 @@ def status_data(team: config.Team, with_health: bool = False, recent: int = 8) -
         "health": health(team)["members"] if with_health else None,
         "schedule": schedule.show(team.root),
         "release_policy": team.project.release,
+        "lessons": len(memory.lessons(team.root)),
         "release_proposal": ship.release_proposal(team.root),
         "attention": [{"name": c.name, "detail": c.detail, "fix": c.fix}
                       for c in readiness.check(team.root) if not c.ok],
@@ -217,7 +228,7 @@ def cmd_jobs(args) -> int:
                 raise jobs.JobError("say which workflow: doctor, build, discuss, market or ship")
             params = {k: v for k, v in {"task": args.task, "topic": args.topic, "branch": args.branch,
                                         "pr": args.pr, "parallel": args.parallel, "number": args.number,
-                                        "release": args.release}.items() if v}
+                                        "release": args.release, "milestone": args.milestone}.items() if v}
             job = jobs.start(root, args.target, params)
             if args.json:
                 print(_json.dumps(job))
@@ -281,6 +292,54 @@ def cmd_keys(args) -> int:
     except ValueError as e:
         raise SystemExit(str(e))
     ui.action(f"saved {args.name} to {keys.path()} (readable only by you)")
+    return 0
+
+
+def cmd_scoreboard(args) -> int:
+    import json as _json
+    from . import scoreboard
+    team = _team(args)
+    data = scoreboard.compute(team)
+    if args.json:
+        print(_json.dumps(data))
+        return 0
+    pct = lambda v: "—" if v is None else f"{v:.0%}"
+    ui.heading("Builders")
+    if not data["builders"]:
+        ui.say("  No builds logged yet.")
+    for name, s in sorted(data["builders"].items()):
+        ui.say(f"  {name:<10} {data['models'].get(name, ''):<22} builds {s['builds']:>3}  approved {pct(s['approval_rate']):>4}  "
+               f"first round {pct(s['first_round_rate']):>4}  avg rounds {s['avg_rounds'] or '—':>3}  "
+               f"fixes {s['fixes_pushed']}/{s['fixes']}  cost ${s['cost']:.2f}")
+    ui.heading("Reviewers")
+    for name, s in sorted(data["reviewers"].items()):
+        ui.say(f"  {name:<10} reviews {s['reviews']:>3}  sign-offs {s['signoffs']:>3}  asked for changes {pct(s['pushback_rate'])}")
+    t = data["team"]
+    per = f"${t['cost_per_merged_pr']:.2f}" if t["cost_per_merged_pr"] is not None else "—"
+    ui.heading(f"Team: {t['merged_prs']} PRs merged, ${t['cost']:.2f} spent, {per} per merged PR")
+    return 0
+
+
+def cmd_memory(args) -> int:
+    from . import memory
+    root = _team(args).root
+    if args.action == "add":
+        if not args.text:
+            raise SystemExit('say the lesson, e.g. agent-team memory add "Every API change needs a CHANGELOG entry"')
+        added = memory.add(root, [args.text], "added by a person")
+        ui.say("Added." if added else "Already known (or too short).")
+        return 0
+    if args.action == "forget":
+        try:
+            ui.say(f"Forgot: {memory.forget(root, int(args.text))}")
+        except ValueError as e:
+            raise SystemExit(f"forget takes a lesson number from the list: {e}")
+        return 0
+    items = memory.lessons(root)
+    if not items:
+        ui.say("No lessons yet. Reviewers add them (LESSON: lines) when they block for a general reason.")
+    for n, i in enumerate(items, 1):
+        ui.say(f"  {n:>2}. {i['text']}" + (f"  ({i['source']})" if i["source"] else ""))
     return 0
 
 
@@ -360,6 +419,10 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--rounds", type=int, default=2)
     s.add_argument("--lead", default="")
     s.add_argument("--builder", default="")
+    s = add("autopilot", cmd_autopilot, "work through the roadmap a PR at a time: build, review, fix, merge")
+    s.add_argument("--milestone", default="", help='e.g. M2; stop when the lead says it is done')
+    s.add_argument("--max-cycles", type=int, default=6, help="most builds plus shifts in this run (default 6)")
+    s.add_argument("--rounds", type=int, default=3, help="most rounds per build")
     s = add("market", cmd_market, "brief, website and pitch deck, reviewed with screenshots")
     s.add_argument("--rounds", type=int, default=3)
     s.add_argument("--reuse-brief", action="store_true")
@@ -389,12 +452,18 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--parallel", action="store_true", help="for build")
     s.add_argument("--number", type=int, default=0, help="for fix: the pull request number")
     s.add_argument("--release", default="", help="for ship: approve releasing this version")
+    s.add_argument("--milestone", default="", help="for autopilot")
     s.add_argument("--json", action="store_true")
     s = sub.add_parser("keys", help="API keys and tokens in agent-team's own keys file (values are never shown)")
     s.add_argument("action", nargs="?", default="list", choices=["list", "set", "remove"])
     s.add_argument("name", nargs="?", default="", help="e.g. ANTHROPIC_API_KEY")
     s.add_argument("--from-env", action="store_true", help="copy the value this shell already has")
     s.set_defaults(fn=cmd_keys)
+    s = add("scoreboard", cmd_scoreboard, "how each member and model is doing: approvals, rounds, cost per merged PR")
+    s.add_argument("--json", action="store_true")
+    s = add("memory", cmd_memory, "what the team learned from its reviews: list, add or forget lessons")
+    s.add_argument("action", nargs="?", default="list", choices=["list", "add", "forget"])
+    s.add_argument("text", nargs="?", default="", help="the lesson to add, or the number to forget")
     s = add("ui", cmd_ui, "open the dashboard: see and edit the team, start runs, follow costs")
     s.add_argument("--port", type=int, default=8790)
     s.add_argument("--no-open", action="store_true", help="don't open a browser")

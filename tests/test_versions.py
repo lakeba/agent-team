@@ -18,6 +18,9 @@ class VersionTests(unittest.TestCase):
         self.assertEqual(json.loads((ROOT / "plugin/.claude-plugin/plugin.json").read_text())["version"], v)
         panel = (ROOT / "plugin/hooks/register.tsx").read_text()
         self.assertEqual(re.search(r"PLUGIN_VERSION = '([^']+)'", panel).group(1), v)
+        fixture = (ROOT / "plugin/tests/panel.test.ts").read_text()
+        found = set(re.findall(r"(?:^  version: '|agent-team )(\d+\.\d+\.\d+)", fixture, re.M))
+        self.assertEqual(found, {v})   # the panel test's sample CLI status, or its version warning fires
 
 
 if __name__ == "__main__":

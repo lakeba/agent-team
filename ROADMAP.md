@@ -12,10 +12,10 @@
 ## Later
 
 - Notifications (Slack, email, GitHub) when a PR is ready, a sign-off is needed or a member is down.
-- Team memory: what each member learned from past reviews, carried into later prompts.
-- A scoreboard: first-round approvals, cost and time per task, per member.
 
 ## Done
+
+- Patch edits, reviews with tools, fixes inside the shift, autopilot, team memory and a scoreboard (0.3).
 
 - Claude Code plugin, side panel and `/team-run`; editable dashboard with background runs.
 - Per-member cost reporting, including remote nodes that run paid models.

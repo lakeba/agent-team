@@ -18,6 +18,7 @@ It grew out of todo-py, a small command-line app this team planned, built, marke
 |---|---|---|
 | Discuss | `agent-team discuss "next features"` | Members talk in turn until they all agree; the lead updates `ROADMAP.md`. |
 | Build | `agent-team build "task" --branch x --pr` | The lead writes `PLAN.md`, builders implement it (in parallel with `--parallel`), tests run each round, the lead reviews until approved, then a PR opens. Optional QA, security and docs members write tests first, review the result and update the docs. |
+| Autopilot | `agent-team autopilot --milestone M2` | Works through the roadmap a PR at a time: the lead picks the next task, the team builds it, each devops shift reviews, fixes and merges, until the lead says the milestone is done (or it gets stuck, or hits a spend limit). |
 | Fix | `agent-team fix 12` | When the lead requests changes on a PR, a builder applies the review on that PR's branch, the lead confirms the blocking points are addressed, and it pushes; the next shift reviews the new commit. |
 | Market | `agent-team market` | The marketing member writes a brief, a website and a pitch deck; a fact-checker checks claims and the lead reviews with screenshots. |
 | Set up | `agent-team setup --license "MIT, copyright 2026 Lakeba"` | The devops member drafts README, CONTRIBUTING, CHANGELOG, CI and templates. |
@@ -30,6 +31,11 @@ same commit (the lead's approval is its own sign-off). On a re-review, reviewers
 points still open or problems the new commit introduces, so a PR that fixes what was asked passes. Releases need green CI on `main` and a CHANGELOG entry. Text from outside the team
 always reaches the models marked as untrusted. Spend limits in `.team.toml` stop any run before it
 costs more than you allow, and large projects get a focused context instead of every file.
+
+Builders change files with small search/replace edits instead of rewriting them, and an edit
+that doesn't match is refused and sent back. Reviewers read files, search, see the diff and run
+the tests themselves. When a reviewer blocks for a reason that will matter again, the lesson is
+kept and every member sees it in later work.
 
 ## Install
 
@@ -88,6 +94,8 @@ agent-team ship                                          # one devops shift on G
 | `agent-team discover` | Find agent-team nodes on the local network. |
 | `agent-team ready [--json]` | What this machine and project still need (git, GitHub, keys, Ollama, models), each with its fix. |
 | `agent-team keys [set NAME \| remove NAME]` | API keys and tokens in agent-team's own keys file; values are never shown. |
+| `agent-team scoreboard` | Each builder's approval and first-round rate, average rounds and cost; each reviewer's pushback; cost per merged PR. |
+| `agent-team memory [add TEXT \| forget N]` | The lessons the team learned from its reviews, which every member sees in later work. |
 | `agent-team agents`, `agent-team doctor` | List the team; check every member can be reached. |
 
 `build` takes `--parallel` (split the plan across every builder), `--skip qa,security,docs`,

@@ -13,5 +13,8 @@ missing authentication or authorisation checks, insecure defaults, data loss, an
 added without need. Ignore style. For each problem give the file, what is wrong, how it could be
 exploited, and the fix.
 
+If a blocking point reflects a general rule for future work on this project (not this PR's
+details), add a line `LESSON: <the rule in one sentence>`, at most two. The team sees them later.
+
 Reply in under 250 words, then exactly one line: SIGN-OFF: YES (nothing that must be fixed) or
 SIGN-OFF: NO (at least one problem that must be fixed before merge).

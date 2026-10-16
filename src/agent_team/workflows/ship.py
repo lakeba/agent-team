@@ -20,7 +20,7 @@ from pathlib import Path
 import anthropic
 from anthropic import beta_tool
 
-from .. import agent, budget, files, github, logs, ui, usage
+from .. import agent, budget, files, github, logs, memory, ui, usage
 from ..config import Team
 
 SIGNATURE = "\n\n— {name}, devops agent for this repo (automated)"
@@ -260,6 +260,7 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
             if yes:
                 signoffs[(number, member)] = sha
             log.record(f"{member}: sign-off on PR #{number} at {sha[:10]}", reply)
+            memory.learn(team, reply, member)
             github.gh("pr", "comment", str(number), "-R", repo, "--body",
                       f"{reply}\n\n— {member} ({cfg.role} agent, automated), reviewing commit {sha[:10]}; "
                       f"recorded by the team's tooling")
@@ -290,11 +291,54 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
             f"{verified_facts(sha)}{re_review_note(root, number, lead_cfg.name, sha)}\n\n" +
             github.untrusted(f"Title: {info['title']}\n\n{info['body']}\n\nDiff:\n{github.diff_for(repo, number)}"))
         log.record(f"{lead_cfg.name}: review of PR #{number} at {sha[:10]}", review)
+        memory.learn(team, review, lead_cfg.name)
         if files.last_marker(files.VERDICT_RE, review) == "APPROVED":
             approvals[number] = sha
             if lead_cfg.name in owners:
                 signoffs[(number, lead_cfg.name)] = sha   # the lead's approval is its sign-off
         return review
+
+    fix_attempts: dict[int, int] = {}
+
+    @beta_tool
+    def request_fix(number: int) -> str:
+        """Have a builder apply the latest blocking review (the lead's, and any owner's NO) to a PR from
+        the team's own branches. The lead confirms the fix before it is pushed; then this waits for CI
+        on the new commit. Afterwards, request sign-offs and the lead's review again: approvals are
+        tied to a commit. At most two fixes per PR per shift.
+
+        Args:
+            number: The pull request number.
+        """
+        from .. import jobs
+        from . import fix
+        if fix_attempts.get(number, 0) >= 2:
+            return f"REFUSED: PR #{number} has had two fixes this shift; leave it for the next shift or the owners."
+        busy = [j for j in jobs.list_jobs(root, 100) if j["status"] == "running" and j["workflow"] in jobs.WRITERS]
+        if busy:
+            return f"REFUSED: a {busy[0]['workflow']} run is changing files in this checkout; try again next shift."
+        fix_attempts[number] = fix_attempts.get(number, 0) + 1
+        run_id = usage.current_run()
+        try:
+            pushed = fix.run(team, number)
+        except SystemExit as e:
+            return f"NOT FIXED: {e}"
+        finally:
+            usage.set_run(run_id)          # the fix logs as its own run; the shift's calls stay the shift's
+        if not pushed:
+            return "NOT FIXED: the builder's change wasn't confirmed by the lead, so nothing was pushed. Comment on the PR with what's still needed."
+        sha = pr_head(number)["headRefOid"]
+        act(f"fix pushed {sha[:10]} to PR #{number}")
+        deadline = time.time() + 15 * 60
+        time.sleep(10)
+        while True:
+            green, summary = github.ci_status(repo, number)
+            if green:
+                return (f"Fixed: new head {sha[:10]}, CI green ({summary}). Now request sign-offs and the lead's "
+                        f"review again for this commit.")
+            if github.ci_failed(repo, number) or time.time() > deadline:
+                return f"Fix pushed as {sha[:10]}, but CI is not green ({summary}). Don't merge; say so in your summary."
+            time.sleep(15)
 
     @beta_tool
     def merge_pull_request(number: int) -> str:
@@ -402,7 +446,7 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
         ok, why = github.wait_for_commit_ci(repo, new_head, minutes=15)
         return new_head if ok else f"REFUSED: after merging release PR #{number}, {why}. Retry later."
 
-    tools = [view_pull_request, comment, set_labels, close_issue, request_signoffs, request_lead_review,
+    tools = [view_pull_request, comment, set_labels, close_issue, request_signoffs, request_lead_review, request_fix,
              merge_pull_request, write_feedback_digest, create_release]
 
     ui.heading(f"{devops_cfg.name}'s shift on {repo}")

@@ -81,6 +81,10 @@ def make(team: Team, cfg: AgentConfig, prompt_name: str | None = None, label_suf
         **fields,
     }
     system = _fill(template, values)
+    from . import memory
+    learned = memory.for_prompt(team.root)
+    if learned:
+        system = f"{system.rstrip()}\n\n{learned}"
     if cfg.skills:
         from . import skills
         system = f"{system.rstrip()}\n\n{skills.render(skills.load(team, cfg))}"

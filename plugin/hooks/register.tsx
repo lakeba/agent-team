@@ -8,7 +8,7 @@ import type { Health, Job, Snapshot } from '../types'
 
 // Keep equal to plugin.json's version and the CLI's (a test checks): a mismatch means one of
 // them wasn't updated, and the panel says so.
-const PLUGIN_VERSION = '0.2.6'
+const PLUGIN_VERSION = '0.3.0'
 const PANE = 'agent-team'
 const TITLE = 'agent-team'
 const snapshot = atom({ plugin: 'agent-team', key: 'snapshot' } as const, null)
@@ -19,7 +19,7 @@ const dashboard = atom({ plugin: 'agent-team', key: 'dashboard' } as const, '')
 
 let cliPath: string | null | undefined   // undefined: not looked for yet; null: not installed
 let poll: { cancel: () => void } | null = null   // refreshes while a background run is going
-const RUNNABLE = ['build', 'fix', 'discuss', 'ship', 'market', 'doctor']
+const RUNNABLE = ['autopilot', 'build', 'fix', 'discuss', 'ship', 'market', 'doctor']
 
 async function findCli($: EngineInterface): Promise<string | null> {
   if (cliPath !== undefined) return cliPath
@@ -92,7 +92,8 @@ async function startJob($: EngineInterface, workflow: string, text = '', release
   const cwd = await $.session.cwd()
   const extra = workflow === 'build' ? ['--task', text] : workflow === 'discuss' ? ['--topic', text]
     : workflow === 'fix' ? ['--number', text.replace(/^#/, '')]
-    : workflow === 'ship' && release ? ['--release', release] : []
+    : workflow === 'ship' && release ? ['--release', release]
+    : workflow === 'autopilot' && text ? ['--milestone', text] : []
   const argv = await loginShell($, [cli, 'jobs', 'start', workflow, '--json', '-C', cwd, ...extra].map(shellQuote).join(' '))
   await update($, busy, () => `Starting ${workflow}…`)
   try {
@@ -194,7 +195,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const started = await next(e)
     await $.command.register({ name: 'team-panel', description: "Show the project's agent-team in a side panel" })
-    await $.command.register({ name: 'team-run', description: 'Start an agent-team run in the background: build <task>, fix <PR>, discuss <topic>, ship, market or doctor' })
+    await $.command.register({ name: 'team-run', description: 'Start an agent-team run in the background: autopilot [milestone], build <task>, fix <PR>, discuss <topic>, ship, market or doctor' })
     // Open the panel by itself only where the project has a team.
     if (e.isInteractive && (await refresh($))) void $.ui.open({ id: PANE, title: TITLE })
     return started

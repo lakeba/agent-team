@@ -104,3 +104,18 @@ the page's session token and a same-origin request, and are refused if the file 
   and the Claude panel, with its output in `.team/jobs/`.
 - `discovery.py` lets nodes answer UDP probes so teams can find them on the local network.
 
+## Edits, tool reviews, memory and autopilot (0.3)
+
+- `files.write_files` applies `<edit>` blocks (SEARCH/REPLACE pairs that must match once) as well
+  as whole `<file>` blocks. A file whose edit doesn't apply is left unchanged, and the problem goes
+  back to the builder and the lead (`Written.problems`, `files.problems_note`).
+- `review_tools.py` gives reviewers read_file, list_files, search, diff and run_tests through
+  `tool_loop`, for any provider that can call tools. `build` and `fix` use it for the lead's
+  reviews unless `[project].review = "snapshot"`.
+- `ship`'s `request_fix` runs `fix` inside the shift and waits for CI, so one shift can take a PR
+  from "changes requested" to merged; approvals are still tied to the new commit.
+- `workflows/autopilot.py` alternates shifts (while team PRs are open) and builds (the lead picks
+  the next roadmap task), under its own lock and the spend limits.
+- `memory.py` keeps reviewers' `LESSON:` lines in `.team/memory.md` and adds them to every member's
+  prompt; `scoreboard.py` derives per-member results from the logs and usage records.
+

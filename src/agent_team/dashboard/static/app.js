@@ -63,8 +63,8 @@ async function getJSON(path) {
 }
 async function load() {
   document.getElementById("refreshed").textContent = "Loading…";
-  const results = await Promise.allSettled([getJSON("/api/team"), getJSON("/api/runs"), getJSON("/api/usage")]);
-  [state.team, state.runs, state.usage] = results.map(r => r.status === "fulfilled" ? r.value : { error: r.reason.message });
+  const results = await Promise.allSettled([getJSON("/api/team"), getJSON("/api/runs"), getJSON("/api/usage"), getJSON("/api/scoreboard")]);
+  [state.team, state.runs, state.usage, state.scoreboard] = results.map(r => r.status === "fulfilled" ? r.value : { error: r.reason.message });
   render();
   // Slow sources fill in when they arrive.
   getJSON("/api/health").then(v => { state.health = v; render(); }).catch(e => { state.health = { error: e.message }; render(); });
@@ -202,6 +202,11 @@ function renderTeam() {
       m.skills_problem ? h("p", { class: "health-line" }, m.skills_problem) : null,
       hm && !hm.ok ? h("p", { class: "health-line" }, hm.status) : null);
   })));
+  const lessons = t.lessons || [];
+  el.append(h("div", { class: "card" }, h("h2", {}, "What the team has learned"),
+    lessons.length ? h("ol", {}, lessons.map(l => h("li", {}, l.text, l.source ? h("span", { class: "muted small" }, ` (${l.source})`) : null)))
+                   : h("p", { class: "muted" }, "No lessons yet. When a reviewer blocks for a reason that will matter again, it adds a lesson, and every member sees it in later work."),
+    h("p", { class: "muted small" }, "Change them with agent-team memory add / forget.")));
   const g = t.project.guarantees;
   el.append(h("div", { class: "card" }, h("h2", {}, "Project guarantees"),
     g.length ? h("ul", {}, g.map(x => h("li", {}, x))) : h("p", { class: "muted" }, "None set. The lead enforces these in every review; add them under [project] in .team.toml."),
@@ -279,6 +284,18 @@ function renderCosts() {
       barList(members, r => r.cost, r => `${r.name}: ${fmtUsd(r.cost)} · ${fmtInt(r.calls)} calls · ${fmtTokens(r.input + r.cache_read)} in / ${fmtTokens(r.output)} out`)),
     h("div", { class: "card" }, h("h2", {}, "Spend by day"), columns,
       h("div", { class: "column-labels" }, h("span", {}, days[0] ? days[0].day : ""), h("span", {}, days.length > 1 ? days[days.length - 1].day : "")))));
+  const sb = state.scoreboard;
+  if (sb && !sb.error) {
+    const pct = v => v == null ? "—" : `${Math.round(v * 100)}%`;
+    const per = sb.team.cost_per_merged_pr == null ? "—" : fmtUsd(sb.team.cost_per_merged_pr);
+    el.append(h("div", { class: "card" }, h("h2", {}, "Scoreboard"),
+      h("p", { class: "secondary" }, `${sb.team.merged_prs} PRs merged · ${per} per merged PR`),
+      table(["Builder", "Model", "Builds", "Approved", "First round", "Avg rounds", "Fixes pushed", "Cost"],
+        Object.entries(sb.builders).map(([n, s]) => [n, sb.models[n] || "", fmtInt(s.builds), pct(s.approval_rate), pct(s.first_round_rate),
+          s.avg_rounds ?? "—", `${s.fixes_pushed}/${s.fixes}`, fmtUsd(s.cost)]), [2, 3, 4, 5, 6, 7]),
+      table(["Reviewer", "Reviews", "Sign-offs", "Asked for changes"],
+        Object.entries(sb.reviewers).map(([n, s]) => [n, fmtInt(s.reviews), fmtInt(s.signoffs), pct(s.pushback_rate)]), [1, 2, 3])));
+  }
   el.append(h("div", { class: "card" }, h("h2", {}, "By model"),
     table(["Model", "Calls", "Input", "Cache read", "Output", "Est. cost"],
       Object.entries(u.by_model).sort((a, b) => b[1].cost - a[1].cost)

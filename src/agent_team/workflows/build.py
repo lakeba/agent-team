@@ -17,7 +17,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
-from .. import agent, context, files, github, ui
+from .. import agent, context, files, github, memory, review_tools, ui
 from ..config import AgentConfig, Team
 
 TEST_PREFIXES = ("tests/", "test/", "spec/", "__tests__/", "test_")
@@ -85,6 +85,9 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
         ui.action(f"created branch {branch}")
 
     planner = agent.make(team, lead_cfg, "lead", file_format=files.FILE_FORMAT)
+    base = github.git(team.root, "rev-parse", "HEAD", check=False).strip() or None
+    use_tools = review_tools.supported(team, lead_cfg)
+    last_review = ""
     log = files.Log(team.root, "build", f"Build: {task}")
     touched: set[str] = set()
 
@@ -134,6 +137,7 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
         ui.heading(f"=========== Round {rnd}/{rounds} ===========")
         results = _build_round(team, parts, note, focus)
         round_written: list[str] = []
+        problems = "".join(files.problems_note(w) for _, w in results)
         for part, (reply, written) in zip(parts, results):
             touched.update(written)
             focus.add(written)
@@ -147,15 +151,26 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
 
         messages = "\n\n".join(f"# {p.builder.name}'s message (round {rnd})\n\n{files.strip_files(r)}"
                                for p, (r, _) in zip(parts, results))
-        review = planner.turn(
-            f"{messages}\n\nFiles written this round: {', '.join(round_written) or 'none'}"
-            f"\n\n# Current project files\n\n{focus.render()}{tests}")
+        if use_tools:
+            plan_text = (team.root / "PLAN.md").read_text(encoding="utf-8") if (team.root / "PLAN.md").exists() else ""
+            earlier = f"\n\n# Your previous review\n\n{last_review}" if last_review else ""
+            review = review_tools.review(team, lead_cfg, planner.system, (
+                f"Review round {rnd} of the task: {task}\n\n# PLAN.md\n\n{plan_text}{earlier}\n\n{messages}"
+                f"\n\nFiles written this round: {', '.join(round_written) or 'none'}{problems}{tests}\n\n"
+                "Review the work against PLAN.md. Use the tools to inspect the changes (start with diff). "
+                "To change the plan, include PLAN.md in full in a <file> block."), base, touched)
+        else:
+            review = planner.turn(
+                f"{messages}\n\nFiles written this round: {', '.join(round_written) or 'none'}{problems}"
+                f"\n\n# Current project files\n\n{focus.render()}{tests}")
+        last_review = review
+        memory.learn(team, review, lead_cfg.name)
         plan_files = files.write_files(team.root, review, allowed=("PLAN.md",))
         touched.update(plan_files)
         focus.add_from_reply(review)
         log.record(f"{lead_cfg.name}: review {rnd}", review, plan_files)
         if files.last_marker(files.VERDICT_RE, review) != "APPROVED":
-            note = f"# {lead_cfg.name}'s review\n\n{review}{tests}"
+            note = f"# {lead_cfg.name}'s review\n\n{review}{tests}{problems}"
             continue
 
         findings = _security_review(team, extra["security"], task, touched, log)
@@ -219,6 +234,7 @@ def _security_review(team: Team, members: list[AgentConfig], task: str, touched:
         reply = reviewer.turn(f"Task: {task}\n\nThe lead has approved these changes. Review them.\n\n"
                               f"# Files changed in this build\n\n{changed}")
         yes = files.last_marker(files.SIGNOFF_RE, reply) == "YES"
+        memory.learn(team, reply, cfg.name)
         log.record(f"{cfg.name}: security review", reply)
         ui.action(f"{cfg.name} {'signed off' if yes else 'found problems'}")
         if not yes:

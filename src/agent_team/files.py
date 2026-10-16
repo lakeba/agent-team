@@ -8,14 +8,71 @@ from pathlib import Path
 
 from . import ui, usage
 
-FILE_FORMAT = """To create or replace a file, output it in full like this:
+FILE_FORMAT = """To change an existing file, send only the changes, as search/replace edits:
+<edit path="relative/path.ext">
+<<<<<<< SEARCH
+the exact lines currently in the file (enough to be unique)
+=======
+the lines that replace them
+>>>>>>> REPLACE
+</edit>
+One <edit> block may hold several SEARCH/REPLACE pairs. Each SEARCH must match the file exactly
+once, including indentation; to delete lines, leave the replacement empty. If an edit doesn't
+apply, the file is left unchanged and you'll be told why.
+
+To create a new file, or to rewrite one completely, send it in full:
 <file path="relative/path.ext">
 ...entire file contents...
 </file>
-Paths are relative to the project folder. Unchanged files don't need to be repeated."""
+Paths are relative to the project folder. Don't repeat unchanged files."""
 
 # A missing </file> ends the block at the next <file> tag or the end of the message.
 FILE_RE = re.compile(r'<file path="([^"]+)">\n?(.*?)(</file>|(?=\n<file path=")|\Z)', re.S)
+EDIT_RE = re.compile(r'<edit path="([^"]+)">\n?(.*?)</edit>', re.S)
+HUNK_RE = re.compile(r"<<<<<<< SEARCH\n(.*?)\n?=======\n(.*?)\n?>>>>>>> REPLACE", re.S)
+
+
+class Written(list):
+    """The paths written, plus `.problems`: edits that couldn't be applied, to tell the model."""
+
+    def __init__(self, *a):
+        super().__init__(*a)
+        self.problems: list[str] = []
+
+
+def _safe_dest(base: str, rel: str) -> str | None:
+    dest = os.path.realpath(os.path.join(base, rel))
+    if not dest.startswith(base + os.sep) or Path(rel).parts[:1] == (".git",):
+        return None
+    return dest
+
+
+def apply_hunks(text: str, hunks: list[tuple[str, str]]) -> tuple[str, str]:
+    """Apply SEARCH/REPLACE hunks in order. Returns (new text, problem); on a problem the text is
+    returned unchanged. A search that isn't found exactly is retried ignoring trailing spaces."""
+    out = text
+    for i, (search, replace) in enumerate(hunks, 1):
+        if not search.strip():
+            return text, f"edit {i} has an empty SEARCH; use <file> to create or rewrite a file"
+        count = out.count(search)
+        if count == 1:
+            out = out.replace(search, replace, 1)
+            continue
+        if count > 1:
+            return text, f"edit {i}: the SEARCH text matches {count} places; include more lines so it's unique"
+        # Tolerate trailing whitespace differences, line by line.
+        lines, want = out.split("\n"), [l.rstrip() for l in search.split("\n")]
+        hits = [j for j in range(len(lines) - len(want) + 1)
+                if [l.rstrip() for l in lines[j:j + len(want)]] == want]
+        if len(hits) == 1:
+            j = hits[0]
+            out = "\n".join(lines[:j] + replace.split("\n") + lines[j + len(want):])
+            continue
+        first = next((l for l in want if l.strip()), "")
+        near = next((l.strip() for l in lines if first.strip() and first.strip()[:30] in l), "")
+        hint = f" (a similar line in the file: {near[:100]!r})" if near else ""
+        return text, f"edit {i}: the SEARCH text isn't in the file{hint}; copy it exactly from the current file"
+    return out, ""
 VERDICT_RE = re.compile(r"^VERDICT:\s*(APPROVED|CHANGES)\s*$", re.M)
 SIGNOFF_RE = re.compile(r"^SIGN-OFF:\s*(YES|NO)\s*$", re.M)
 STATUS_RE = re.compile(r"^STATUS:\s*(AGREE|CONTINUE|OK|ISSUES)\s*$", re.M)
@@ -34,17 +91,47 @@ def last_marker(regex: re.Pattern, text: str) -> str:
     return found[-1] if found else ""
 
 
-def write_files(root: str | Path, text: str, allowed: tuple[str, ...] | None = None) -> list[str]:
-    """Write every <file> block in `text` under `root`. Refuses paths that escape `root`, and,
-    if `allowed` is given, paths outside those prefixes."""
-    written = []
+def write_files(root: str | Path, text: str, allowed: tuple[str, ...] | None = None) -> Written:
+    """Apply every <edit> block and write every <file> block in `text` under `root`. Refuses paths
+    that escape `root`, and, if `allowed` is given, paths outside those prefixes. Edits that can't
+    be applied leave their file unchanged and are listed in the result's `.problems`."""
+    written = Written()
     base = os.path.realpath(root)
+    for rel, body in EDIT_RE.findall(text):
+        dest = _safe_dest(base, rel)
+        if dest is None:
+            ui.warn(f"skipped unsafe path {rel!r}")
+            continue
+        if allowed is not None and not rel.startswith(allowed):
+            ui.warn(f"skipped {rel!r}: outside the paths this step may change")
+            written.problems.append(f"{rel}: outside the paths this step may change")
+            continue
+        try:
+            with open(dest, encoding="utf-8") as f:
+                current = f.read()
+        except FileNotFoundError:
+            written.problems.append(f"{rel}: no such file to edit; send it whole in a <file> block")
+            continue
+        hunks = HUNK_RE.findall(body)
+        if not hunks:
+            written.problems.append(f"{rel}: the <edit> block has no SEARCH/REPLACE pairs")
+            continue
+        new, problem = apply_hunks(current, hunks)
+        if problem:
+            ui.warn(f"{rel}: {problem}")
+            written.problems.append(f"{rel}: {problem}")
+            continue
+        with open(dest, "w", encoding="utf-8") as f:
+            f.write(new)
+        if rel not in written:
+            written.append(rel)
+    text = EDIT_RE.sub("", text)
     for rel, body, closing in FILE_RE.findall(text):
         if not closing:
             body = VERDICT_RE.split(body)[0].rstrip() + "\n"
             ui.warn(f"{rel}: no closing </file> tag; saved what was there")
-        dest = os.path.realpath(os.path.join(base, rel))
-        if not dest.startswith(base + os.sep) or Path(rel).parts[:1] == (".git",):
+        dest = _safe_dest(base, rel)
+        if dest is None:
             ui.warn(f"skipped unsafe path {rel!r}")
             continue
         if allowed is not None and not rel.startswith(allowed):
@@ -58,7 +145,14 @@ def write_files(root: str | Path, text: str, allowed: tuple[str, ...] | None = N
 
 
 def strip_files(text: str) -> str:
-    return FILE_RE.sub("[file omitted]", text)
+    return FILE_RE.sub("[file omitted]", EDIT_RE.sub("[edit omitted]", text))
+
+
+def problems_note(written) -> str:
+    """Tell the model which of its edits didn't apply, so it can resend them."""
+    problems = getattr(written, "problems", [])
+    return ("\n\n# Edits that were NOT applied (those files are unchanged; resend them corrected)\n" +
+            "\n".join(f"- {p}" for p in problems)) if problems else ""
 
 
 class SnapshotTooLarge(ValueError):

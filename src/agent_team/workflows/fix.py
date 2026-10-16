@@ -12,7 +12,7 @@ waiting. `fix` closes that loop:
 from __future__ import annotations
 
 
-from .. import agent, context, files, github, logs, ui
+from .. import agent, context, files, github, logs, memory, review_tools, ui
 from ..config import Team
 from .build import run_tests
 
@@ -107,16 +107,24 @@ def run(team: Team, number: int, rounds: int = 2, lead: str = "", builder: str =
             if tests:
                 ui.say(tests)
                 log.record(f"Tests: fix {rnd}", tests)
-            check = checker.turn(
-                f"{task}\n\n# {builder_cfg.name}'s message\n\n{files.strip_files(reply)}\n\nFiles changed: "
-                f"{', '.join(written) or 'none'}\n\n# Current files on the PR branch\n\n{focus.render()}{tests}\n\n"
-                "Check only whether every blocking point of your review is now addressed, without new problems. "
-                "Don't write PLAN.md. End with VERDICT: APPROVED or VERDICT: CHANGES.")
+            problems = files.problems_note(written)
+            ask = ("Check only whether every blocking point of the review is now addressed, without new problems. "
+                   "Don't write PLAN.md. End with VERDICT: APPROVED or VERDICT: CHANGES.")
+            if review_tools.supported(team, lead_cfg):
+                check = review_tools.review(team, lead_cfg, checker.system, (
+                    f"{task}\n\n# {builder_cfg.name}'s message\n\n{files.strip_files(reply)}\n\nFiles changed: "
+                    f"{', '.join(written) or 'none'}{problems}{tests}\n\n{ask} Use the tools (start with diff)."),
+                    head, touched)
+            else:
+                check = checker.turn(
+                    f"{task}\n\n# {builder_cfg.name}'s message\n\n{files.strip_files(reply)}\n\nFiles changed: "
+                    f"{', '.join(written) or 'none'}{problems}\n\n# Current files on the PR branch\n\n{focus.render()}{tests}\n\n{ask}")
             log.record(f"{lead_cfg.name}: check {rnd}", check)
+            memory.learn(team, check, lead_cfg.name)
             if files.last_marker(files.VERDICT_RE, check) == "APPROVED":
                 approved = True
                 break
-            note = f"{task}\n\n# {lead_cfg.name}'s check of your last attempt\n\n{check}{tests}"
+            note = f"{task}\n\n# {lead_cfg.name}'s check of your last attempt\n\n{check}{tests}{problems}"
 
         if not approved or not touched:
             why = "the lead didn't confirm the fix" if not approved else "the builder changed no files"

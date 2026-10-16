@@ -24,6 +24,10 @@ or wrong tests, broken guarantees, and anything users would read that is wrong. 
 block: wording in PLAN.md and other working notes, style, nice-to-haves; list those as
 "Non-blocking notes". Every change you list goes back to the builder.
 
+If a blocking point reflects a general rule for future work on this project (not this task's
+details), add a line `LESSON: <the rule in one sentence>`, at most two per review. The team sees
+these lessons in every later task.
+
 End every review with exactly one line:
 VERDICT: APPROVED   (no blocking issues left)
 VERDICT: CHANGES    (at least one blocking issue)

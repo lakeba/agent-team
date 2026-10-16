@@ -59,6 +59,7 @@ class ProjectConfig:
     context_limit: int = 200_000    # max characters of project files sent in one prompt
     context: str = "auto"           # full | focused | auto (focused when the whole project is too big)
     release: str = "auto"           # auto: the devops shift releases on its own; ask: it proposes, you approve
+    review: str = "tools"           # tools: reviewers read files and run tests themselves; snapshot: all files up front
     marketing: dict = field(default_factory=dict)
 
 
@@ -145,6 +146,8 @@ def parse(data: dict, root: Path) -> Team:
     if "project" not in data:
         raise ConfigError("missing [project] table")
     project = _take(dict(data["project"]), ProjectConfig, "[project]")
+    if project.review not in ("tools", "snapshot"):
+        raise ConfigError(f"[project].review: use tools or snapshot, not {project.review!r}")
     if project.release not in ("auto", "ask"):
         raise ConfigError(f"[project].release: use auto or ask, not {project.release!r}")
     if project.context not in ("full", "focused", "auto"):

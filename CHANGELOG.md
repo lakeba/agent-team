@@ -41,6 +41,19 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - A Claude Code side panel in the plugin (`/team-panel`, opened automatically in projects with a
   team): members with health marks, recent runs and spend, with Refresh, Check health and
   Start/Open dashboard buttons.
+- 0.3.0:
+  - Patch edits: builders send `<edit>` blocks with SEARCH/REPLACE pairs instead of whole files;
+    an edit that doesn't match exactly once leaves the file unchanged and is reported back.
+  - Reviews with tools: the lead reads files, searches, sees the diff and runs the tests during
+    `build` and `fix` reviews (`[project].review`, default `tools`).
+  - Fixes inside the shift: the devops member's `request_fix` tool has a builder apply the review
+    on the PR's branch, waits for CI, then asks for the reviews again, all in one shift.
+  - `agent-team autopilot [--milestone M2]` (and `/team-autopilot`, `/team-run autopilot`, the
+    dashboard): build, review, fix and merge a PR at a time until the milestone is done.
+  - Team memory: reviewers' `LESSON:` lines are kept in `.team/memory.md` and shown to every member;
+    `agent-team memory` lists, adds and forgets them; the dashboard's Team tab shows them.
+  - `agent-team scoreboard` and the dashboard's Costs tab: approval and first-round rates, average
+    rounds and cost per builder, pushback per reviewer, cost per merged PR.
 - 0.2.6: .NET out of the box. `init` detects a solution or project file (`*.sln`, `*.slnx`,
   `*.csproj`, also nested as `src/App/App.csproj`) and writes `dotnet test` with a test-count
   pattern for its summary line, finds an `App.Tests/` test project for the QA member, and adds

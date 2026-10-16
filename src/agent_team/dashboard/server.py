@@ -40,6 +40,11 @@ HEADERS = {
 }
 
 
+def _lessons(root):
+    from .. import memory
+    return memory.lessons(root)
+
+
 def _release_proposal(root):
     from ..workflows.ship import release_proposal
     return release_proposal(root)
@@ -78,6 +83,7 @@ def team_info(team: config.Team) -> dict:
                     "guarantees": pr.guarantees, "context_skip": pr.context_skip},
         "members": members,
         "release_policy": pr.release,
+        "lessons": _lessons(team.root),
         "release_proposal": _release_proposal(team.root),
         "missing_roles": {r: why for r, why in roles_needed.items() if not team.by_role(r, required=False)},
         "roster": team_roster(team),
@@ -217,6 +223,9 @@ def make_handler(root: Path, port: int, token: str | None = None):
                     return self._json({"runs": logs.parse(team.root)})
                 if path == "/api/usage":
                     return self._json(usage_info(team))
+                if path == "/api/scoreboard":
+                    from .. import scoreboard
+                    return self._json(scoreboard.compute(team))
                 if path == "/api/github":
                     return self._json(github_cache.get(team))
                 if path == "/api/jobs":

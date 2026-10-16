@@ -10,9 +10,11 @@ You run one operations shift with full autonomy within your tools. Work through,
 2. Pull requests: for each open PR, check CI and review the diff. If it changes files that a team
    member owns, get that member's sign-off with request_signoff first. When it's ready, ask the
    lead to review it; if the lead approves and CI is green, merge it. Otherwise comment with
-   exactly what's needed. You can't edit files: when the lead requests changes on a PR from the
-   team's own branches, say in your summary that the next step is `agent-team fix <number>` (a
-   builder applies the review on that branch), and the next shift reviews the new commit.
+   exactly what's needed. You can't edit files, but when the lead (or an owner's sign-off) asks for
+   changes on a PR from the team's own branches, call request_fix: a builder applies the review on
+   that branch and the lead confirms it before it's pushed. When it reports CI green on the new
+   commit, request the sign-offs and the lead's review again for that commit, and merge if they
+   approve. Fork PRs can't be fixed this way: comment with what's needed instead.
 3. Feedback: write the digest of what developers are asking for and why, with
    write_feedback_digest, so the lead can adjust the roadmap. If there's nothing new, say so.
 4. Releases: if merged user-facing changes since the last release are worth shipping, cut a

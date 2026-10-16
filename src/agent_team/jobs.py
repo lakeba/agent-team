@@ -22,7 +22,7 @@ from pathlib import Path
 
 ID_RE = re.compile(r"^[a-z]+-\d{8}T\d{6}-[0-9a-f]{6}$")
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-WRITERS = {"build", "discuss", "market", "setup", "fix"}       # change files in the working tree
+WRITERS = {"build", "discuss", "market", "setup", "fix", "autopilot"}       # change files in the working tree
 SKIPPABLE = ("qa", "security", "docs")
 
 
@@ -71,6 +71,14 @@ def argv_for(workflow: str, params: dict) -> list[str]:
         return ["market", "--rounds", number("rounds", 3, 1, 10)]
     if workflow == "discuss":
         return ["discuss", text("topic", required=True), "--turns", number("turns", 12, 2, 40)]
+    if workflow == "autopilot":
+        argv = ["autopilot", "--max-cycles", number("max_cycles", 6, 1, 30)]
+        milestone = text("milestone", limit=40)
+        if milestone:
+            if not re.fullmatch(r"[A-Za-z0-9 ._-]+", milestone):
+                raise JobError("milestone may contain letters, digits, spaces, . _ and -")
+            argv += ["--milestone", milestone]
+        return argv
     if workflow == "fix":
         n = p.get("number")
         if not isinstance(n, int) or isinstance(n, bool) or n < 1:
@@ -95,7 +103,7 @@ def argv_for(workflow: str, params: dict) -> list[str]:
         if skip:
             argv += ["--skip", ",".join(skip)]
         return argv
-    raise JobError(f"can't start {workflow!r}; choose doctor, build, fix, discuss, market or ship")
+    raise JobError(f"can't start {workflow!r}; choose doctor, build, fix, autopilot, discuss, market or ship")
 
 
 def _alive(pid: int) -> bool:
