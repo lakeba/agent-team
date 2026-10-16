@@ -8,9 +8,10 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ### Changed
 
-- agent-team is presented as a Lakeba product: the website, the dashboard and the README carry
-  the Lakeba mark and colours, with a "Conceive. Create. Commercialise." section, a "Built by
-  Lakeba" section, a favicon and a social preview image.
+- agent-team carries the Lakeba brand, as an open-source project Lakeba shares with its partners,
+  clients and the developer community: the website, the dashboard and the README use the Lakeba
+  mark and colours, with a "Conceive. Create. Commercialise." section, a "Shared by Lakeba"
+  section, a favicon and a social preview image.
 
 ### Fixed
 
