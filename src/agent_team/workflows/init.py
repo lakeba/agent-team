@@ -274,6 +274,31 @@ def find_server(given: str, interactive: bool) -> tuple[str, list[str] | None, s
             return url, models, ""
 
 
+def write_vision(root: Path, text: str) -> str:
+    """Save the owner's product vision as VISION.md (unless the project has one). `text` may also be
+    the path of a file holding it. Returns what was done, for the summary."""
+    text = text.strip()
+    if text and Path(text).expanduser().is_file():
+        text = Path(text).expanduser().read_text(encoding="utf-8").strip()
+    if not text:
+        return ""
+    path = root / "VISION.md"
+    if path.exists():
+        return "VISION.md already exists, so it was left as it is"
+    body = text if text.lstrip().startswith("#") else f"# Vision\n\n{text}"
+    path.write_text(body.rstrip() + "\n", encoding="utf-8")
+    return "saved the vision as VISION.md: every workflow reads it, and /team-plan plans the roadmap from it"
+
+
+def ask_vision(root: Path) -> str:
+    if (root / "VISION.md").exists():
+        ui.say("The product vision: VISION.md (already written).\n")
+        return ""
+    ui.say("What should this product be? Who is it for, what problem does it solve, what makes it worth using.\n"
+           "A sentence or a short paragraph; the team plans its roadmap from it (Enter to skip, write VISION.md later).")
+    return _ask("Vision")
+
+
 def ask_composition(c: Composition, asked: dict) -> None:
     """Fill in, by asking, every choice the flags left open (keys of `asked` that are None)."""
     if asked["models"] is None:
@@ -301,7 +326,8 @@ def ask_composition(c: Composition, asked: dict) -> None:
 def run(root: Path, builder_provider: str = "local", builder_model: str = "", force: bool = False,
         ollama_url: str = "", no_claude: bool = False, *, models: str | None = None,
         extras: tuple[str, ...] | None = None, builders: int | None = None,
-        per_run: float | None = None, per_day: float | None = None, interactive: bool = False) -> Path:
+        per_run: float | None = None, per_day: float | None = None, interactive: bool = False,
+        vision: str | None = None) -> Path:
     """Write a starter .team.toml. Every choice left as None is asked in a terminal (interactive)
     or takes its default."""
     path = root / CONFIG_NAME
@@ -331,6 +357,8 @@ def run(root: Path, builder_provider: str = "local", builder_model: str = "", fo
     if interactive:
         ui.heading(f"Setting up a team for {root.resolve().name}")
         ui.say("Press Enter to take the default shown in brackets.\n")
+        if vision is None:
+            vision = ask_vision(root)
         ask_composition(c, {"models": models, "extras": extras, "builders": builders,
                             "limits": None if per_run is None and per_day is None else True})
     try:
@@ -376,5 +404,8 @@ def run(root: Path, builder_provider: str = "local", builder_model: str = "", fo
     ui.action(f"wrote {path} (test command: {test_command or 'none detected'}; repo: {github_repo(root) or 'none'})")
     if note:
         ui.say(f"Builder model: {note}.")
+    vision_note = write_vision(root, vision or "")
+    if vision_note:
+        ui.say(vision_note[0].upper() + vision_note[1:] + ".")
     ui.say("Edit the guarantees and team, then run `agent-team doctor`.")
     return path

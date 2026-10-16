@@ -28,7 +28,11 @@ something missing must not fail: `agent-team ready` always exits 0 and reports w
      setup can continue and the repo can be added later.
    The Anthropic key is not a requirement here: the checklist shows it as optional (○). It only
    matters if the user chooses Claude in step 4.
-4. **Ask which models the team uses** (one question):
+4. **Ask for the product vision** (one free-text question; skipping is fine): what should this
+   product be, who is it for, what problem does it solve. If the project already has `VISION.md`,
+   show its first lines instead and don't ask. Pass the answer to `init` as `--vision "<text>"`;
+   it's saved as `VISION.md`, which every workflow reads and `/team-plan` plans the roadmap from.
+   Then **ask which models the team uses** (one question):
    - Claude leads and reviews, the builder on Ollama (the default team);
    - Everything on Ollama, on this machine or other machines: no Claude and no Anthropic key
      (`agent-team init --models ollama`). Mention that the devops member acts through tool calls, so
@@ -55,7 +59,7 @@ something missing must not fail: `agent-team ready` always exits 0 and reports w
    whether to set spend limits (`[limits] per_run`, `per_day` in US dollars); "No limits" is a fine
    answer.
 6. **Write the file:** `agent-team init --yes` with the answers as flags: `--models`
-   (`mixed`, `ollama` or `claude`), `--ollama-url`, `--members` (comma-separated: `security`,
+   (`mixed`, `ollama` or `claude`), `--vision`, `--ollama-url`, `--members` (comma-separated: `security`,
    `qa`, `docs`; `none` for none), `--builders N`, `--per-run` / `--per-day`, and `--builder-model`
    if the user picked a model. Always pass `--yes`: in Claude Code there is no terminal for `init`'s
    own questions. `init` checks the file it

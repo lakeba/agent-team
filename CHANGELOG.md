@@ -6,6 +6,18 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- The product vision: `VISION.md` tells the team what the product should be. Every workflow
+  receives it with the README, and `discuss` gives it its own section, so the roadmap is planned
+  towards it. `init` asks for it first (or `--vision TEXT|FILE`); `discuss --vision FILE` plans from
+  a file anywhere and saves it as `VISION.md` when there's none. `/team-init` and `/team-plan` ask
+  for it when it's missing.
+
+### Changed
+
+- `discuss` no longer needs a topic: the default is "next milestones".
+
 ## [0.6.0] - 2026-10-16
 
 ### Added

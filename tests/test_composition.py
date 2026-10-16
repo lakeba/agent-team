@@ -54,7 +54,7 @@ class CompositionTests(unittest.TestCase):
 
     def test_init_asks_in_a_terminal(self):
         root = Path(tempfile.mkdtemp())
-        answers = iter(["2", "security, docs", "2", "1", "y"])   # Ollama only, two extras, 2 builders, first server, write
+        answers = iter(["", "2", "security, docs", "2", "1", "y"])   # no vision, Ollama only, two extras, 2 builders, first server, write
         servers = [("http://10.37.129.2:11434", ["qwen3-coder:30b"])]
         with mock.patch("builtins.input", lambda prompt="": next(answers)), \
                 mock.patch.object(readiness, "find_ollama", return_value=servers), quiet():
@@ -67,7 +67,7 @@ class CompositionTests(unittest.TestCase):
 
     def test_saying_no_writes_nothing(self):
         root = Path(tempfile.mkdtemp())
-        answers = iter(["3", "none", "1", "n", "n"])   # Claude only, no extras, 1 builder, no limits, don't write
+        answers = iter(["", "3", "none", "1", "n", "n"])   # no vision, Claude only, no extras, 1 builder, no limits, don't write
         with mock.patch("builtins.input", lambda prompt="": next(answers)), quiet():
             with self.assertRaises(SystemExit):
                 init.run(root, interactive=True)
@@ -77,8 +77,74 @@ class CompositionTests(unittest.TestCase):
         root = Path(tempfile.mkdtemp())
         answers = iter(["y"])   # only the final confirmation is asked
         with mock.patch("builtins.input", lambda prompt="": next(answers)), quiet():
-            init.run(root, interactive=True, models="claude", extras=(), builders=1, per_run=0, per_day=0)
+            init.run(root, interactive=True, models="claude", extras=(), builders=1, per_run=0, per_day=0, vision="")
         self.assertEqual(len(config.load(root).agents), 4)
+
+
+class VisionTests(unittest.TestCase):
+    def setUp(self):
+        helpers.reset()
+
+    def test_init_asks_for_the_vision_first_and_saves_it(self):
+        root = Path(tempfile.mkdtemp())
+        answers = iter(["Split a bill between friends in one command.", "3", "none", "1", "n", "y"])
+        with mock.patch("builtins.input", lambda prompt="": next(answers)), quiet():
+            init.run(root, interactive=True)
+        self.assertEqual((root / "VISION.md").read_text(), "# Vision\n\nSplit a bill between friends in one command.\n")
+
+    def test_init_vision_flag_takes_text_or_a_file_and_keeps_an_existing_one(self):
+        root = Path(tempfile.mkdtemp())
+        source = Path(tempfile.mkdtemp()) / "idea.md"
+        source.write_text("# tipsplit\n\nBills, split fairly.\n")
+        with quiet():
+            cli.main(["init", "-C", str(root), "--yes", "--models", "claude", "--vision", str(source)])
+        self.assertEqual((root / "VISION.md").read_text(), "# tipsplit\n\nBills, split fairly.\n")
+        self.assertIn("left as it is", init.write_vision(root, "Something else"))
+        self.assertEqual((root / "VISION.md").read_text(), "# tipsplit\n\nBills, split fairly.\n")
+
+    def test_every_workflow_gets_vision_md(self):
+        from agent_team import context
+        self.assertEqual(context.ALWAYS[0], "VISION.md")
+        root = helpers.project(files={"VISION.md": "# Vision\nA calm todo app.\n"})
+        team = config.load(root)
+        self.assertIn("VISION.md", context.default_paths(team))
+        self.assertEqual(context.vision(team), "# Vision\nA calm todo app.")
+
+    def run_discussion(self, root: Path, **kwargs) -> str:
+        from agent_team.workflows import discuss
+        helpers.reset()
+        helpers.SCRIPTS["Atlas"].extend(["Plan.\nSTATUS: AGREE", '<file path="ROADMAP.md">\n# Roadmap\n</file>'])
+        helpers.SCRIPTS["Forge"].append("Fine.\nSTATUS: AGREE")
+        with quiet():
+            discuss.run(config.load(root), turns=2, **kwargs)
+        return helpers.CALLS[0]["system"]
+
+    def test_discuss_plans_towards_the_vision(self):
+        root = helpers.project(files={"VISION.md": "# Vision\nA calm todo app.\n"})
+        system = self.run_discussion(root)
+        self.assertIn("# The product vision", system)
+        self.assertIn("A calm todo app.", system.split("# Your perspective")[0])
+        self.assertIn("No VISION.md yet", self.run_discussion(helpers.project()))
+
+    def test_discuss_vision_flag_saves_vision_md_when_missing(self):
+        from agent_team.workflows import discuss
+        root = helpers.project()
+        source = Path(tempfile.mkdtemp()) / "pitch.md"
+        source.write_text("A todo app for teams.\n")
+        with quiet():
+            text = discuss.adopt_vision(config.load(root), source)
+        self.assertEqual(text, "A todo app for teams.")
+        self.assertEqual((root / "VISION.md").read_text(), "A todo app for teams.\n")
+        source.write_text("Something different.\n")
+        with quiet():
+            self.assertEqual(discuss.adopt_vision(config.load(root), source), "Something different.")
+        self.assertEqual((root / "VISION.md").read_text(), "A todo app for teams.\n")   # kept
+        with self.assertRaises(SystemExit):
+            discuss.adopt_vision(config.load(root), Path("/nope/vision.md"))
+
+    def test_discuss_topic_is_optional(self):
+        args = cli.build_parser().parse_args(["discuss", "--vision", "V.md"])
+        self.assertEqual((args.topic, args.vision), ("next milestones", "V.md"))
 
 
 class RecomposeTests(unittest.TestCase):

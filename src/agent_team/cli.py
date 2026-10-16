@@ -88,7 +88,7 @@ def cmd_init(args) -> int:
     init.run(Path(args.project).resolve(), args.builder_provider, args.builder_model, args.force, args.ollama_url,
              args.no_claude, models=args.models, extras=extras, builders=args.builders,
              per_run=args.per_run, per_day=args.per_day,
-             interactive=interactive)
+             interactive=interactive, vision=args.vision)
     if args.no_claude or args.models == "ollama":
         ui.say("Every member runs on Ollama, so no Anthropic key is needed. The devops member acts through tool "
                "calls: pick a model that's good at them (see agent-team doctor).")
@@ -98,7 +98,9 @@ def cmd_init(args) -> int:
 def cmd_discuss(args) -> int:
     from .workflows import discuss
     members = [m.strip() for m in args.members.split(",")] if args.members else None
-    return 0 if discuss.run(_team(args), args.topic, members, args.turns) else 2
+    team = _team(args)
+    vision = discuss.adopt_vision(team, Path(args.vision)) if args.vision else ""
+    return 0 if discuss.run(team, args.topic, members, args.turns, vision=vision) else 2
 
 
 def cmd_build(args) -> int:
@@ -571,6 +573,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--builders", type=int, default=None, metavar="N", help="how many builders (1 to 4; default 1)")
     s.add_argument("--per-run", type=float, default=None, metavar="USD", help="spend limit per run")
     s.add_argument("--per-day", type=float, default=None, metavar="USD", help="spend limit per day")
+    s.add_argument("--vision", default=None, metavar="TEXT|FILE",
+                   help="what the product should be, saved as VISION.md (text, or a file holding it)")
     s.add_argument("-y", "--yes", action="store_true",
                    help="ask nothing: take the defaults for every choice the flags leave open")
     s.add_argument("--force", action="store_true", help="replace an existing .team.toml")
@@ -581,7 +585,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--strict", action="store_true", help="exit 1 if anything is missing")
     add("agents", cmd_agents, "list the team")
     s = add("discuss", cmd_discuss, "members discuss and agree a roadmap (writes ROADMAP.md)")
-    s.add_argument("topic")
+    s.add_argument("topic", nargs="?", default="next milestones",
+                   help='what to plan (default: "next milestones")')
+    s.add_argument("--vision", default="", metavar="FILE",
+                   help="the product vision to plan for (default: the project's VISION.md; "
+                        "saved as VISION.md when the project has none)")
     s.add_argument("--members", default="", help="comma-separated agent names (default: lead + builder)")
     s.add_argument("--turns", type=int, default=12)
     s = add("build", cmd_build, "the lead plans a task, builders implement it, tests run, the lead reviews until approved")

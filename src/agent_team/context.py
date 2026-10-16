@@ -14,7 +14,17 @@ from . import files
 from .config import Team
 
 FILE_LINE_RE = re.compile(r"^(?:FILE|NEED):\s*`?([^\s`]+)`?\s*$", re.M)
-ALWAYS = ("README.md", "README", "PLAN.md", "ROADMAP.md", "CHANGELOG.md", "pyproject.toml", "package.json")
+ALWAYS = ("VISION.md", "README.md", "README", "PLAN.md", "ROADMAP.md", "CHANGELOG.md", "pyproject.toml", "package.json")
+VISION = "VISION.md"     # the owner's description of the product: what it's for and who it's for
+
+
+def vision(team: Team) -> str:
+    """The project's VISION.md, or "" if it has none."""
+    path = team.root / VISION
+    try:
+        return path.read_text(encoding="utf-8").strip()[:20_000] if path.is_file() else ""
+    except OSError:
+        return ""
 
 SELECT_PROMPT = """The project is too large to send whole, so choose the files you need.
 

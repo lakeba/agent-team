@@ -21,7 +21,7 @@ It grew out of todo-py, a small command-line app this team planned, built, marke
 
 | Workflow | Command | What happens |
 |---|---|---|
-| Discuss | `agent-team discuss "next features"` | Members talk in turn until they all agree; the lead updates `ROADMAP.md`. |
+| Discuss | `agent-team discuss "next features"` | Members talk in turn until they all agree on how to reach the product's vision (`VISION.md`); the lead updates `ROADMAP.md`. |
 | Build | `agent-team build "task" --branch x --pr` | The lead writes `PLAN.md`, builders implement it (in parallel with `--parallel`), tests run each round, the lead reviews until approved, then a PR opens. Optional QA, security and docs members write tests first, review the result and update the docs. |
 | Autopilot | `agent-team autopilot --milestone M2` | Works through the roadmap a PR at a time: the lead picks the next task, the team builds it, each devops shift reviews, fixes and merges, until the lead says the milestone is done (or it gets stuck, or hits a spend limit). |
 | Fix | `agent-team fix 12` | When the lead requests changes on a PR, a builder applies the review on that PR's branch, the lead confirms the blocking points are addressed, and it pushes; the next shift reviews the new commit. |
@@ -115,6 +115,17 @@ to their prompts), set spend limits under `[limits]`, and run a workflow:
 agent-team discuss "next features"                       # agree a roadmap
 agent-team build "add an export command" --branch team/export --pr
 agent-team ship                                          # one devops shift on GitHub
+```
+
+### The product vision
+
+Tell the team what the product should be in `VISION.md`: who it's for, what problem it solves,
+what makes it worth using. `init` asks for it (or `init --vision "..."`), and every workflow
+reads it, so plans, builds, reviews and marketing all work towards it. To start the roadmap
+from a vision you've written elsewhere:
+
+```bash
+agent-team discuss --vision ~/notes/tipsplit-pitch.md    # saved as VISION.md if there's none yet
 ```
 
 ### Other commands

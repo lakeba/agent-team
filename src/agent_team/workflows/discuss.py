@@ -2,6 +2,8 @@
 the outcome to ROADMAP.md (updating it, never discarding what has shipped)."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from .. import agent, context, files, github, ui
 from ..config import Team
 
@@ -33,7 +35,34 @@ def feedback_digest(team: Team) -> str:
     return github.untrusted(text) if text else "(The digest is empty.)"
 
 
-def run(team: Team, topic: str, members: list[str] | None = None, turns: int = 12) -> bool:
+def adopt_vision(team: Team, source: Path) -> str:
+    """The text of a vision file given on the command line. When the project has no VISION.md yet,
+    it's saved there, so every later workflow (build, reviews, market) works towards it too."""
+    source = source.expanduser()
+    if not source.is_file():
+        raise SystemExit(f"--vision: {source} isn't a file")
+    text = source.read_text(encoding="utf-8").strip()
+    if not text:
+        raise SystemExit(f"--vision: {source} is empty")
+    target = team.root / context.VISION
+    if source.resolve() == target.resolve():
+        return text
+    if target.exists():
+        ui.say(f"Using {source} for this discussion; the project's {context.VISION} is left as it is.")
+    else:
+        target.write_text(text + "\n", encoding="utf-8")
+        ui.action(f"saved it as {context.VISION}: every workflow now reads it (commit it with the roadmap)")
+    return text
+
+
+NO_VISION = ("(No VISION.md yet: work from the README and the project files, and propose a one-paragraph "
+             "vision in your first draft.)")
+
+
+def run(team: Team, topic: str = "next milestones", members: list[str] | None = None, turns: int = 12,
+        vision: str = "") -> bool:
+    """vision: the owner's description of the product; default, the project's VISION.md."""
+    vision = vision.strip() or context.vision(team)
     lead_cfg = team.by_role("lead")
     cfgs = [team.get(m) for m in members] if members else [lead_cfg, team.by_role("builder")]
     if lead_cfg not in cfgs:
@@ -42,6 +71,7 @@ def run(team: Team, topic: str, members: list[str] | None = None, turns: int = 1
         raise SystemExit("A discussion needs at least two members.")
     project_files = context.for_topic(team, query=topic)
     people = [agent.make(team, c, "discuss", topic=topic, files=project_files, feedback=feedback_digest(team),
+                         vision=vision or NO_VISION,
                          perspective=c.description or PERSPECTIVES.get(c.role, f"Your role: {c.role}."))
               for c in cfgs]
     log = files.Log(team.root, "discuss", f"Discussion: {topic}")

@@ -5,6 +5,12 @@ each with its features and a one-line reason.
 # The team
 {roster}
 
+# The product vision
+What the owner wants this product to be. The roadmap serves it: say how each milestone moves the
+product towards it, and question it openly if you think part of it is wrong or too big for now.
+
+{vision}
+
 # Your perspective
 {perspective}
 
