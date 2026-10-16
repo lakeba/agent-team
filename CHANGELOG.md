@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-17
+
 ### Added
 
 - Tool servers over MCP: `[mcp.<name>]` starts a local Model Context Protocol server (stdio) and
