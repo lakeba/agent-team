@@ -6,153 +6,74 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
-### Added
+## [0.5.0] - 2026-10-16
 
-- Configurable teams in `.team.toml`: any number of members, any role, files owned per member.
-- Providers: `anthropic`, `ollama` (local or remote), `openai` (any compatible server) and
-  `agent-http` (another machine running `agent-team serve`), registered by kind.
-- `agent-team serve`: a token-protected, stateless HTTP node so other machines can join a team.
-- Workflows: `init`, `doctor`, `agents`, `discuss` (any number of members), `build` (with
-  `--branch` and `--pr`), `market`, `setup` and `ship`.
-- `ship` guardrails in code: CI green, lead approval and every owner's sign-off tied to the exact
-  head commit; releases date the changelog through a verified one-line PR.
-- Generalised from the scripts that built lakeba/todo-py v1.0.0 and v1.0.1.
-- Claude Code plugin (`plugin/`, installable from this repository's marketplace): `/team-init`,
-  `/team-doctor`, `/team-plan`, `/team-build`, `/team-ship` and `/team-market`, plus an
-  `agent-team` skill so Claude knows when to involve the team. Claude runs each workflow where the
-  user can watch, verifies the result and reports.
-- `doctor` says explicitly when an Ollama model is pulled, and how to pull it when it isn't.
-- `scripts/install.sh`: one-command install and update into `~/.agent-team` (its own Python
-  environment, `agent-team` on the `PATH`, the Claude Code plugin), with `--ref`, `--no-plugin`,
-  `--force` and `--uninstall`.
-- MIT licence, and complete package metadata (licence, classifiers, project URLs).
-- `agent-team ui` and `/team-ui`: a dashboard on 127.0.0.1 with the team and each
-  member's reachability, a timeline of runs with verdicts, sign-offs, files and GitHub actions,
-  and estimated costs per member, model, day and run.
-- Per-member costs count remote nodes by the model they actually ran (a node serving Claude was
-  previously counted as free). The panel and `agent-team status` show spend per member.
-- Token usage per model call is recorded to `.team/usage.jsonl` (all providers, remote nodes and
-  the devops tool loop), with cost estimates from a price table that `[pricing]` can override.
-- The dashboard edits the team: members, connections (with a connection test), guarantees and
-  prices; an "Add a machine" wizard with token generation and the commands for both machines.
-  Every save shows a diff, is validated by reading it back, and backs up to `.team.toml.bak`.
-  Writes need a per-session token and a same-origin request, and refuse a file changed on disk.
-- `agent-team status [--json] [--health]`: the team, missing roles, recent runs and spend.
-- A Claude Code side panel in the plugin (`/team-panel`, opened automatically in projects with a
-  team): members with health marks, recent runs and spend, with Refresh, Check health and
-  Start/Open dashboard buttons.
-- 0.5.0:
-  - Sandboxed test runs: `[sandbox] mode = "container"` runs the test command in a throwaway
-    Docker/Podman container with only the project mounted, no network (unless allowed), none of
-    your keys, and resource limits; it never falls back to running unsandboxed.
-  - Cost estimates before runs (`agent-team estimate`, shown by `build`, `autopilot` and the
-    dashboard) and milestone budgets (`[limits.milestones]`).
-  - Ranked context: a BM25 search ranks files by relevance to the task for focused context and
-    discussions in big codebases.
-  - Per-member GitHub identities: `github_token_env` posts that member's comments and real GitHub
-    reviews under its own account.
-  - `agent-team eval`: fixed scenarios with your real models in a throwaway project, with
-    pass/fail, rounds and cost, kept for comparison.
-  - Dashboard: Activity (live charts of spend, calls, runs, merges, problems, latest events, evals),
-    Settings (easy switches and five team templates, previewed as a diff before saving) and
-    Projects (a control room for every project on this Mac, opening each one's dashboard).
-  - `agent-team projects`; release workflow for PyPI and GitHub Releases, a Homebrew formula, and a
-    GitHub Pages docs site (docs/publishing.md).
-- 0.4.0:
-  - Issues as the to-do list: `agent-team issues sync` (the lead turns roadmap items into
-    `team:build` issues; created only with `--yes`); autopilot builds the oldest open one first and
-    its PR says "Closes #N".
-  - Model routing: `escalate_to` hands a member's work to a stronger member after
-    `[routing].escalate_after` rejected rounds; `[routing].light_model` runs sign-offs and
-    fact-checks on a cheaper Claude model.
-  - Approval gates: `[project].require_approval` paths merge only after `agent-team approve <PR>`
-    (or the dashboard's or panel's Approve) for the exact head commit.
-  - Secret check before every push: `build` and `fix` refuse to commit keys, tokens, private keys,
-    `.env`-style files or any value from the keys file.
-  - Notifications: `[notify]` posts to Slack or any JSON webhook when PRs open or merge, fixes are
-    pushed, approvals or releases wait, autopilot stops, a spend limit is hit or a background run
-    fails; `agent-team notify` tests it.
-  - Guardrail scenario tests run whole shifts against a stand-in GitHub, including `request_fix`.
-- 0.3.0:
-  - Patch edits: builders send `<edit>` blocks with SEARCH/REPLACE pairs instead of whole files;
-    an edit that doesn't match exactly once leaves the file unchanged and is reported back.
-  - Reviews with tools: the lead reads files, searches, sees the diff and runs the tests during
-    `build` and `fix` reviews (`[project].review`, default `tools`).
-  - Fixes inside the shift: the devops member's `request_fix` tool has a builder apply the review
-    on the PR's branch, waits for CI, then asks for the reviews again, all in one shift.
-  - `agent-team autopilot [--milestone M2]` (and `/team-autopilot`, `/team-run autopilot`, the
-    dashboard): build, review, fix and merge a PR at a time until the milestone is done.
-  - Team memory: reviewers' `LESSON:` lines are kept in `.team/memory.md` and shown to every member;
-    `agent-team memory` lists, adds and forgets them; the dashboard's Team tab shows them.
-  - `agent-team scoreboard` and the dashboard's Costs tab: approval and first-round rates, average
-    rounds and cost per builder, pushback per reviewer, cost per merged PR.
-- 0.2.6: .NET out of the box. `init` detects a solution or project file (`*.sln`, `*.slnx`,
-  `*.csproj`, also nested as `src/App/App.csproj`) and writes `dotnet test` with a test-count
-  pattern for its summary line, finds an `App.Tests/` test project for the QA member, and adds
-  `bin/` and `obj/` to `.gitignore`. Prompts never include files git ignores, nor `bin/` and
-  `obj/` next to a .NET project file, so build output (`obj/`, Cargo's `target/`) no longer
-  fills the context. The readiness checklist says when the test command's program isn't on the
-  `PATH` (with a hint for a `dotnet-install` SDK in `~/.dotnet`).
-- 0.2.5: `[project].release = "ask"` makes the devops shift propose releases instead of
-  publishing them; approve with `agent-team ship --release X.Y.Z`, or the dashboard's or panel's
-  Approve button (`init` writes `ask`). Build PRs are titled from the plan's heading, and the plan
-  goes in the PR description instead of being committed as PLAN.md.
-- 0.2.4: the devops shift creates a label that doesn't exist yet instead of failing on it, and
-  gets the repository's clone URL as a verified fact. The lead's approval of a commit counts as
-  its sign-off for paths it owns, so it never gives two verdicts on one commit. Re-reviews see
-  the reviewer's earlier review and block only on points still open or problems the new commit
-  introduces. `fix` also applies owners' refused sign-offs, not only the lead's review.
-- 0.2.3: `discuss` reads the devops member's feedback digest (`.team/FEEDBACK.md`, marked as
-  untrusted), so roadmap discussions answer what developers ask for. Before, the digest was
-  written every shift but never reached the planning.
-- 0.2.2: `agent-team fix <PR>` (and `/team-fix`, `/team-run fix`, the dashboard's "Fix a pull
-  request"): a builder applies the lead's requested changes on an open PR's branch, the lead
-  confirms, and it pushes; never to forks, nothing pushed without the lead's confirmation. The
-  devops shift names it as the next step when the lead requests changes.
-- 0.2.1, from the second VM run: `ready --ollama-url` checks that address even when a team file
-  exists; `init --builder-provider` accepts `ollama`/`anthropic` and refuses to leave a file the
-  CLI can't read; the checklist reports a missing git identity; Node's test-count pattern no
-  longer starts with `^` (CI logs put a timestamp first); the dashboard says when a newer
-  agent-team is installed than the one it runs.
-- Version 0.2.0 for the CLI and the plugin. The installer updates an installed plugin and says
-  to `/reload-plugins` open sessions (they keep the commands they started with); the panel warns
-  when the plugin and the CLI versions differ.
-- `[project].repo` falls back to `origin` when it's on GitHub, so a repo created after `init`
-  needs no edit.
-- First run on a new machine: `agent-team ready` lists what's missing (git, GitHub repo, `gh`
-  sign-in, keys, Ollama, pulled models) with the exact fix; `doctor` shows it first, and the panel
-  shows anything that needs attention.
-- `agent-team keys set NAME`: keys saved in `~/.config/agent-team/env` (mode 600) and loaded by
-  every command, so they work from any shell, launchd or cron; values are never printed or taken
-  from arguments. A variable already in the environment wins.
-- `init --ollama-url` for Ollama on another machine; the builder's model is chosen from what that
-  server has pulled. Test-count patterns for Node's built-in runner, Vitest and Mocha; the QA
-  member's folder follows the project (`test/`, `tests/`...); `.team.toml.bak` is git-ignored.
-- `/team-init` checks the machine first, offers to `git init` and create a private GitHub repo,
-  asks where Ollama runs, then writes the file.
-- Skills per member: `skills = [...]` adds Markdown files or skill folders (a Claude Code
-  `SKILL.md` works as it is) to a member's prompt, after its role prompt. Checked by `doctor`,
-  editable and shown in the dashboard, shown in the panel and in every member's roster.
-- Spend limits: `[limits] per_run` and `per_day` (US dollars) stop a run before the next model call
-  once an estimate reaches them; shown and editable in the dashboard, shown in the panel.
-- Focused context: `[project].context = "auto" | "focused" | "full"`. Large projects get a map of
-  all files and the lead's chosen subset; `FILE:` / `NEED:` lines widen it during a run.
-- `build --parallel`: the lead splits the plan into parts with separate paths and every builder
-  works on its part at the same time.
-- New roles used by `build`: `qa` (tests first), `security` (reviews approved changes; a NO sends
-  them back) and `docs` (updates the docs after approval); `--skip` leaves any out. `owns = ["*"]`
-  makes a member sign off every pull request.
-- Scheduled shifts: `agent-team schedule --every 6h` (launchd on macOS, cron elsewhere) and
-  `ship --every 6h`; a lock in `.team/` means two shifts never overlap.
-- Background runs: `agent-team jobs` (start, stop, log), the dashboard's "Start a run" with live
-  output, and the panel's "Start a shift" and `/team-run`.
-- `/team-schedule` in the Claude Code plugin; the plugin's commands and skill cover the new roles,
-  spend limits, background runs and any-provider devops shifts.
-- The installer works without the GitHub CLI (the repository is public), and says how to fix a
-  missing `python3-venv` on Ubuntu/Debian. The panel opens the dashboard with `xdg-open` on Linux.
-- Network discovery: nodes on `--host 0.0.0.0` answer UDP probes; `agent-team discover` and the
-  dashboard's Add a machine list them.
-- Tool use for every provider kind: Ollama, OpenAI-compatible servers and remote nodes can be the
-  devops member; remote nodes pass tool calls through `/v1/turn`.
-- Run logs carry timestamp markers, so headings inside agents' replies are never mistaken for
-  structure.
+The first release. agent-team is a configurable team of AI agents that plans, builds, reviews,
+fixes, merges, releases and markets a software project through GitHub, with members on any
+model and any machine. It grew out of the scripts that built todo-py v1.0.0 and v1.0.1.
+
+### The team
+
+- Teams are described in `.team.toml`: any number of members and roles, files owned per member,
+  per-member skills (Markdown files or Claude Code skill folders), and team memory: reviewers'
+  `LESSON:` lines are kept and shown to every member in later work.
+- Members can be on Claude (`anthropic`), Ollama (local or another machine), any OpenAI-compatible
+  server, or another machine running `agent-team serve` (token-protected; nodes can be found on the
+  local network with `agent-team discover`). Every kind can call tools, so any member can run the
+  devops shift.
+- Roles the workflows use: lead, builder, devops, marketing, fact-check, and optional QA (writes
+  tests first), security (reviews every approved build) and docs (updates the docs).
+
+### Workflows
+
+- `discuss` (a roadmap the members agree, reading the devops feedback digest), `build` (the lead
+  plans, builders implement with search/replace edits, tests run, the lead reviews with tools to
+  read files and run tests; `--parallel` splits a plan across builders), `ship` (one devops shift:
+  triage, sign-offs, reviews, fixes, merges, releases), `fix` (apply a review to an open PR),
+  `setup`, `market` and `autopilot` (work through a milestone a PR at a time).
+- GitHub issues labelled `team:build` are the team's to-do list (`agent-team issues sync` creates
+  them from the roadmap); autopilot builds them and its PRs close them.
+- Scheduled shifts (`agent-team schedule --every 6h`, launchd or cron, never two at once) and
+  background runs (`agent-team jobs`, the dashboard, the Claude panel).
+
+### Guardrails
+
+- Merges need green CI, the lead's approval and every owner's sign-off on the exact head commit;
+  paths in `require_approval` also need the owners' approval of that commit
+  (`agent-team approve <PR>`); `release = "ask"` makes releases proposals the owners approve.
+- Re-reviews block only on points still open or problems the new commit introduces.
+- Every push is checked for secrets first; text from outside the team reaches the models marked
+  as untrusted; members can post as their own GitHub accounts (`github_token_env`) so their
+  reviews are real GitHub reviews.
+- `[sandbox] mode = "container"` runs the code the team writes in a throwaway container with no
+  network and none of your keys.
+- Guardrail scenario tests run whole shifts against a stand-in GitHub.
+
+### Cost and models
+
+- Every model call is recorded with its tokens and an estimated cost; spend limits per run, per
+  day and per milestone stop a run before the next call; `agent-team estimate` predicts a run's
+  cost from past runs; `agent-team scoreboard` shows approval rates, rounds and cost per member.
+- Routing: a member hands its work to a stronger one after rejected rounds (`escalate_to`), and
+  routine checks can use a cheaper model (`[routing].light_model`).
+- Focused context for big projects: a ranked shortlist of relevant files and a map of the rest.
+- `agent-team eval` runs fixed scenarios with your real models in a throwaway project.
+
+### Dashboard and Claude Code
+
+- `agent-team ui`: Overview, Team (edit everything, add a machine, review the diff before saving),
+  Runs (start and follow runs), Costs (with the scoreboard), Activity (live charts), Settings (easy
+  switches and team templates) and Projects (every project on this Mac).
+- A Claude Code plugin: `/team-init`, `/team-doctor`, `/team-plan`, `/team-build`, `/team-fix`,
+  `/team-ship`, `/team-autopilot`, `/team-issues`, `/team-schedule`, `/team-market`, `/team-ui`,
+  `/team-run`, and a side panel (`/team-panel`) with the team, health, runs, spend and approvals.
+- `[notify]` posts to Slack or any webhook when PRs open or merge, approvals or releases wait,
+  autopilot stops, a spend limit is hit or a run fails.
+
+### Setup
+
+- `agent-team ready` lists what a machine and project still need, each with its fix; `init` detects
+  Python, Node (Jest, Vitest, Mocha, `node --test`), Go, Rust and .NET projects, and Ollama on
+  another machine; `agent-team keys set` keeps API keys where every command finds them.
+- One-command installer for macOS and Linux (`scripts/install.sh`), and this release on PyPI
+  (`pipx install agent-team`).
