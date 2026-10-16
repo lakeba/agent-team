@@ -2,7 +2,7 @@
 them against the code and the lead reviews until approved. Nothing is pushed."""
 from __future__ import annotations
 
-from .. import agent, context, files, ui
+from .. import agent, context, files, routing, ui
 from ..config import Team
 
 ALLOWED = ("README.md", "LICENSE", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "SECURITY.md", "CHANGELOG.md",
@@ -33,7 +33,7 @@ def run(team: Team, rounds: int = 3, license_name: str = "") -> bool:
     task = task_text(team, license_name)
     writer = agent.make(team, devops_cfg, "builder", file_format=files.FILE_FORMAT)
     lead = agent.make(team, lead_cfg, "lead", file_format=files.FILE_FORMAT)
-    checker = agent.make(team, fc_cfg, "factcheck", files=code)
+    checker = agent.make(team, routing.light(team, fc_cfg), "factcheck", files=code)
     log = files.Log(team.root, "setup", "Repository setup")
 
     msg = f"{task}\n\n# Project files\n\n{code}"

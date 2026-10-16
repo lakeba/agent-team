@@ -168,7 +168,7 @@ def cmd_schedule(args) -> int:
 
 def status_data(team: config.Team, with_health: bool = False, recent: int = 8) -> dict:
     """A compact snapshot for the Claude panel and scripts: team, recent runs, spend, optional health."""
-    from . import budget, jobs, logs, memory, readiness, schedule, usage
+    from . import budget, gates, jobs, logs, memory, readiness, schedule, usage
     from .workflows import ship
     from .dashboard.server import health, team_info
     info = team_info(team)
@@ -186,6 +186,7 @@ def status_data(team: config.Team, with_health: bool = False, recent: int = 8) -
         "release_policy": team.project.release,
         "lessons": len(memory.lessons(team.root)),
         "release_proposal": ship.release_proposal(team.root),
+        "approval_requests": gates.requests(team.root),
         "attention": [{"name": c.name, "detail": c.detail, "fix": c.fix}
                       for c in readiness.check(team.root) if not c.ok],
         "jobs": [{k: j.get(k) for k in ("id", "workflow", "status", "started", "params")} for j in jobs.list_jobs(team.root, 5)],
@@ -209,6 +210,8 @@ def cmd_status(args) -> int:
     day_limit = f" of ${sp['limits']['per_day']:.2f}" if sp["limits"]["per_day"] else ""
     ui.say(f"\n  {data['run_count']} runs logged; estimated spend ${sp['total']['cost']:.2f} "
            f"(today ${sp['today']:.2f}{day_limit})")
+    for r in data["approval_requests"]:
+        ui.say(f"\n  PR #{r['number']} waits for your approval ({', '.join(r['paths'][:3])}): agent-team approve {r['number']}")
     if data["release_proposal"]:
         v = data["release_proposal"]["version"]
         ui.say(f"\n  Release v{v} proposed by {data['release_proposal'].get('by', 'devops')}: "
@@ -292,6 +295,67 @@ def cmd_keys(args) -> int:
     except ValueError as e:
         raise SystemExit(str(e))
     ui.action(f"saved {args.name} to {keys.path()} (readable only by you)")
+    return 0
+
+
+def cmd_notify(args) -> int:
+    from . import notify
+    team = _team(args)
+    if not team.notify.webhook_env:
+        raise SystemExit('No [notify] section: add webhook_env = "AGENT_TEAM_WEBHOOK" to .team.toml and save the URL '
+                         "with: agent-team keys set AGENT_TEAM_WEBHOOK")
+    ok = notify.send(team, "pr_opened" if not team.notify.events else team.notify.events[0],
+                     "Test notification from agent-team: notifications work.")
+    ui.say("Sent." if ok else f"Not sent: check that {team.notify.webhook_env} holds the webhook URL (agent-team keys).")
+    return 0 if ok else 1
+
+
+def cmd_approve(args) -> int:
+    from . import gates, github
+    team = _team(args)
+    if not team.project.repo:
+        raise SystemExit("[project].repo is not set (and origin isn't on GitHub).")
+    if args.number is None:
+        reqs = gates.requests(team.root)
+        if not reqs:
+            ui.say("No pull request is waiting for your approval.")
+        for r in reqs:
+            ui.say(f"  #{r['number']:<5} {r['title']}  (commit {r['sha'][:10]}; changes {', '.join(r['paths'][:4])})")
+        return 0
+    info = github.gh_json("pr", "view", str(args.number), "-R", team.project.repo, "--json", "headRefOid,state,title")
+    if info["state"] != "OPEN":
+        raise SystemExit(f"PR #{args.number} is {info['state'].lower()}.")
+    gates.approve(team.root, args.number, info["headRefOid"])
+    ui.action(f"approved PR #{args.number} at {info['headRefOid'][:10]} ({info['title']}); the next shift may merge it")
+    ui.say("A newer commit on that PR will need approving again.")
+    return 0
+
+
+def cmd_issues(args) -> int:
+    from . import agent, files, issues
+    team = _team(args)
+    if not team.project.repo:
+        raise SystemExit("[project].repo is not set (and origin isn't on GitHub).")
+    if args.action == "sync":
+        lead = agent.make(team, team.by_role("lead"), "lead", file_format=files.FILE_FORMAT, label_suffix=" · issues")
+        proposed = issues.propose(team, lead, args.milestone)
+        if not proposed:
+            ui.say("Nothing to create: every open roadmap item already has an issue.")
+            return 0
+        ui.heading(f"{len(proposed)} issue(s) to create")
+        for p in proposed:
+            ui.say(f"  [{p['milestone']}] {p['title']}\n      {p['body'][:200]}")
+        if not args.yes:
+            ui.say("\nNothing created yet. Run again with --yes to create them on GitHub.")
+            return 0
+        for url in issues.create(team.project.repo, proposed):
+            ui.action(f"created {url}")
+        return 0
+    found = issues.open_issues(team.project.repo, args.milestone)
+    if not found:
+        ui.say(f"No open {issues.LABEL} issues. Create them with: agent-team issues sync --milestone M2")
+    for i in found:
+        ui.say(f"  #{i['number']:<5} {i['title']}")
     return 0
 
 
@@ -459,6 +523,13 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("name", nargs="?", default="", help="e.g. ANTHROPIC_API_KEY")
     s.add_argument("--from-env", action="store_true", help="copy the value this shell already has")
     s.set_defaults(fn=cmd_keys)
+    add("notify", cmd_notify, "send a test notification to the [notify] webhook")
+    s = add("approve", cmd_approve, "approve a PR's current commit for gated paths (no number: list what's waiting)")
+    s.add_argument("number", nargs="?", type=int, default=None)
+    s = add("issues", cmd_issues, "the team's to-do list on GitHub: list team:build issues, or sync them from the roadmap")
+    s.add_argument("action", nargs="?", default="list", choices=["list", "sync"])
+    s.add_argument("--milestone", default="", help="e.g. M2")
+    s.add_argument("--yes", action="store_true", help="for sync: create the proposed issues")
     s = add("scoreboard", cmd_scoreboard, "how each member and model is doing: approvals, rounds, cost per merged PR")
     s.add_argument("--json", action="store_true")
     s = add("memory", cmd_memory, "what the team learned from its reviews: list, add or forget lessons")
@@ -491,6 +562,11 @@ def main(argv: list[str] | None = None) -> int:
         return args.fn(args)
     except SpendLimitError as e:
         ui.warn(f"Stopped: {e}. Raise or remove the limit in [limits] of .team.toml to continue.")
+        try:
+            from . import notify
+            notify.send(_team(args), "spend_limit", f"A {args.cmd} run stopped: {e}.")
+        except (SystemExit, Exception):
+            pass
         return 3
     except KeyboardInterrupt:
         return 130

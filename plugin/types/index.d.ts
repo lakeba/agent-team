@@ -15,6 +15,7 @@ export type Snapshot = {
   jobs?: Job[]
   attention?: { name: string; detail: string; fix: string }[]
   release_policy?: string
+  approval_requests?: { number: number; title: string; sha: string; paths: string[] }[]
   release_proposal?: { version: string; notes: string; by?: string } | null
   schedule?: { workflow: string; every: number | null; where: string } | null
 }

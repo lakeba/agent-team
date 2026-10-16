@@ -20,14 +20,15 @@ from pathlib import Path
 import anthropic
 from anthropic import beta_tool
 
-from .. import agent, budget, files, github, logs, memory, ui, usage
+from .. import agent, budget, files, gates, github, logs, memory, notify, routing, ui, usage
 from ..config import Team
 
 SIGNATURE = "\n\n— {name}, devops agent for this repo (automated)"
 
 
 def merge_blockers(team: Team, number: int, sha: str, paths: list[str], ci_green: bool, ci_summary: str,
-                   approvals: dict[int, str], signoffs: dict[tuple[int, str], str]) -> str:
+                   approvals: dict[int, str], signoffs: dict[tuple[int, str], str],
+                   owner_approvals: dict[int, str] | None = None) -> str:
     """Why this PR may not merge yet, or "" if it may. Every rule is tied to the exact head commit."""
     if not ci_green:
         return f"CI is not all green ({ci_summary})."
@@ -36,6 +37,10 @@ def merge_blockers(team: Team, number: int, sha: str, paths: list[str], ci_green
     missing = [m for m in team.owners_of(paths) if signoffs.get((number, m)) != sha]
     if missing:
         return f"missing sign-off on this commit from: {', '.join(missing)}."
+    needs_owner = gates.gated(team, paths)
+    if needs_owner and (owner_approvals or {}).get(number) != sha:
+        return (f"it changes {', '.join(needs_owner[:5])}, which needs the owners' approval of this commit "
+                f"(they run `agent-team approve {number}`). The request is recorded for them.")
     return ""
 
 
@@ -249,7 +254,7 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
         sha, results = info["headRefOid"], [lead_note] if lead_note else []
         main_files = github.main_snapshot(root, skip, limit, focus=None if team.project.context == "full" else github.changed_files(repo, number))
         for member, paths in owners.items():
-            cfg = team.get(member)
+            cfg = routing.light(team, team.get(member))
             reviewer = agent.make(team, cfg, "signoff", files=main_files, label_suffix=f" · PR #{number} sign-off")
             reply = reviewer.turn(
                 f"{devops_cfg.name}'s note:\n{note}\n\nYour paths changed: {paths}\n{verified_facts(sha)}"
@@ -342,19 +347,30 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
 
     @beta_tool
     def merge_pull_request(number: int) -> str:
-        """Squash-merge a PR. Refused unless CI is green, the lead approved this exact commit, and
-        every owner of a changed path signed off this exact commit.
+        """Squash-merge a PR. Refused unless CI is green, the lead approved this exact commit, every
+        owner of a changed path signed off this exact commit, and, for paths in
+        [project].require_approval, the project's owners approved this exact commit.
 
         Args:
             number: The pull request number.
         """
-        sha = pr_head(number)["headRefOid"]
+        info = pr_head(number)
+        sha, paths = info["headRefOid"], github.changed_files(repo, number)
         green, summary = github.ci_status(repo, number)
-        blocker = merge_blockers(team, number, sha, github.changed_files(repo, number), green, summary,
-                                 approvals, signoffs)
+        blocker = merge_blockers(team, number, sha, paths, green, summary, approvals, signoffs, gates.approvals(root))
         if blocker:
+            if "owners' approval" in blocker:
+                already = any(r["number"] == number and r["sha"] == sha for r in gates.requests(root))
+                gates.request(root, number, sha, info["title"], gates.gated(team, paths))
+                act(f"PR #{number} waits for the owners' approval of {sha[:10]}")
+                if not already:
+                    notify.send(team, "approval_needed", f"PR #{number} ({info['title']}) needs your approval: it changes "
+                                f"{', '.join(gates.gated(team, paths)[:3])}. Run agent-team approve {number}.",
+                                f"https://github.com/{repo}/pull/{number}")
             return f"REFUSED: {blocker}"
         github.gh("pr", "merge", str(number), "-R", repo, "--squash", "--delete-branch", "--match-head-commit", sha)
+        gates.clear_request(root, number)
+        notify.send(team, "pr_merged", f"Merged PR #{number}: {info['title']}", f"https://github.com/{repo}/pull/{number}")
         act(f"merged PR #{number} at {sha[:10]}")
         return "merged"
 
@@ -388,6 +404,8 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
             Path(root, files.LOG_DIR).mkdir(exist_ok=True)
             Path(root, files.LOG_DIR, PROPOSAL).write_text(json.dumps(proposal, indent=1), encoding="utf-8")
             act(f"proposed release v{version} for the owners to approve")
+            notify.send(team, "release_proposed", f"Release v{version} is waiting for your approval: "
+                        f"agent-team ship --release {version}", f"https://github.com/{repo}")
             return (f"NOT RELEASED: this project's owners approve releases ([project].release = \"ask\"). "
                     f"Your proposal for v{version} is recorded; it is released when they run "
                     f"`agent-team ship --release {version}`. Say so in your summary.")
@@ -407,6 +425,7 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
         github.gh("release", "create", f"v{version}", "-R", repo, "--target", head, "--title", f"v{version}",
                   "--notes", notes)
         Path(root, files.LOG_DIR, PROPOSAL).unlink(missing_ok=True)
+        notify.send(team, "released", f"Released v{version}", f"https://github.com/{repo}/releases/tag/v{version}")
         act(f"released v{version} at {head[:10]}")
         return f"released v{version} at {head[:10]}"
 

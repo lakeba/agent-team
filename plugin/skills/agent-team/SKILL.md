@@ -29,7 +29,8 @@ report. The team does the work; you don't do it for them unless the user asks yo
 5. **Verify, then report.** Read the end of `.team/logs/<workflow>.md` and check the facts
    yourself (tests, `git diff`, the PR or release on GitHub). Report what changed, what the
    reviewers said, and what's left, with links. Say plainly if something failed or wasn't checked.
-6. **Respect the guardrails.** Never merge, approve, sign off or release on the team's behalf, and
+6. **Respect the guardrails.** Never merge, approve (`agent-team approve`), sign off or release on
+   the team's or the user's behalf without the user's explicit yes for that PR or version, and
    never bypass a refusal from the `ship` tools (CI, lead approval, owner sign-offs). If the team
    is stuck in review loops, explain what's blocking and ask the user how to proceed.
 7. **Costs.** Workflows call paid models with the project's files as context. Mention that a run
@@ -48,6 +49,7 @@ report. The team does the work; you don't do it for them unless the user asks yo
 - `/team-ship`: one devops shift: triage, sign-offs, lead review, merges, releases.
 - `/team-autopilot [milestone]`: build, review, fix and merge PRs on its own until the milestone
   is done (ask the user first; it acts on GitHub).
+- `/team-issues [milestone]`: the team's to-do list as `team:build` issues, created from the roadmap.
 - `/team-fix <PR>`: a builder applies the lead's requested changes on that PR's branch and pushes;
   the next shift reviews the new commit.
 - `/team-schedule [6h | --remove]`: run devops shifts on a schedule, never two at once.

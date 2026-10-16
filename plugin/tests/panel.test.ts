@@ -3,7 +3,7 @@
 import { expect, test } from 'claude-code/testing'
 
 const STATUS = {
-  version: '0.3.0',
+  version: '0.4.0',
   root: '/work/todo-py',
   project: { name: 'todo-py', repo: 'lakeba/todo-py' },
   members: [
@@ -16,6 +16,7 @@ const STATUS = {
   run_count: 34,
   spend: { total: { cost: 0.49, calls: 3 }, by_agent: { Atlas: { cost: 0.42, calls: 2 } }, today: 0.1,
            limits: { per_run: 0, per_day: 5 } },
+  approval_requests: [{ number: 9, title: 'Rotate tokens', sha: 'abc1234567', paths: ['auth/token.py'] }],
   release_proposal: { version: '0.2.0', notes: 'M1 fixes', by: 'Harbor' },
   attention: [{ name: 'key ANTHROPIC_API_KEY', detail: 'not found', fix: 'agent-team keys set ANTHROPIC_API_KEY' }],
   jobs: [{ id: 'build-20261015T000000-abcdef', workflow: 'build', status: 'succeeded', started: '2026-10-15T00:00:00Z',
@@ -34,7 +35,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     on('command.register', async (_$, e) => ({ value: { command: e.name } }))
     on('ui.open', async () => ({ value: { isPlaced: true as const } }))
     on('process.run', async (_$, e) => {
-      if (e.argv.includes('--version')) return result(0, 'agent-team 0.3.0')
+      if (e.argv.includes('--version')) return result(0, 'agent-team 0.4.0')
       if (e.argv.join(' ').includes('status')) return result(0, JSON.stringify(STATUS))
       return result(1, '', 'unexpected command')
     })
@@ -52,6 +53,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     expect(await pane.find({ type: 'Text', text: /keys set ANTHROPIC_API_KEY/ })).toBeTruthy()   // needs attention
     expect(await pane.find({ type: 'Text', text: /This plugin is/ })).toBeFalsy()                // versions match
     expect(await pane.find({ type: 'Button', text: 'Approve v0.2.0' })).toBeTruthy()             // a proposed release
+    expect(await pane.find({ type: 'Button', text: 'Approve #9' })).toBeTruthy()                 // a gated PR
     expect(await pane.find({ type: 'Text', text: /today \$0\.10 of \$5\.00/ })).toBeTruthy()
     expect(await pane.find({ type: 'Text', text: /add export/ })).toBeTruthy()       // a background run
 
@@ -68,7 +70,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     on('command.register', async (_$, e) => ({ value: { command: e.name } }))
     on('ui.open', async () => ({ value: { isPlaced: true as const } }))
     on('process.run', async (_$, e) => {
-      if (e.argv.includes('--version')) return result(0, 'agent-team 0.3.0')
+      if (e.argv.includes('--version')) return result(0, 'agent-team 0.4.0')
       return result(1, '', 'Config error: no .team.toml found in /work/other or its parents; run `agent-team init`')
     })
 
@@ -88,7 +90,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     on('ui.open', async () => ({ value: { isPlaced: true as const } }))
     on('process.run', async (_$, e) => {
       const line = e.argv.join(' ')
-      if (e.argv.includes('--version')) return result(0, 'agent-team 0.3.0')
+      if (e.argv.includes('--version')) return result(0, 'agent-team 0.4.0')
       if (line.includes('jobs') && line.includes('start')) {
         started.push([...e.argv])
         return result(0, '{"id": "build-20261015T000000-abcdef"}')

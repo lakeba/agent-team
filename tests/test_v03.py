@@ -225,6 +225,7 @@ class AutopilotTests(unittest.TestCase):
              mock.patch.object(autopilot.ship, "run", side_effect=lambda *a, **k: calls.append("ship")), \
              mock.patch.object(autopilot.build, "run", side_effect=lambda *a, **k: calls.append(("build", k["branch"])) or True), \
              mock.patch.object(autopilot, "pick_next", side_effect=[("Add export", "team/export", ""), ("", "", "all done")]), \
+             mock.patch.object(autopilot.issues, "next_issue", return_value=None), \
              mock.patch("agent_team.github.git", return_value=""), quiet():
             self.assertTrue(autopilot.run(team, "M1", max_cycles=5))
         self.assertEqual(calls, ["ship", ("build", "team/export")])

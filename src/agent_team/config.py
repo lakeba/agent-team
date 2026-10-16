@@ -45,6 +45,7 @@ class AgentConfig:
     owns: list[str] = field(default_factory=list)   # path prefixes this agent must sign off
     prompt: str = ""                # optional path (relative to the project) to a custom prompt
     skills: list[str] = field(default_factory=list)   # Markdown files or skill folders added to the prompt
+    escalate_to: str = ""           # a stronger member who takes over this member's work after failed rounds
     color: str = ""
 
 
@@ -60,6 +61,7 @@ class ProjectConfig:
     context: str = "auto"           # full | focused | auto (focused when the whole project is too big)
     release: str = "auto"           # auto: the devops shift releases on its own; ask: it proposes, you approve
     review: str = "tools"           # tools: reviewers read files and run tests themselves; snapshot: all files up front
+    require_approval: list[str] = field(default_factory=list)   # paths whose changes need the owners' approval
     marketing: dict = field(default_factory=dict)
 
 
@@ -70,6 +72,19 @@ class LimitsConfig:
 
 
 @dataclass
+class RoutingConfig:
+    escalate_after: int = 1         # rejected rounds before a member's work goes to its escalate_to
+    light_model: str = ""           # e.g. claude-haiku-5-5: used for sign-offs and fact-checks by Claude members
+
+
+@dataclass
+class NotifyConfig:
+    webhook_env: str = ""           # the environment variable holding the webhook URL (never the URL itself)
+    format: str = "slack"           # slack | json
+    events: list[str] = field(default_factory=list)   # empty: every event
+
+
+@dataclass
 class Team:
     root: Path
     project: ProjectConfig
@@ -77,6 +92,8 @@ class Team:
     agents: dict[str, AgentConfig]
     pricing: dict = field(default_factory=dict)   # model -> {input, output, cache_read?, cache_write?}
     limits: LimitsConfig = field(default_factory=LimitsConfig)
+    routing: RoutingConfig = field(default_factory=RoutingConfig)
+    notify: NotifyConfig = field(default_factory=NotifyConfig)
 
     def by_role(self, role: str, required: bool = True) -> AgentConfig | None:
         found = [a for a in self.agents.values() if a.role == role]
@@ -174,6 +191,11 @@ def parse(data: dict, root: Path) -> Team:
         agents[a.name] = a
     if not agents:
         raise ConfigError("no [[agents]] defined")
+    for a in agents.values():
+        if a.escalate_to and a.escalate_to not in agents:
+            raise ConfigError(f"agent {a.name!r}: escalate_to names {a.escalate_to!r}, who isn't on the team")
+        if a.escalate_to == a.name:
+            raise ConfigError(f"agent {a.name!r} can't escalate to itself")
     pricing = dict(data.get("pricing") or {})
     for model, table in pricing.items():
         bad = set(table) - {"input", "output", "cache_read", "cache_write"}
@@ -182,4 +204,17 @@ def parse(data: dict, root: Path) -> Team:
     limits = _take(dict(data.get("limits") or {}), LimitsConfig, "[limits]")
     if not all(isinstance(v, (int, float)) and v >= 0 for v in (limits.per_run, limits.per_day)):
         raise ConfigError("[limits]: per_run and per_day are US dollars (0 or more; 0 means no limit)")
-    return Team(root=root, project=project, providers=providers, agents=agents, pricing=pricing, limits=limits)
+    routing = _take(dict(data.get("routing") or {}), RoutingConfig, "[routing]")
+    if not isinstance(routing.escalate_after, int) or routing.escalate_after < 1:
+        raise ConfigError("[routing].escalate_after: a whole number of rejected rounds, 1 or more")
+    notify = _take(dict(data.get("notify") or {}), NotifyConfig, "[notify]")
+    if notify.format not in ("slack", "json"):
+        raise ConfigError(f"[notify].format: use slack or json, not {notify.format!r}")
+    from .notify import EVENTS
+    unknown = sorted(set(notify.events) - set(EVENTS))
+    if unknown:
+        raise ConfigError(f"[notify].events: unknown {unknown}; known: {sorted(EVENTS)}")
+    if notify.webhook_env.startswith(("http://", "https://")):
+        raise ConfigError("[notify].webhook_env names the variable holding the URL; keep the URL itself out of .team.toml")
+    return Team(root=root, project=project, providers=providers, agents=agents, pricing=pricing, limits=limits,
+                routing=routing, notify=notify)

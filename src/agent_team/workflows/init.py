@@ -99,6 +99,18 @@ effort = "medium"
 # provider = "claude"
 # model = "claude-haiku-5-5"
 
+# Paths whose changes need your approval before merging (agent-team approve <PR>):
+# require_approval = ["auth/", "package.json"]      (goes under [project])
+
+# Pick the model by difficulty: add escalate_to = "<stronger member>" to a member, and
+# [routing]
+# escalate_after = 1
+# light_model = "claude-haiku-5-5"     # sign-offs and fact-checks
+
+# Messages to Slack or any webhook; save the URL with: agent-team keys set AGENT_TEAM_WEBHOOK
+# [notify]
+# webhook_env = "AGENT_TEAM_WEBHOOK"
+
 # Spend limits in US dollars; a run stops before the next model call once it reaches one.
 # [limits]
 # per_run = 5.0

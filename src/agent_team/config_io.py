@@ -14,7 +14,8 @@ import tomllib
 from dataclasses import asdict, fields
 from pathlib import Path
 
-from .config import CONFIG_NAME, AgentConfig, ConfigError, LimitsConfig, ProjectConfig, ProviderConfig, Team, parse
+from .config import (CONFIG_NAME, AgentConfig, ConfigError, LimitsConfig, NotifyConfig, ProjectConfig, ProviderConfig,
+                     RoutingConfig, Team, parse)
 
 HEADER = ("# agent-team configuration. Docs: https://github.com/lakeba/agent-team/blob/main/docs/configuration.md\n"
           "# Secrets never go here: providers name the environment variable that holds them.\n")
@@ -91,8 +92,10 @@ def to_data(team: Team) -> dict:
                if k in ("name", "role", "provider") or v != getattr(agent_defaults, k)}
               for a in team.agents.values()]
     limits = {k: v for k, v in asdict(team.limits).items() if v}
+    routing = {k: v for k, v in asdict(team.routing).items() if v != getattr(RoutingConfig(), k)}
+    notify = {k: v for k, v in asdict(team.notify).items() if v != getattr(NotifyConfig(), k)}
     return {"project": project, "providers": providers, "pricing": dict(team.pricing), "limits": limits,
-            "agents": agents}
+            "routing": routing, "notify": notify, "agents": agents}
 
 
 def render(data: dict) -> str:
@@ -106,6 +109,12 @@ def render(data: dict) -> str:
     limits = {k: v for k, v in (data.get("limits") or {}).items() if v}
     if limits:
         parts += ["", "[limits]", *_lines(limits)]
+    routing = {k: v for k, v in (data.get("routing") or {}).items() if v not in ("", None)}
+    if routing:
+        parts += ["", "[routing]", *_lines(routing)]
+    notify = {k: v for k, v in (data.get("notify") or {}).items() if v not in ("", None, [])}
+    if notify:
+        parts += ["", "[notify]", *_lines(notify)]
     for model, price in (data.get("pricing") or {}).items():
         parts += ["", f"[pricing.{_key(model)}]", *_lines(price, skip_empty=False)]
     for a in data.get("agents") or []:
@@ -137,6 +146,8 @@ def clean(data: dict) -> dict:
                 a[k] = [x.strip() for x in a[k] if isinstance(x, str) and x.strip()]
     if isinstance(project.get("guarantees"), list):
         project["guarantees"] = [g.strip() for g in project["guarantees"] if isinstance(g, str) and g.strip()]
+    if isinstance(project.get("require_approval"), list):
+        project["require_approval"] = [g.strip() for g in project["require_approval"] if isinstance(g, str) and g.strip()]
     if isinstance(project.get("context_skip"), list):
         project["context_skip"] = [g.strip() for g in project["context_skip"] if isinstance(g, str) and g.strip()]
     pricing = {str(m): {k: v for k, v in (p or {}).items() if k in ("input", "output", "cache_read", "cache_write")}
@@ -148,7 +159,21 @@ def clean(data: dict) -> dict:
                 limits[k] = float(v)
             except (TypeError, ValueError):
                 raise ConfigError(f"[limits].{k} must be a number of US dollars") from None
-    return {"project": project, "providers": providers, "pricing": pricing, "limits": limits, "agents": agents}
+    routing = {}
+    for k, v in (data.get("routing") or {}).items():
+        if k == "escalate_after" and v not in (None, ""):
+            try:
+                routing[k] = int(v)
+            except (TypeError, ValueError):
+                raise ConfigError("[routing].escalate_after must be a whole number") from None
+        elif k == "light_model" and isinstance(v, str) and v.strip():
+            routing[k] = v.strip()
+    notify = {k: v for k, v in (data.get("notify") or {}).items()
+              if k in {f.name for f in fields(NotifyConfig)} and v not in (None, "")}
+    if isinstance(notify.get("events"), list):
+        notify["events"] = [e for e in notify["events"] if isinstance(e, str) and e.strip()]
+    return {"project": project, "providers": providers, "pricing": pricing, "limits": limits, "routing": routing,
+            "notify": notify, "agents": agents}
 
 
 def plan_change(root: Path, data: dict) -> dict:

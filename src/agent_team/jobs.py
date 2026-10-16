@@ -229,6 +229,14 @@ def _run(root: Path, job_id: str) -> int:
     saved["exit_code"] = code
     saved["finished"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     _write(path, saved)
+    if code not in (0, 2, 3, 4) and not saved.get("stopped"):   # 2/3/4: not approved, spend limit, skipped
+        try:
+            from . import config, keys, notify
+            keys.load_into_env()
+            notify.send(config.load(root), "run_failed", f"The background {job['workflow']} run {job_id} failed "
+                        f"(exit code {code}); see agent-team jobs log {job_id}.")
+        except Exception:
+            pass
     return code
 
 

@@ -17,7 +17,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
-from .. import agent, context, files, github, memory, review_tools, ui
+from .. import agent, context, files, github, memory, review_tools, routing, ui
 from ..config import AgentConfig, Team
 
 TEST_PREFIXES = ("tests/", "test/", "spec/", "__tests__/", "test_")
@@ -70,7 +70,8 @@ def parse_parts(team: Team, text: str, builders: list[AgentConfig]) -> list[Part
 
 
 def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "",
-        branch: str = "", open_pr: bool = False, parallel: bool = False, skip: tuple[str, ...] = ()) -> bool:
+        branch: str = "", open_pr: bool = False, parallel: bool = False, skip: tuple[str, ...] = (),
+        closes: int = 0) -> bool:
     lead_cfg = team.get(lead) if lead else team.by_role("lead")
     builders = [team.get(builder)] if builder else team.all_by_role("builder")
     if not builders:
@@ -132,7 +133,7 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
         log.record(f"{qa_cfg.name}: tests first", reply, written)
 
     note = f"Task: {task}\n\nStart building from PLAN.md."
-    approved = False
+    approved, rejected = False, 0
     for rnd in range(1, rounds + 1):
         ui.heading(f"=========== Round {rnd}/{rounds} ===========")
         results = _build_round(team, parts, note, focus)
@@ -171,6 +172,19 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
         log.record(f"{lead_cfg.name}: review {rnd}", review, plan_files)
         if files.last_marker(files.VERDICT_RE, review) != "APPROVED":
             note = f"# {lead_cfg.name}'s review\n\n{review}{tests}{problems}"
+            rejected += 1
+            for part in parts:
+                stronger = routing.escalation(team, part.builder, rejected)
+                if stronger:
+                    ui.action(f"{part.builder.name} → {stronger.name}: escalated after {rejected} rejected round(s)")
+                    log.record(f"{lead_cfg.name}: escalation", f"{part.builder.name}'s work goes to {stronger.name} "
+                                                                f"after {rejected} rejected round(s).")
+                    suffix = f" · part: {', '.join(part.prefixes)}" if part.prefixes else ""
+                    part.builder = stronger
+                    part.worker = agent.make(team, stronger, "builder", file_format=files.FILE_FORMAT, label_suffix=suffix)
+                    note = (f"You're taking over this task from a teammate whose work the lead rejected. The files "
+                            f"below are as they left them.\n\nTask: {task}\n\n{note}")
+                    rejected = 0
             continue
 
         findings = _security_review(team, extra["security"], task, touched, log)
@@ -198,7 +212,7 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
 
     if approved and open_pr:
         names = ", ".join(p.builder.name for p in parts)
-        open_pull_request(team, task, sorted(touched), lead_cfg.name, names)
+        open_pull_request(team, task, sorted(touched), lead_cfg.name, names, closes)
     ui.say(f"Log: {log.path}")
     return approved
 
@@ -253,7 +267,7 @@ def plan_title(plan: str, task: str) -> str:
     return task if len(task) <= 72 else task[:69] + "..."
 
 
-def open_pull_request(team: Team, task: str, paths: list[str], lead: str, builder: str) -> str:
+def open_pull_request(team: Team, task: str, paths: list[str], lead: str, builder: str, closes: int = 0) -> str:
     if not team.project.repo:
         raise SystemExit("[project].repo is not set, so no pull request can be opened.")
     branch = github.git(team.root, "rev-parse", "--abbrev-ref", "HEAD").strip()
@@ -268,16 +282,21 @@ def open_pull_request(team: Team, task: str, paths: list[str], lead: str, builde
     if not paths:
         raise SystemExit("The build changed no project files, so there is nothing to open a PR with.")
     github.git(team.root, "add", "--", *paths)
+    from .. import secret_scan
+    secret_scan.guard(team.root)
     title = plan_title(plan, task)
     github.git(team.root, "commit", "-q", "-m", title, "-m",
                f"{task}\n\nPlanned by {lead}, built by {builder} (agent-team).")
     github.git(team.root, "push", "-q", "-u", "origin", branch)
     plan_section = (f"\n\n<details><summary>The plan ({lead})</summary>\n\n{plan.strip()[:50_000]}\n\n</details>"
                     if plan.strip() else "")
-    body = (f"{task}\n\nPlanned by {lead}, built by {builder}; the lead approved the result and the "
+    closing = f"Closes #{closes}.\n\n" if closes else ""
+    body = (f"{closing}{task}\n\nPlanned by {lead}, built by {builder}; the lead approved the result and the "
             f"project's tests ran each round.\n\nFiles: {', '.join(f'`{p}`' for p in paths)}{plan_section}\n\n"
             "Opened by agent-team. The devops shift reviews, gets sign-offs and merges.")
     url = github.gh("pr", "create", "-R", team.project.repo, "--head", branch, "--title", title,
                     "--body", body).strip()
     ui.action(f"opened {url}")
+    from .. import notify
+    notify.send(team, "pr_opened", f"Opened a PR: {title} (planned by {lead}, built by {builder})", url)
     return url

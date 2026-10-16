@@ -13,6 +13,9 @@ once, let the user watch, verify, report, never bypass the guardrails).
    that, show the spend limits (`agent-team status`), and if `[limits]` has no `per_run`, ask
    whether to set one first. Start only when they agree.
 2. The working tree must be clean and `ROADMAP.md` should exist (suggest `/team-plan` if not).
+   Autopilot builds open `team:build` issues first; to plan the milestone as issues, offer
+   `agent-team issues sync --milestone <name>` (show the proposal, and add `--yes` only when the
+   user agrees, since it creates issues on GitHub).
 3. Run, where the user can watch: `agent-team autopilot` with `--milestone <name>` if given (and
    `--max-cycles`). Each cycle is one build or one devops shift. It stops when the lead says the
    milestone is done, when open PRs stop moving for two shifts, when a build isn't approved, at

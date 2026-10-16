@@ -14,6 +14,7 @@
 | `context_skip` | `[]` | Path prefixes never sent to the models (vendored code, large assets). Files git ignores are never sent either, nor `bin/` and `obj/` next to a .NET project file, so build output listed in `.gitignore` needs no entry. |
 | `context_limit` | `200000` | Maximum characters of project files in one prompt. Raising it costs tokens; prefer `context_skip`. |
 | `review` | `tools` | How the lead reviews builds and fixes. `tools`: with tools to read files, search, see the diff and run the tests (needs a provider that can call tools; others fall back). `snapshot`: every file sent up front, as before. |
+| `require_approval` | `[]` | Paths (prefixes or globs like `*.csproj`) whose changes need the owners' approval: such a PR merges only after `agent-team approve <PR>` (or the dashboard's or panel's Approve) for its exact head commit. |
 | `release` | `auto` | Who decides when a version ships. `auto`: the devops shift releases on its own when merged changes are worth it. `ask`: it proposes a release (version and notes) and you approve it with `agent-team ship --release X.Y.Z`, the dashboard's Approve button or the panel's. `agent-team init` writes `ask`. |
 | `context` | `auto` | What prompts include. `full`: every file, every time (fails when that's over `context_limit`). `focused`: the lead sees a map of the project and picks the files a task needs; members can ask for more with `FILE: path` lines. `auto`: full when it fits, focused when it doesn't. |
 
@@ -55,6 +56,30 @@ per_run = 5.0    # one workflow run
 per_day = 20.0   # all runs in this project, per UTC day
 ```
 
+## `[routing]`
+
+Pick the model by difficulty. Optional.
+
+```toml
+[routing]
+escalate_after = 1                 # rejected rounds before a member's work goes to its escalate_to
+light_model = "claude-haiku-5-5"   # owners' sign-offs and fact-checks by Claude members use this
+```
+
+## `[notify]`
+
+Messages when things happen, to a Slack incoming webhook or any URL that takes JSON. Optional.
+
+```toml
+[notify]
+webhook_env = "AGENT_TEAM_WEBHOOK"   # the variable holding the URL: agent-team keys set AGENT_TEAM_WEBHOOK
+format = "slack"                     # slack: {"text"}; json: {"event", "project", "text", "url"}
+events = []                          # empty: all of pr_opened, pr_merged, fix_pushed, approval_needed,
+                                     # release_proposed, released, autopilot_stopped, spend_limit, run_failed
+```
+
+The URL itself never goes in `.team.toml`. `agent-team notify` sends a test message.
+
 ## `[[agents]]`
 
 | Key | Default | Meaning |
@@ -67,6 +92,7 @@ per_day = 20.0   # all runs in this project, per UTC day
 | `description` | `""` | Shown to the team; also this member's perspective in discussions. |
 | `owns` | `[]` | Path prefixes this member must sign off before a PR touching them can merge. `"*"` means every path. For `qa` and `docs` members it is also where they may write (defaults: test folders; README, `docs/`, CHANGELOG). |
 | `prompt` | `""` | A Markdown file (relative to the project) replacing this member's role prompt. Placeholders such as `{name}`, `{project}`, `{roster}`, `{guarantees}` are filled in. |
+| `escalate_to` | `""` | A stronger member who takes over this member's build or fix after `[routing].escalate_after` rejected rounds. |
 | `skills` | `[]` | Markdown files, or folders holding a `SKILL.md` (a Claude Code skill works as it is), added to this member's prompt after its role prompt. Relative to the project; `~` is the home folder. See below. |
 | `color` | by role | Terminal colour: orange, cyan, pink, green, yellow, blue, magenta, red. |
 

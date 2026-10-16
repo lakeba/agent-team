@@ -119,3 +119,16 @@ the page's session token and a same-origin request, and are refused if the file 
 - `memory.py` keeps reviewers' `LESSON:` lines in `.team/memory.md` and adds them to every member's
   prompt; `scoreboard.py` derives per-member results from the logs and usage records.
 
+## To-do list, routing, gates and notifications (0.4)
+
+- `issues.py`: `team:build` issues are the team's to-do list; autopilot builds the oldest open one
+  (its body arrives as untrusted) and the PR closes it.
+- `routing.py`: `escalate_to` hands a member's work to a stronger member after rejected rounds;
+  `light_model` runs owners' sign-offs and fact-checks on a cheaper Claude model.
+- `gates.py`: `require_approval` paths add a merge rule, the owners' approval of the exact head
+  commit, recorded on this machine (never through GitHub, where the agents post as the same user).
+- `secret_scan.py`: `build` and `fix` scan the staged changes and refuse to commit or push secrets.
+- `notify.py`: webhook messages for the events above; a failed notification never stops a run.
+- `tests/test_guardrails.py` runs whole devops shifts against a stand-in GitHub with a scripted devops
+  member, so the merge rules are checked end to end, whatever a model asks for.
+

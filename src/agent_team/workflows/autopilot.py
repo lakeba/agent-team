@@ -3,7 +3,8 @@
 Each cycle does one thing:
   * if the team has open PRs (branches named team/...), run a devops shift: it reviews them, has
     the builder fix what the lead asks for, and merges what's approved;
-  * otherwise the lead picks the next PR-sized task from ROADMAP.md, and `build` builds it as a PR.
+  * otherwise it builds the oldest open `team:build` issue (of the milestone, if given), or, if there
+    is none, the lead picks the next PR-sized task from ROADMAP.md; `build` builds it as a PR.
 It stops when the lead says the milestone is done, when the open PRs stop moving for two shifts,
 when a build isn't approved, after --max-cycles, or when a spend limit is reached. Every rule of
 the normal workflows still applies: approvals are tied to commits, releases follow
@@ -13,7 +14,7 @@ from __future__ import annotations
 
 import re
 
-from .. import agent, files, github, schedule, ui, usage
+from .. import agent, files, github, issues, notify, schedule, ui, usage
 from ..config import Team
 from . import build, ship
 
@@ -98,9 +99,10 @@ def run(team: Team, milestone: str = "", max_cycles: int = 6, rounds: int = 3, m
     autopilot_run = usage.current_run()
     lead = agent.make(team, lead_cfg, "lead", file_format=files.FILE_FORMAT, label_suffix=" · autopilot")
     stuck_shifts, last_open = 0, None
-    outcome = False
+    outcome, last_note = False, [""]
 
     def note(text: str) -> None:
+        last_note[0] = text
         ui.heading(text)
         usage.set_run(autopilot_run)
         log.record("Autopilot", text)
@@ -129,7 +131,14 @@ def run(team: Team, milestone: str = "", max_cycles: int = 6, rounds: int = 3, m
             github.git(team.root, "checkout", "-q", main, check=False)
             github.git(team.root, "pull", "-q", "--ff-only", check=False)
             usage.set_run(autopilot_run)
-            task, branch, done = pick_next(team, lead, milestone)
+            branches = set(github.git(team.root, "branch", "-a", "--format=%(refname:short)", check=False).split())
+            issue = issues.next_issue(repo, milestone, {b.removeprefix("origin/") for b in branches})
+            closes = 0
+            if issue:
+                task, branch = issues.task_for(issue)
+                done, closes = "", issue["number"]
+            else:
+                task, branch, done = pick_next(team, lead, milestone)
             if done:
                 note(f"Done: {done}")
                 outcome = True
@@ -139,12 +148,14 @@ def run(team: Team, milestone: str = "", max_cycles: int = 6, rounds: int = 3, m
                 break
             branch = _free_branch(team.root, branch)
             note(f"Cycle {cycle}/{max_cycles}: building on {branch}: {task}")
-            approved = build.run(team, task, rounds, branch=branch, open_pr=True)
+            approved = build.run(team, task, rounds, branch=branch, open_pr=True, closes=closes)
             github.git(team.root, "checkout", "-q", main, check=False)
             if not approved:
                 note(f"Stopped: the build on {branch} wasn't approved after {rounds} rounds. See .team/logs/build.md.")
                 break
         else:
             note(f"Stopped after {max_cycles} cycles (--max-cycles). Run autopilot again to continue.")
+    notify.send(team, "autopilot_stopped", f"Autopilot {'finished' if outcome else 'stopped'}: {last_note[0][:300]}",
+                f"https://github.com/{repo}/pulls")
     ui.say(f"Log: {log.path}")
     return outcome

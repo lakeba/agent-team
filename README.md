@@ -37,6 +37,12 @@ that doesn't match is refused and sent back. Reviewers read files, search, see t
 the tests themselves. When a reviewer blocks for a reason that will matter again, the lesson is
 kept and every member sees it in later work.
 
+Every push is checked for secrets first (key and token formats, private keys, `.env` files, and
+the values in your keys file). Paths you list in `require_approval` wait for your approval of the
+exact commit. Weaker models hand work to a stronger member after rejected rounds (`escalate_to`),
+and `[notify]` posts to Slack or any webhook when PRs open or merge, approvals or releases wait
+for you, or autopilot stops.
+
 ## Install
 
 Requirements: macOS or Linux, Python 3.11+ (on Ubuntu/Debian also `python3-venv`), git, and an
@@ -94,6 +100,9 @@ agent-team ship                                          # one devops shift on G
 | `agent-team discover` | Find agent-team nodes on the local network. |
 | `agent-team ready [--json]` | What this machine and project still need (git, GitHub, keys, Ollama, models), each with its fix. |
 | `agent-team keys [set NAME \| remove NAME]` | API keys and tokens in agent-team's own keys file; values are never shown. |
+| `agent-team issues [sync --milestone M2 --yes]` | The team's to-do list: `team:build` issues, created from the roadmap by the lead (shown first, created with `--yes`). Autopilot builds them and its PRs close them. |
+| `agent-team approve [PR]` | Approve a PR's current commit when it changes paths in `require_approval`; with no number, list what's waiting. |
+| `agent-team notify` | Send a test message to the `[notify]` webhook. |
 | `agent-team scoreboard` | Each builder's approval and first-round rate, average rounds and cost; each reviewer's pushback; cost per merged PR. |
 | `agent-team memory [add TEXT \| forget N]` | The lessons the team learned from its reviews, which every member sees in later work. |
 | `agent-team agents`, `agent-team doctor` | List the team; check every member can be reached. |

@@ -26,6 +26,7 @@ async function startEditing() {
   edit.draft = JSON.parse(JSON.stringify(cfg.data));
   edit.draft.pricing = edit.draft.pricing || {};
   edit.draft.limits = edit.draft.limits || {};
+  edit.draft.routing = edit.draft.routing || {};
   edit.sha = cfg.sha; edit.hasComments = cfg.has_comments; edit.on = true; edit.review = null; edit.wizard = null;
   renderTeam();
 }
@@ -88,6 +89,8 @@ function renderEditor(el) {
         field("Owns (one path per line)", list(a, "owns", { rows: 2 }), "This member must sign off PRs that change these paths"),
         field("Description", text(a, "description", { placeholder: "Shown to the team; also this member's view in discussions" })),
         field("Prompt file", text(a, "prompt", { placeholder: "optional, e.g. team/sentinel.md" }), "Replaces the whole role prompt"),
+        field("Escalate to", select(a, "escalate_to", d.agents.filter(o => o !== a && o.name).map(o => [o.name, `${o.name} (${o.role})`]), { allowBlank: true }),
+          "A stronger member who takes over after rejected rounds"),
         field("Skills (one per line)", list(a, "skills", { rows: 2, placeholder: "team/skills/owasp.md\n~/.claude/skills/security-review" }),
           "Markdown files or skill folders (with SKILL.md), added to this member's prompt")),
       h("div", { class: "actions" }, h("button", { type: "button", class: "danger",
@@ -128,6 +131,8 @@ function renderEditor(el) {
       field("Test command", text(pr, "test_command", { placeholder: "e.g. npm test" })),
       field("Test count pattern", text(pr, "test_count_pattern", { placeholder: "Ran (\\d+) tests?" }), "A regex with one group, matched in CI logs"),
       field("Guarantees (one per line)", list(pr, "guarantees", { rows: 5 }), "The lead holds every change to these"),
+      field("Need my approval (one path per line)", list(pr, "require_approval", { rows: 3, placeholder: "auth/\npackage.json\n*.csproj" }),
+        "PRs changing these merge only after you approve their exact commit"),
       field("Never send these paths (one per line)", list(pr, "context_skip", { rows: 3 }), "Build output, vendored code, large assets"),
       field("Releases", select(pr, "release", [["auto", "The devops shift releases on its own"], ["ask", "It proposes; I approve each release"]], { allowBlank: true }),
         "Who decides when a version ships"),
@@ -155,7 +160,13 @@ function renderEditor(el) {
       h("button", { type: "button", class: "danger", onclick: () => { delete d.pricing[model]; markDirty(); renderTeam(); } }, "Remove")));
   });
 
-  el.append(members, provs, project, limits, pricing);
+  const routingCard = h("div", { class: "card" }, h("h2", {}, "Model routing"),
+    h("p", { class: "muted small" }, "Members with \"Escalate to\" hand their work to a stronger member after this many rejected rounds. A light model runs owners' sign-offs and fact-checks for Claude members."),
+    h("div", { class: "form-grid" },
+      field("Escalate after (rejected rounds)", (() => { const el = h("input", { type: "number", min: "1", value: d.routing.escalate_after ?? "", placeholder: "1" });
+        el.addEventListener("input", () => { if (el.value === "") delete d.routing.escalate_after; else d.routing.escalate_after = Number(el.value); markDirty(); }); return el; })()),
+      field("Light model", text(d.routing, "light_model", { placeholder: "e.g. claude-haiku-5-5 (blank: off)" }))));
+  el.append(members, provs, project, limits, routingCard, pricing);
 }
 
 async function review() {

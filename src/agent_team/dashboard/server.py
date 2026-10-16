@@ -40,6 +40,11 @@ HEADERS = {
 }
 
 
+def _approval_requests(root):
+    from .. import gates
+    return gates.requests(root)
+
+
 def _lessons(root):
     from .. import memory
     return memory.lessons(root)
@@ -84,6 +89,7 @@ def team_info(team: config.Team) -> dict:
         "members": members,
         "release_policy": pr.release,
         "lessons": _lessons(team.root),
+        "approval_requests": _approval_requests(team.root),
         "release_proposal": _release_proposal(team.root),
         "missing_roles": {r: why for r, why in roles_needed.items() if not team.by_role(r, required=False)},
         "roster": team_roster(team),
@@ -288,6 +294,17 @@ def make_handler(root: Path, port: int, token: str | None = None):
                 if path == "/api/jobs/start":
                     config.load(root)   # refuse to start anything on a broken config
                     return self._json(jobs.start(root, str(body.get("workflow", "")), body.get("params") or {}))
+                if path == "/api/approve":
+                    from .. import gates, github as gh_mod
+                    team = config.load(root)
+                    number = body.get("number")
+                    if not isinstance(number, int) or isinstance(number, bool) or number < 1:
+                        return self._json({"error": "number must be the pull request number"}, 422)
+                    info = gh_mod.gh_json("pr", "view", str(number), "-R", team.project.repo, "--json", "headRefOid,state")
+                    if info["state"] != "OPEN":
+                        return self._json({"error": f"PR #{number} is {info['state'].lower()}"}, 422)
+                    gates.approve(team.root, number, info["headRefOid"])
+                    return self._json({"approved": number, "sha": info["headRefOid"]})
                 if path == "/api/jobs/stop":
                     return self._json(jobs.stop(root, str(body.get("id", ""))))
             except (config.ConfigError, jobs.JobError) as e:

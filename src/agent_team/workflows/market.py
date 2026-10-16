@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import time
 
-from .. import agent, context, files, screenshots, ui
+from .. import agent, context, files, routing, screenshots, ui
 from ..config import Team
 
 
@@ -46,7 +46,7 @@ def run(team: Team, rounds: int = 3, reuse_brief: bool = False) -> bool:
     spark = agent.make(team, mk_cfg, "marketing", deliverables=deliverables(m), file_format=files.FILE_FORMAT,
                        files=context.for_topic(team, {rel for rel, _ in files.project_files(team.root, only=owned)}))
     lead = agent.make(team, lead_cfg, "review_marketing", deliverables=deliverables(m), files=code)
-    checker = agent.make(team, fc_cfg, "factcheck", files=code)
+    checker = agent.make(team, routing.light(team, fc_cfg), "factcheck", files=code)
     log = files.Log(team.root, "market", "Marketing")
 
     review = "VERDICT: APPROVED"

@@ -131,6 +131,17 @@ function renderOverview() {
         : h("div", { class: "note" }, gh ? gh.reason : "loading…")),
   ));
 
+  (t.approval_requests || []).forEach(r => {
+    el.append(h("div", { class: "card notice" }, h("h3", {}, `PR #${r.number} is waiting for your approval`),
+      h("p", { class: "secondary" }, `${r.title}. It changes paths that need your approval: ${r.paths.join(", ")}. Approving covers commit ${r.sha.slice(0, 10)}; a newer commit needs approving again.`),
+      h("div", { class: "actions" },
+        t.project.repo ? h("a", { href: `https://github.com/${t.project.repo}/pull/${r.number}`, target: "_blank", rel: "noopener noreferrer" }, "Review it on GitHub") : null,
+        h("button", { type: "button", class: "primary", onclick: async () => {
+          if (!confirm(`Approve PR #${r.number} at its current commit? The next devops shift may then merge it.`)) return;
+          try { await postJSON("/api/approve", { number: r.number }); toast(`Approved PR #${r.number}.`); load(); } catch (e) { toast(e.message); }
+        } }, `Approve PR #${r.number}`))));
+  });
+
   if (t.release_proposal) {
     const v = t.release_proposal.version;
     el.append(h("div", { class: "card notice" }, h("h3", {}, `Release v${v} is waiting for your approval`),

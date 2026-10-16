@@ -41,6 +41,21 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - A Claude Code side panel in the plugin (`/team-panel`, opened automatically in projects with a
   team): members with health marks, recent runs and spend, with Refresh, Check health and
   Start/Open dashboard buttons.
+- 0.4.0:
+  - Issues as the to-do list: `agent-team issues sync` (the lead turns roadmap items into
+    `team:build` issues; created only with `--yes`); autopilot builds the oldest open one first and
+    its PR says "Closes #N".
+  - Model routing: `escalate_to` hands a member's work to a stronger member after
+    `[routing].escalate_after` rejected rounds; `[routing].light_model` runs sign-offs and
+    fact-checks on a cheaper Claude model.
+  - Approval gates: `[project].require_approval` paths merge only after `agent-team approve <PR>`
+    (or the dashboard's or panel's Approve) for the exact head commit.
+  - Secret check before every push: `build` and `fix` refuse to commit keys, tokens, private keys,
+    `.env`-style files or any value from the keys file.
+  - Notifications: `[notify]` posts to Slack or any JSON webhook when PRs open or merge, fixes are
+    pushed, approvals or releases wait, autopilot stops, a spend limit is hit or a background run
+    fails; `agent-team notify` tests it.
+  - Guardrail scenario tests run whole shifts against a stand-in GitHub, including `request_fix`.
 - 0.3.0:
   - Patch edits: builders send `<edit>` blocks with SEARCH/REPLACE pairs instead of whole files;
     an edit that doesn't match exactly once leaves the file unchanged and is reported back.

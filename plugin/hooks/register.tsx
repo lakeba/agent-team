@@ -8,7 +8,7 @@ import type { Health, Job, Snapshot } from '../types'
 
 // Keep equal to plugin.json's version and the CLI's (a test checks): a mismatch means one of
 // them wasn't updated, and the panel says so.
-const PLUGIN_VERSION = '0.3.0'
+const PLUGIN_VERSION = '0.4.0'
 const PANE = 'agent-team'
 const TITLE = 'agent-team'
 const snapshot = atom({ plugin: 'agent-team', key: 'snapshot' } as const, null)
@@ -123,6 +123,22 @@ async function approveRelease($: EngineInterface, version: string): Promise<void
   }
   if (answer !== `Release v${version}`) return
   void $.ui.toast(await startJob($, 'ship', '', version))
+}
+
+async function approvePr($: EngineInterface, number: number, title: string): Promise<void> {
+  let answer = ''
+  try {
+    answer = await $.ui.ask(`Approve PR #${number} (${title}) at its current commit? The next devops shift may then merge it.`,
+                            [`Approve #${number}`, 'Not now'])
+  } catch {
+    return
+  }
+  if (answer !== `Approve #${number}`) return
+  const cli = await findCli($)
+  if (!cli) return
+  const r = await $.process.run([cli, 'approve', String(number), '-C', await $.session.cwd()], { timeoutMs: 30000 })
+  void $.ui.toast(r.exitCode === 0 ? `Approved PR #${number}.` : lastLine(r.stderr) || `Couldn't approve PR #${number}.`)
+  await refresh($)
 }
 
 async function startShift($: EngineInterface): Promise<void> {
@@ -272,6 +288,13 @@ export const register: Register = on => {
             /reload-plugins (or start a new session).
           </Text>
         )}
+        {(data.approval_requests ?? []).map(r => (
+          <Box flexDirection="column">
+            <Text bold>PR #{r.number} is waiting for your approval</Text>
+            <Text dimColor>{r.title} · {r.paths.slice(0, 3).join(', ')}</Text>
+            <Button label={`Approve #${r.number}`} onPress={() => void approvePr($, r.number, r.title)} />
+          </Box>
+        ))}
         {data.release_proposal && (
           <Box flexDirection="column">
             <Text bold>Release v{data.release_proposal.version} is waiting for your approval</Text>

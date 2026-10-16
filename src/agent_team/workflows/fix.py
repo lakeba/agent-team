@@ -12,7 +12,7 @@ waiting. `fix` closes that loop:
 from __future__ import annotations
 
 
-from .. import agent, context, files, github, logs, memory, review_tools, ui
+from .. import agent, context, files, github, logs, memory, review_tools, routing, ui
 from ..config import Team
 from .build import run_tests
 
@@ -125,6 +125,12 @@ def run(team: Team, number: int, rounds: int = 2, lead: str = "", builder: str =
                 approved = True
                 break
             note = f"{task}\n\n# {lead_cfg.name}'s check of your last attempt\n\n{check}{tests}{problems}"
+            stronger = routing.escalation(team, builder_cfg, rnd)
+            if stronger:
+                ui.action(f"{builder_cfg.name} → {stronger.name}: escalated after {rnd} rejected round(s)")
+                log.record(f"{lead_cfg.name}: escalation", f"{builder_cfg.name}'s fix goes to {stronger.name}.")
+                builder_cfg = stronger
+                worker = agent.make(team, stronger, "builder", file_format=files.FILE_FORMAT, label_suffix=f" · PR #{number}")
 
         if not approved or not touched:
             why = "the lead didn't confirm the fix" if not approved else "the builder changed no files"
@@ -139,6 +145,13 @@ def run(team: Team, number: int, rounds: int = 2, lead: str = "", builder: str =
             ui.heading("Not pushed: the only change was to the team's PLAN.md.")
             return False
         github.git(team.root, "add", "--", *paths)
+        from .. import secret_scan
+        try:
+            secret_scan.guard(team.root)
+        except SystemExit as e:
+            ui.heading(str(e))
+            _discard(team, touched)
+            return False
         github.git(team.root, "commit", "-q", "-m", f"Address review feedback on #{number}",
                    "-m", f"Fixed by {builder_cfg.name}, checked by {lead_cfg.name} (agent-team fix).")
         github.git(team.root, "push", "-q", "origin", f"HEAD:{branch}")
@@ -148,6 +161,9 @@ def run(team: Team, number: int, rounds: int = 2, lead: str = "", builder: str =
                   f"{files.strip_files(reply).strip()[:1500]}\n\n— {builder_cfg.name} (builder agent, automated); "
                   f"{lead_cfg.name} confirmed the blocking points are addressed. The next devops shift reviews the new commit.")
         ui.action(f"pushed {new_head[:10]} to {branch} and commented on PR #{number}")
+        from .. import notify
+        notify.send(team, "fix_pushed", f"Fixed the review on PR #{number} ({info['title']}) in {new_head[:10]}",
+                    f"https://github.com/{repo}/pull/{number}")
         log.record(f"{builder_cfg.name}: action", f"pushed {new_head[:10]} to {branch}")
         return True
     finally:
