@@ -143,6 +143,7 @@ class BehaviourScenario:
     serve: str = ""                 # starts the app in $PROJECT (e.g. "npm run preview -- --port 5173"); stopped after
     url: str = ""                   # where the browser starts, e.g. http://127.0.0.1:5173/
     steps: list[str] = field(default_factory=list)   # e.g. 'fill textbox "Project" with "client-a"', 'click button "Start"'
+    step_timeout: int = 15          # seconds one step waits (e.g. for its element) before it fails
     # electron (steps too: 'click css "#save"', 'wait 500')
     app: str = ""                   # the Electron app, relative to $PROJECT: its folder (package.json) or main script
     electron: str = ""              # the Electron executable; default: the project's node_modules/electron
@@ -244,6 +245,8 @@ def scenario(table: dict, where: str, source: str = ".team.toml") -> BehaviourSc
                           f"watch, steps and electron_args are lists of text")
     if not isinstance(sc.timeout, int) or sc.timeout < 1:
         raise ConfigError(f"{label}: timeout is seconds (1 or more)")
+    if not isinstance(sc.step_timeout, int) or sc.step_timeout < 1:
+        raise ConfigError(f"{label}: step_timeout is seconds (1 or more)")
     if not all(isinstance(x, (int, float)) and x >= 0 for x in (sc.input_delay, sc.input_every)):
         raise ConfigError(f"{label}: input_delay and input_every are seconds")
     if any(w.startswith("/") or ".." in w.split("/") for w in sc.watch):

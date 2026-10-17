@@ -19,6 +19,10 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
   the same plain-words steps as browser journeys (e.g. `click button "Accept all"` for a cookie
   dialog). Each step gives up after 15 seconds; if one fails, the scout reads the page as it first
   loads and says the step didn't work.
+- Browser journeys give each step a deadline, `step_timeout` (15 seconds by default, at most the
+  scenario's `timeout`). A step whose element never appears now fails on its own and the report
+  names it (`step step-2 (click button "Start") failed: ...`) where the page would be, instead of
+  the whole run waiting until the timeout and the report saying only that it took too long.
 
 ### Fixed
 

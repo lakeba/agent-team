@@ -257,6 +257,8 @@ def browser_input(team: Team, sc: BehaviourScenario) -> dict:
     for a in actions:   # relative goto paths are on the app's own address
         if a["action"] == "goto":
             a["destination"]["url"] = urllib.parse.urljoin(sc.url, a["destination"]["url"])
+        if a["action"] != "wait_for_timeout":   # without one, REA waits forever for a missing element
+            a["timeout_ms"] = min(sc.step_timeout, sc.timeout) * 1000
     return {"browser": {"mode": "launch", "executable_path": browser_path(team), "headless": True},
             "start_url": {"url": sc.url}, "actions": actions,
             "capture": {"at_end": ["screenshot", "accessibility", "url"], "events": ["console", "page-errors"]}}
@@ -274,7 +276,8 @@ def page_text(evidence: dict) -> str:
     return (_captured(evidence, "accessibility") or {}).get("text", "")
 
 
-def _browser(evidence: dict) -> Observation:
+def _browser(evidence: dict, lines: list[str] | None = None) -> Observation:
+    """What the user saw; `lines` are the scenario's steps, to name the one that failed."""
     r = evidence.get("normalized_result") or {}
     steps = r.get("steps") or []
     failed = next((s for s in steps if s.get("status") not in ("completed", None)), None)
@@ -285,10 +288,16 @@ def _browser(evidence: dict) -> Observation:
     page = page_text(evidence)
     errors = [f"{e.get('kind')}: {e.get('text', '')[:200]}" for e in (r.get("events") or {}).get("items") or []
               if e.get("kind") == "page-error" or (e.get("kind") == "console" and e.get("level") == "error")]
+    ended = "all steps completed"
+    if failed:
+        sid = str(failed.get("step_id"))
+        n = sid.removeprefix("step-")
+        line = lines[int(n) - 1] if lines and n.isdigit() and 0 < int(n) <= len(lines) else ""
+        ended = f"step {sid}{f' ({line})' if line else ''} {failed.get('status')}: {failed.get('error')}"
+        if not page:   # REA stops at a failed step and captures nothing after it
+            page = f"stopped at {ended} (no page captured after it)"
     return Observation(view=page[-VIEW_CHARS:], url=(value("url") or {}).get("url", ""), errors=errors,
-                       exit=(f"step {failed.get('step_id')} {failed.get('status')}: {failed.get('error')}"
-                             if failed else "all steps completed"),
-                       evidence=evidence, png=value("screenshot"))
+                       exit=ended, evidence=evidence, png=value("screenshot"))
 
 
 def run_browser(team: Team, client: mcp.Client, sc: BehaviourScenario, project: Path) -> Observation:
@@ -312,7 +321,7 @@ def run_browser(team: Team, client: mcp.Client, sc: BehaviourScenario, project: 
     evidence = result.get("structuredContent")
     if result.get("isError") or not isinstance(evidence, dict):
         return Observation(problem=mcp.text_of(result)[:1500])
-    return _browser(evidence)
+    return _browser(evidence, sc.steps)
 
 
 # ---------------------------------------------------------------------------------------------

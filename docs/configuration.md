@@ -184,12 +184,16 @@ screenshot (2% of pixels or more counts as looking different).
 | `serve` | `""` | Starts the app in `$PROJECT`, e.g. `npm run preview -- --port 5173 --strictPort`; stopped after. |
 | `url` | required | Where the browser starts. Only this machine (`http://127.0.0.1:...` or `localhost`). |
 | `steps` | `[]` | What the user does, in plain words (below). |
+| `step_timeout` | `15` | Seconds one step waits (for its element to appear, a page to load) before it fails; at most `timeout`. A pause (`wait 500`) is exactly its length. |
 
 Steps name elements the way a screen reader does, a role and its name: `goto /about`,
 `click button "Start"`, `fill textbox "Project" with "client-a"`, `press textbox "Project" Enter`,
 `check checkbox "Remember me"` (or `uncheck`), `select combobox "Plan" option "Pro"`,
 `wait for text "Running"` (or `wait for button "Stop"`), `wait 500`. Where a page has no good names,
 `css "#start"` and `testid "start"` work too.
+
+A step that fails (its element never appears) ends the run there, and REA captures nothing after it,
+so the report shows that step instead of the page: `step step-2 (click button "Start") failed: ...`.
 
 **electron**: a desktop app built with Electron. REA starts it, the steps click through it, and
 what changed for its user is compared: its windows (title, the page each shows, hidden or

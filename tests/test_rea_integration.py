@@ -66,7 +66,8 @@ class ScenarioConfigTests(unittest.TestCase):
     def test_kinds_need_their_fields_and_browsers_stay_local(self):
         cases = [('kind = "browser"\nurl = "https://example.com/"', "don't visit other sites"),
                  ('kind = "api"', "assembly"), ('kind = "api"\nassembly = "a.dll"\npackage = "."', "either"), ('kind = "terminal"', "needs run"), ('kind = "gui"\nrun = "x"', "kind is"),
-                 ('kind = "browser"\nurl = "http://127.0.0.1:1/"\nsteps = ["tap x"]', "steps start with")]
+                 ('kind = "browser"\nurl = "http://127.0.0.1:1/"\nsteps = ["tap x"]', "steps start with"),
+                 ('kind = "browser"\nurl = "http://127.0.0.1:1/"\nstep_timeout = 0', "step_timeout is seconds")]
         for body, words in cases:
             root = project_with(f'\n[[behaviour.scenarios]]\nname = "a"\n{body}\n')
             with self.assertRaises(config.ConfigError) as e:
@@ -101,6 +102,28 @@ class KindsTests(unittest.TestCase):
         self.assertEqual(saved[0]["outcomes"][0]["status"], "changed")
         folder = behaviour.evidence_root(team) / saved[0]["id"]
         self.assertTrue((folder / "1-work.png").exists() and (folder / "report.md").exists())
+
+    def test_each_browser_step_has_a_deadline_except_a_pause(self):
+        sc = config.BehaviourScenario(name="a", kind="browser", url="http://127.0.0.1:1/", step_timeout=5,
+                                      steps=['click button "Start"', "wait 200", 'wait for text "Running"', "goto /x"])
+        actions = behaviour.browser_input(config.load(project_with("")), sc)["actions"]
+        self.assertEqual([a.get("timeout_ms") for a in actions], [5000, None, 5000, 5000])
+        sc.timeout = 3   # never longer than the whole scenario
+        actions = behaviour.browser_input(config.load(project_with("")), sc)["actions"]
+        self.assertEqual(actions[0]["timeout_ms"], 3000)
+
+    def test_a_step_that_fails_is_named_not_an_empty_page(self):
+        root, base = web_project(PAGE_V1, PAGE_V1.replace("<button>Start</button>", "<button>Begin</button>"))
+        team = config.load(root)
+        team.behaviour.browser = "/usr/bin/true"
+        with quiet():
+            o = behaviour.run(team, base)[0]
+        self.assertEqual(o.status, "changed")
+        self.assertEqual(o.base.exit, "all steps completed")
+        self.assertIn('step step-1 (click button "Start") failed', o.work.exit)
+        self.assertIn('stopped at step step-1 (click button "Start") failed', o.work.view)
+        self.assertIn('now "stopped at step step-1', o.first_difference)
+        self.assertIn('- Now: step step-1 (click button "Start") failed', behaviour.report([o]))
 
     def test_a_new_page_error_counts(self):
         root, base = web_project(PAGE_V1, PAGE_V1.replace("</body>", "boom</body>"))
