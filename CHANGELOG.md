@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-17
+
 ### Added
 
 - agent-team's own library, shipped in the package: 26 specialists (architect, planner, security,
