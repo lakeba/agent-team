@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-17
+
 ### Added
 
 - REA, set up without hand configuration: `agent-team rea setup` finds REA (agent-team's own
