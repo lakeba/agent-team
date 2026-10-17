@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-17
+
 ### Added
 
 - Behaviour checks for Electron desktop apps (`kind = "electron"`): REA starts the app (`app`,

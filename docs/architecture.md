@@ -198,7 +198,7 @@ the page's session token and a same-origin request, and are refused if the file 
   `/api/evidence/<check>/<n>-base|work.png`).
 
 
-- Since 0.10 (not yet released): Electron apps (`kind = "electron"`) run through REA's Electron capture: the windows, the IPC
+- Since 0.11: Electron apps (`kind = "electron"`) run through REA's Electron capture: the windows, the IPC
   channels and the external effects the app attempted are compared. Browser steps each have a
   deadline (`step_timeout`) and a failed step is named in the report. Scout sites may have steps.
 

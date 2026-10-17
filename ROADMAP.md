@@ -7,11 +7,6 @@
 2. **Claude Code plugin.** Use it on that second project and refine the commands from what
    happens there.
 
-## Next release
-
-- Behaviour checks for Electron apps, steps for scout sites, and a deadline for each browser step
-  (merged, not yet released).
-
 ## Later
 
 - Evidence in every PR: the failing test before the change, the passing run after, and the
@@ -22,6 +17,7 @@
 
 ## Done
 
+- 0.11: behaviour checks for Electron apps, steps for scout sites, a deadline for each browser step.
 - 0.10: everything ECC offers for the team: its agents, skills (on demand), commands as playbooks
   and rules; guards after its hooks; session summaries; lessons with confidence; `agent-team audit`.
 - 0.9: `agent-team mcp` for any coding agent, `agent-team try`, ECC templates.
