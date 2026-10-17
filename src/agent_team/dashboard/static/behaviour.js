@@ -24,7 +24,7 @@ function outcomeBadge(o) {
 function side(checkId, label, obs, kind) {
   const box = h("div", { class: "card" }, h("h3", {}, label));
   if (obs.problem) { box.append(h("p", {}, status("bad", "didn't run"), " ", obs.problem)); return box; }
-  const facts = [obs.exit, obs.url && kind === "browser" ? `at ${obs.url}` : "", obs.files?.length ? `files: ${obs.files.join(", ")}` : ""]
+  const facts = [obs.exit, obs.url && (kind === "browser" || kind === "electron") ? `at ${obs.url}` : "", obs.files?.length ? `files: ${obs.files.join(", ")}` : ""]
     .filter(Boolean).join(" · ");
   if (facts) box.append(h("p", { class: "muted small" }, facts));
   if (obs.errors?.length) box.append(h("p", {}, status("bad", `${obs.errors.length} error(s)`), " ", obs.errors.slice(0, 3).join("; ")));

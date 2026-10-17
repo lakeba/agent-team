@@ -165,7 +165,7 @@ agent-team behaviour list
 | `[behaviour].server` | `rea` | The `[mcp.*]` server that captures the runs. |
 | `[behaviour].browser` | found | Chrome or Chromium for browser scenarios. |
 | `name` | required | A short name for the journey, shown in reviews and the PR. |
-| `kind` | `terminal` | `terminal`, `browser` or `api`. |
+| `kind` | `terminal` | `terminal`, `browser`, `electron` or `api`. |
 | `prepare` | `""` | Run first in `$PROJECT` and not captured, e.g. a build, so the run itself is quick. |
 | `timeout` | `120` | Seconds the run may take. |
 
@@ -189,12 +189,37 @@ screenshot (2% of pixels or more counts as looking different).
 | `serve` | `""` | Starts the app in `$PROJECT`, e.g. `npm run preview -- --port 5173 --strictPort`; stopped after. |
 | `url` | required | Where the browser starts. Only this machine (`http://127.0.0.1:...` or `localhost`). |
 | `steps` | `[]` | What the user does, in plain words (below). |
+| `step_timeout` | `15` | Seconds one step waits (for its element to appear, a page to load) before it fails; at most `timeout`. A pause (`wait 500`) is exactly its length. |
 
 Steps name elements the way a screen reader does, a role and its name: `goto /about`,
 `click button "Start"`, `fill textbox "Project" with "client-a"`, `press textbox "Project" Enter`,
 `check checkbox "Remember me"` (or `uncheck`), `select combobox "Plan" option "Pro"`,
 `wait for text "Running"` (or `wait for button "Stop"`), `wait 500`. Where a page has no good names,
 `css "#start"` and `testid "start"` work too.
+
+A step that fails (its element never appears) ends the run there, and REA captures nothing after it,
+so the report shows that step instead of the page: `step step-2 (click button "Start") failed: ...`.
+
+**electron**: a desktop app built with Electron. REA starts it, the steps click through it, and
+what changed for its user is compared: its windows (title, the page each shows, hidden or
+closed), the external effects it attempted (opening a link, a download, a permission: REA blocks
+them and records them), the IPC channels it used between window and main process (the kinds of
+values, never the values), whether every step worked, and errors. REA's Electron capture doesn't
+record the window's text or a screenshot, so a change to what a window says, without a change to
+its title, isn't noticed; cover that with tests or a `browser` journey of the same page.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `app` | `.` | The app, relative to the project: its folder (with `package.json`) or its main script. |
+| `electron` | the project's | The Electron executable. By default the one npm installed in the project (`node_modules/electron`), so `prepare` is usually `npm ci`. |
+| `electron_args` | `[]` | Extra arguments for Electron, e.g. `["--no-sandbox"]` on Linux when Electron's `chrome-sandbox` helper isn't installed as root (as after a plain `npm install`). |
+| `steps` | `[]` | `click css "#save"` (or `click testid "save"`), `wait 500`, `reload`. REA's Electron capture clicks CSS selectors, so elements aren't named by role here. |
+
+The app needs a display: on Linux, a desktop session or Xvfb, with `DISPLAY` set where agent-team
+runs. REA passes Electron only a few variables (`HOME`, `PATH`, `DISPLAY`, `WAYLAND_DISPLAY`, ...),
+not `XAUTHORITY`, so the X cookie has to be in `~/.Xauthority`. A click on something that never
+appears waits until the scenario's `timeout` (plus a minute); each run has its own REA process, and
+stopping it stops the app.
 
 **api**: a library's public API, read from what was built (nothing runs). Removing or changing a
 public member breaks callers; adding one doesn't.
@@ -220,6 +245,13 @@ url = "http://127.0.0.1:5173/"
 steps = ['fill textbox "New todo" with "buy milk"', 'press textbox "New todo" Enter', 'wait for text "buy milk"']
 
 [[scenarios]]
+name = "count with the desktop app"
+kind = "electron"
+prepare = "npm ci"
+app = "."
+steps = ["wait 800", 'click css "#add"', "wait 300"]
+
+[[scenarios]]
 name = "public API"
 kind = "api"
 prepare = "dotnet build -c Release -o out"
@@ -240,7 +272,8 @@ source maps, and so are the strings REA reads from built .NET assemblies.
 when `[sandbox]` is off. With `[sandbox] mode = "container"`, `prepare`, `run` and `serve` run in
 the container instead (a browser app is published on this machine's loopback only, so the browser
 here can reach it); if the container engine isn't ready, behaviour checks don't run at all rather
-than run outside it. Behaviour checks need git: the base version is checked out in a temporary
+than run outside it. `electron` journeys don't run in container mode: REA starts the app on this
+machine. Behaviour checks need git: the base version is checked out in a temporary
 worktree.
 
 ## `[research]` and the scout
@@ -249,13 +282,28 @@ A member with `role = "scout"` looks at other products from the outside before t
 with `[research] sites = ["https://..."]`, `discuss` has REA open each page in a browser and read it
 the way a visitor or a screen reader does, and the scout writes a short brief for the discussion
 (kept under `.team/research/`). It never reaches the builders, and the scout may only be given
-observation tools. A cookie or consent dialog that covers a page hides the rest of it from the
-scout, as it does from a screen reader.
+observation tools.
+
+A cookie or consent dialog that covers a page hides the rest of it from the scout, as it does from
+a screen reader. Give that site steps, in the same plain words as browser journeys (below), and
+they run before the page is read:
+
+```toml
+[research]
+sites = [
+  "https://example.com/",
+  { url = "https://rival.example/", steps = ['click button "Accept all"'] },
+  { url = "https://other.example/", steps = ['click button "Reject all"', "goto /pricing"] },
+]
+```
+
+Each step gives up after 15 seconds. If one fails (the dialog didn't come, or its button has
+another name), the scout reads the page as it first loads, and its brief says the step didn't work.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `sites` | `[]` | Public pages the scout observes, up to five. |
-| `max_chars` | `6000` | Page text read per site. |
+| `sites` | `[]` | Public pages the scout observes, up to five: a web address, or `{ url, steps }`. |
+| `max_chars` | `6000` | Page text read per site, from the top. |
 
 **Guardrails.** Tools that look inside other software (decompilers, disassemblers, debuggers,
 extractors) are never given to members who write the project's code (`builder`, `qa`, `docs`), and
