@@ -144,8 +144,10 @@ agent-team discuss --vision ~/notes/tipsplit-pitch.md    # saved as VISION.md if
 Tests check what their authors thought of. A behaviour check uses the program the way a user
 would, before and after the team's change, and shows the lead what changed: "after `stop`,
 `status` still shows the timer running", with the screens as evidence. It works for command-line
-programs, web apps (a browser follows plain-words steps like `click button "Start"`) and libraries
-(the public API of a .NET assembly or a JavaScript package).
+programs, web apps (a browser follows plain-words steps like `click button "Start"`, each with its
+own deadline, and the report names a step that failed), Electron desktop apps (their windows, the
+IPC channels and external effects they attempt) and libraries (the public API of a .NET assembly or
+a JavaScript package).
 
 ```bash
 agent-team rea setup          # installs REA (https://rea.tools) if needed and sets it up
@@ -156,7 +158,7 @@ From then on, `build` has the QA member (or the lead) add the journeys each task
 every round; the dashboard's **Behaviour** tab shows before and after side by side. Releases follow
 the evidence (removing a public member needs a major version), the security member also reviews
 what the build ships, and an optional scout looks at other products from the outside before the
-team plans. REA is one of the tool servers the team can use over MCP: any `[mcp.*]` server's allowed
+team plans (a site can have steps first, such as accepting a cookie dialog). REA is one of the tool servers the team can use over MCP: any `[mcp.*]` server's allowed
 tools can be given to members (`mcp = ["rea"]`). See [configuration](docs/configuration.md#behaviour-and-behaviour-scenarios).
 
 ### Other commands
@@ -178,7 +180,13 @@ tools can be given to members (`mcp = ["rea"]`). See [configuration](docs/config
 | `agent-team estimate build` | Predicts a run's cost from this project's past runs. |
 | `agent-team projects` | Every project you use agent-team in: spend, runs, what waits for you. |
 | `agent-team scoreboard` | Each builder's approval and first-round rate, average rounds and cost; each reviewer's pushback; cost per merged PR. |
-| `agent-team memory [add TEXT \| forget N]` | The lessons the team learned from its reviews, which every member sees in later work. |
+| `agent-team memory [add TEXT \| forget N \| promote N \| export \| import FILE]` | The lessons the team learned from its reviews, each with a confidence; every member sees them in later work, and one the team keeps relearning can become a project rule. |
+| `agent-team sessions [show N]` | What each build and fix did: task, outcome, rounds, files and cost. The lead's next plan starts from the latest ones. |
+| `agent-team audit [--json] [--agentshield]` | The team's own setup as an attack surface: prompts, skills, agent files, tool servers, permissions and secrets, with a grade. |
+| `agent-team ecc ...` | ECC's agents, skills, commands and rules for the team (see below). |
+| `agent-team templates [apply]` | A starting set of ECC pieces and rules for your language. |
+| `agent-team try` | A one-minute demo in a throwaway folder, no setup needed. |
+| `agent-team mcp [install \| config]` | The team as tools for Claude Code, Codex, Cursor and other coding agents. |
 | `agent-team agents`, `agent-team doctor` | List the team; check every member can be reached. |
 
 `build` takes `--parallel` (split the plan across every builder), `--skip qa,security,docs`,

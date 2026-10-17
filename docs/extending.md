@@ -113,7 +113,8 @@ look inside other software, and a scout only observation tools.
 write the first journeys into `team/behaviour.toml` from `VISION.md`. Edit them like any project
 file, or let `build` add the ones each task needs (the QA member writes them, or the lead). A
 journey is a command line (`run`, typed `input`), a web app (`serve`, `url`, `steps` such as
-`click button "Start"`) or a library's public API (`assembly` for .NET, `package` for JavaScript).
+`click button "Start"`), an Electron app (`app`, steps such as `click css "#save"`) or a library's
+public API (`assembly` for .NET, `package` for JavaScript).
 `agent-team behaviour run` compares your working tree with HEAD right away. See
 [configuration.md](configuration.md#behaviour-and-behaviour-scenarios).
 

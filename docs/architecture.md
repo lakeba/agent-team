@@ -3,6 +3,7 @@
 agent-team has four layers. Each one can grow without changes to the others.
 
 ```
+ coding agents ──► mcp_server (agent-team mcp) ──► jobs ──┐
  .team.toml ──► config.Team ──► workflows (discuss, build, market, setup, ship, fix, autopilot)
  team/behaviour.toml │                  │ find members by role       │ behaviour checks
                    ▼                    ▼                              ▼
@@ -31,6 +32,7 @@ A provider turns `(system prompt, conversation)` into a reply. Built in:
 | `ollama` | Ollama, on this machine or another | Retries while the server restarts. |
 | `openai` | Any OpenAI-compatible `/v1/chat/completions` server | vLLM, LM Studio, llama.cpp, gateways. |
 | `agent-http` | Another machine running `agent-team serve` | That machine keeps its model and credentials; see [remote-agents.md](remote-agents.md). |
+| `replay` | A recorded run (`demo/replay.json`) | No model at all: what `agent-team try` uses when there's no key and no Ollama. |
 
 Providers register themselves by kind (`@register("kind")`), and configuration is validated
 against the registry, so a new kind needs no change anywhere else. Every built-in kind also
@@ -44,7 +46,11 @@ provider-side reasoning valid between turns). Its system prompt comes from a Mar
 for its role, filled with project facts: the roster, the guarantees, the test command and the
 paths it owns. A project can replace any member's prompt with its own file (`prompt = "..."`), or
 add to it with `skills` (`skills.py`): Markdown files or skill folders appended after the role
-prompt, so the workflow's reply formats still hold.
+prompt, so the workflow's reply formats still hold. After those come the project's rules
+(`rules.py`), the lessons the team learned (`memory.py`) and the member's skills. With a skill
+library (`library.py`), a member's first message lists the library skills that match the request,
+and a reply of only `SKILL: name` lines gets them before the real answer. `Agent._compact` keeps a
+long conversation under `[project].history_limit` by dropping old copies of files.
 
 ## 4. Workflows (`workflows/`)
 
@@ -191,3 +197,36 @@ the page's session token and a same-origin request, and are refused if the file 
 - The dashboard's Behaviour tab reads `.team/evidence/` (`/api/behaviour`, screenshots through
   `/api/evidence/<check>/<n>-base|work.png`).
 
+
+- Since 0.10 (not yet released): Electron apps (`kind = "electron"`) run through REA's Electron capture: the windows, the IPC
+  channels and the external effects the app attempted are compared. Browser steps each have a
+  deadline (`step_timeout`) and a failed step is named in the report. Scout sites may have steps.
+
+## Distribution (0.9)
+
+- `mcp_server.py`: `agent-team mcp` answers MCP over stdio. Its tools wrap `cli.status_data`,
+  `readiness`, `jobs` (start, output, list, stop) and the behaviour evidence; approvals aren't
+  offered. ECC's commands are served as MCP prompts when ECC is on the machine. `mcp_install.py`
+  registers the server with Claude Code, Codex or Cursor.
+- `workflows/try_demo.py`: `agent-team try` copies the sample in `demo/tipsplit/` to a temporary
+  folder and runs `build` with Claude, Ollama or the `replay` provider.
+- `packs.py`: templates, one ECC piece per role and the language's rules.
+
+## ECC inside (0.10)
+
+- `ecc.py`: the pinned ECC release (a sparse, shallow clone of agents, skills, commands and rules
+  under `~/.local/share/agent-team/ecc/<tag>`), its catalog and search (rare words count most),
+  copying pieces into the project with ECC's notice, and editing `.team.toml` as text so comments
+  stay.
+- `workflows/playbook.py`: `ecc run` has a member follow an ECC command without changing files,
+  or makes it a build task.
+- `guards.py`: `files.write_files` takes a guard. Config protection holds back changes to existing
+  linter and formatter configs; "facts first" holds back changes to sensitive files until the reply
+  has a `WHY path:` line. Held-back changes are reported like failed edits, and `build` won't
+  approve a round with any.
+- `sessions.py`: a short summary of each build and fix under `.team/sessions/`, written without a
+  model; `build` gives the latest to the lead.
+- `memory.py` keeps a confidence and a count for each lesson (`.team/memory-scores.json`), shows the
+  most confident first, and can promote a lesson to `team/rules/learned.md`.
+- `audit.py`: the team's setup as an attack surface (the team file, instruction files, Claude Code
+  settings, `.mcp.json`, tracked secrets), scored; it runs ECC's AgentShield too when installed.

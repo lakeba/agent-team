@@ -13,6 +13,7 @@ description: An AI dev team for your repository. It plans, builds, reviews, fixe
         keep it safe are enforced in code, not left to the models.</p>
       <div class="ctas">
         <a class="btn primary" href="#start">Get started</a>
+        <a class="btn" href="#try">Try it in a minute</a>
         <a class="btn" href="https://github.com/lakeba/agent-team">View on GitHub</a>
       </div>
       <div class="install" aria-label="Install command">
@@ -21,7 +22,7 @@ description: An AI dev team for your repository. It plans, builds, reviews, fixe
       </div>
       <div class="facts">
         <span class="pill">Claude</span><span class="pill">Ollama</span><span class="pill">OpenAI-compatible</span>
-        <span class="pill">Your other machines</span><span class="pill">Behaviour checks with REA</span><span class="pill">macOS &amp; Linux</span>
+        <span class="pill">Your other machines</span><span class="pill">Behaviour checks with REA</span><span class="pill">ECC inside</span><span class="pill">MCP for any coding agent</span><span class="pill">macOS &amp; Linux</span>
       </div>
     </div>
     <div class="terminal" role="img" aria-label="A build run: the lead plans, the builder implements, tests pass, the lead approves, the PR merges">
@@ -109,7 +110,7 @@ description: An AI dev team for your repository. It plans, builds, reviews, fixe
       <div class="step" role="listitem"><b>Merge</b><span>Only with green CI and every approval</span></div>
       <div class="step" role="listitem"><b>Release</b><span>Automatic, or when you approve it</span></div>
     </div>
-    <div class="loop-note"><span>The team learns: reviewers' lessons go into every later prompt.</span>
+    <div class="loop-note"><span>The team learns: reviewers' lessons go into every later prompt, and the surest become rules.</span>
       <span>·</span><span>A scoreboard shows what each member costs and how often it's approved first time.</span></div>
   </div>
 </section>
@@ -121,11 +122,13 @@ description: An AI dev team for your repository. It plans, builds, reviews, fixe
     <p class="intro">Tests check what their authors thought of. Every build round, <a href="https://rea.tools">REA</a>
       uses the program like a user would, on the version the work started from and with the changes, and the lead
       reviews what a user would notice, with the screens as evidence.</p>
-    <div class="grid g3">
+    <div class="grid g4">
       <div class="card"><div class="kind">terminal</div><h3>Command-line programs</h3>
         <p>The commands run in a real terminal, with typed input. The final screen, the exit code and the files left behind are compared.</p></div>
       <div class="card"><div class="kind">browser</div><h3>Web apps</h3>
-        <p>The app is started and a browser follows plain steps like <code>click button "Start"</code>. The page as a screen reader sees it, errors and a screenshot are compared.</p></div>
+        <p>The app is started and a browser follows plain steps like <code>click button "Start"</code>, each with a deadline. The page as a screen reader sees it, errors and a screenshot are compared.</p></div>
+      <div class="card"><div class="kind">electron · next release</div><h3>Desktop apps</h3>
+        <p>An Electron app is started and clicked through. Its windows, the IPC channels it uses and the external effects it attempts are compared.</p></div>
       <div class="card"><div class="kind">api</div><h3>Libraries</h3>
         <p>The public API of a built .NET assembly or a JavaScript package. A removed or changed member breaks callers, and releases follow it.</p></div>
     </div>
@@ -146,7 +149,34 @@ First difference: screen line 3:
   </div>
 </section>
 
-<section id="rules">
+<section id="ecc">
+  <div class="wrap">
+    <p class="eyebrow">ECC inside</p>
+    <h2 class="title">A whole library of know-how, for every member.</h2>
+    <p class="intro"><a href="https://github.com/affaan-m/ECC">ECC</a> is a large, community-built library for coding agents
+      (MIT licence). agent-team brings every part of it to the team, from a pinned release, copied into your project
+      with its licence so you review it like any other file.</p>
+    <div class="grid g3">
+      <div class="card"><div class="kind">agents</div><h3>Specialists as members</h3>
+        <p>Any of ECC's agents joins as a member (<code>ecc add-member architect</code>) or adds its know-how to one you have.</p></div>
+      <div class="card"><div class="kind">skills</div><h3>Skills on demand</h3>
+        <p>Give a member a skill, or open the whole library: each member sees the skills that match its task and reads only the ones it asks for.</p></div>
+      <div class="card"><div class="kind">commands</div><h3>Playbooks</h3>
+        <p><code>ecc run code-review</code> has a member follow ECC's procedure and report, or make it a build. Coding agents get them as MCP prompts.</p></div>
+      <div class="card"><div class="kind">rules</div><h3>Standards for your language</h3>
+        <p>Common and language rules every member follows. <code>templates apply</code> sets up one piece per role and the rules in one step.</p></div>
+      <div class="card"><div class="kind">hooks &amp; memory</div><h3>Guards and a memory that grows</h3>
+        <p>Checks can't be weakened, sensitive files need the facts first, sessions are summarised, lessons gain confidence.</p></div>
+      <div class="card"><div class="kind">audit</div><h3>The team, audited</h3>
+        <p><code>agent-team audit</code> checks prompts, skills, agent files, tool servers, permissions and secrets, and grades them, like AgentShield.</p></div>
+    </div>
+    <div class="code" style="margin-top:18px"><button class="copy" type="button" data-copy="agent-team templates apply">Copy</button>agent-team ecc skills "rest api"     <span class="c-dim"># search agents, skills, commands, rules</span>
+agent-team templates apply          <span class="c-dim"># one piece per role and the rules, for your language</span>
+agent-team ecc library on           <span class="c-dim"># every ECC skill, read only when needed</span></div>
+  </div>
+</section>
+
+<section class="alt" id="rules">
   <div class="wrap">
     <p class="eyebrow">Guardrails</p>
     <h2 class="title">Rules in code, not in prompts.</h2>
@@ -169,13 +199,19 @@ First difference: screen line 3:
         <p>A release smaller than the public API's changes allow is refused: removing a member needs a major version.</p></div></div>
       <div class="card rule"><div class="icon">⌕</div><div><h3>What ships is checked</h3>
         <p>The security member also reviews the build output: credentials, internal addresses and source maps.</p></div></div>
+      <div class="card rule"><div class="icon">≠</div><div><h3>Checks can't be weakened</h3>
+        <p>A member can't loosen a linter or formatter config to make a check pass; it fixes the code instead.</p></div></div>
+      <div class="card rule"><div class="icon">?</div><div><h3>Facts before sensitive changes</h3>
+        <p>CI, migrations, auth, payment, secrets and deployment files change only after the member says what uses them, what could break and how it's checked.</p></div></div>
+      <div class="card rule"><div class="icon">◇</div><div><h3>The team's own setup, audited</h3>
+        <p>Prompts, skills, agent files, tool servers and permissions are checked for injected instructions, open permissions and secrets.</p></div></div>
       <div class="card rule"><div class="icon">◎</div><div><h3>Observe, never copy</h3>
         <p>Tools that look inside other software never reach the members who write code. The scout only looks from outside.</p></div></div>
     </div>
   </div>
 </section>
 
-<section class="alt" id="models">
+<section id="models">
   <div class="wrap">
     <p class="eyebrow">Any model, any machine</p>
     <h2 class="title">Mix Claude, local models and your own hardware.</h2>
@@ -191,7 +227,7 @@ First difference: screen line 3:
   </div>
 </section>
 
-<section id="dashboard">
+<section class="alt" id="dashboard">
   <div class="wrap">
     <p class="eyebrow">The dashboard</p>
     <h2 class="title">See everything. Change anything. Approve with a click.</h2>
@@ -221,7 +257,7 @@ First difference: screen line 3:
   </div>
 </section>
 
-<section class="alt" id="claude-code">
+<section id="claude-code">
   <div class="wrap">
     <p class="eyebrow">Claude Code, Codex, Cursor</p>
     <h2 class="title">Drive the team from your coding agent.</h2>
@@ -246,12 +282,17 @@ First difference: screen line 3:
   </div>
 </section>
 
-<section id="start">
+<section class="alt" id="start">
   <div class="wrap">
     <p class="eyebrow">Get started</p>
     <h2 class="title">Three commands to a working team.</h2>
     <p class="intro">macOS or Linux with Python 3.11+ and git. GitHub's CLI for the pull-request workflows.
       An Anthropic key only if members use Claude. Node.js 22+ if you want behaviour checks (REA).</p>
+    <div class="card" id="try" style="margin-bottom:18px"><h3>Try it first, in a minute</h3>
+      <p>A two-member team adds a feature to a small sample app in a throwaway folder: plan, code, tests, review.
+        It uses Claude if you have a key, a local Ollama model if you have one, or a recorded run that needs nothing at all.</p>
+      <div class="code"><button class="copy" type="button" data-copy="pipx install agent-team && agent-team try">Copy</button>pipx install agent-team
+agent-team try</div></div>
     <div class="grid g3 steps3">
       <div class="card"><h3>Install</h3><p>The CLI, and the Claude Code plugin if you use it.</p>
         <div class="code"><button class="copy" type="button" data-copy="pipx install agent-team">Copy</button>pipx install agent-team</div>
@@ -270,7 +311,7 @@ agent-team ui</div></div>
   </div>
 </section>
 
-<section class="alt" id="lakeba">
+<section id="lakeba">
   <div class="wrap about">
     <img class="mark" src="{{ '/assets/brand/lakeba-mark.svg' | relative_url }}" alt="Lakeba" width="160" height="160">
     <div>
