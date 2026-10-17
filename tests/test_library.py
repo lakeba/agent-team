@@ -100,7 +100,7 @@ class LibraryTest(unittest.TestCase):
         self.assertIn("API design", library.read(team, ["api-design"]))
 
     def test_unknown_library_entries_are_reported(self):
-        self.assertIn("'ecc'", library.problem(load(with_project('library = ["builtin", "ecc"]'))))
+        self.assertIn("'old-library'", library.problem(load(with_project('library = ["builtin", "old-library"]'))))
         self.assertEqual(library.problem(load(with_project('library = ["builtin"]'))), "")
 
     def test_a_real_answer_isnt_a_request(self):

@@ -1,4 +1,4 @@
-"""Distribution: agent-team as an MCP server, `agent-team try`, and templates with ECC's pieces."""
+"""Distribution: agent-team as an MCP server, `agent-team try`, and templates from the built-in library."""
 import json
 import os
 import tempfile
