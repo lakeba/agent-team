@@ -1,10 +1,10 @@
 """The skill library: skills members read when they need them, instead of on every call.
 
     [project]
-    library = ["ecc", "~/.claude/skills", "team/library"]
+    library = ["builtin", "~/.claude/skills", "team/library"]
 
-"ecc" is ECC's ~300 skills (the pinned release agent-team fetches); any other entry is a folder of
-skill folders (each with a SKILL.md) or of Markdown files. On a member's first message of a run,
+"builtin" is agent-team's own library (its skills and its specialists' know-how); any other entry is
+a folder of skill folders (each with a SKILL.md) or of Markdown files. On a member's first message of a run,
 agent-team lists the library skills that match the task (name and one line each), and the member
 may answer with only lines like
 
@@ -44,13 +44,13 @@ class LibSkill:
 
 
 def _from_folder(folder: Path) -> list[LibSkill]:
-    from .ecc import _describe
+    from .kit import describe
     out = []
     for p in sorted(folder.glob("*/SKILL.md")):
-        out.append(LibSkill(p.parent.name, _describe(p), p))
+        out.append(LibSkill(p.parent.name, describe(p)[1], p))
     for p in sorted(folder.glob("*.md")):
         if p.name not in ("README.md", "NOTICE.md"):
-            out.append(LibSkill(p.stem, _describe(p), p))
+            out.append(LibSkill(p.stem, describe(p)[1], p))
     return out
 
 
@@ -63,10 +63,10 @@ def entries(team: Team) -> list[LibSkill]:
         return _CACHE[key]
     out: list[LibSkill] = []
     for entry in team.project.library:
-        if entry == "ecc":
-            from . import ecc
-            home = ecc.present() or ecc.fetch()
-            out += [LibSkill(e.name, e.description, e.path) for e in ecc.catalog(home, "skills")]
+        if entry == "builtin":
+            from . import kit
+            out += [LibSkill(e.name, e.description, e.path) for kind in ("skills", "agents")
+                    for e in kit.catalog(kind)]
             continue
         p = Path(entry).expanduser()
         p = p if p.is_absolute() else team.root / p
@@ -81,11 +81,24 @@ def entries(team: Team) -> list[LibSkill]:
     return unique
 
 
+def problem(team: Team) -> str:
+    """Library entries that aren't "builtin" or an existing folder ("" when all are fine)."""
+    missing = []
+    for entry in team.project.library:
+        if entry == "builtin":
+            continue
+        p = Path(entry).expanduser()
+        if not (p if p.is_absolute() else team.root / p).is_dir():
+            missing.append(entry)
+    return (f"[project].library: {', '.join(repr(m) for m in missing)} isn't \"builtin\" or a folder"
+            if missing else "")
+
+
 def index(team: Team, request: str) -> str:
     """The library skills that match `request`, as a short list for the first message ("" if none)."""
     if not team.project.library:
         return ""
-    from .ecc import rank
+    from .kit import rank
     # Only the request itself: not the project files that follow it, nor the team's own names.
     ask = re.split(r"\n#+ ", request, maxsplit=1)[0][:1500]
     for name in [*team.agents, "PLAN.md", "ROADMAP.md"]:
@@ -110,7 +123,7 @@ def requested(reply: str) -> list[str]:
 
 
 def read(team: Team, names: list[str]) -> str:
-    from .ecc import front
+    from .kit import front
     by_name = {s.name: s for s in entries(team)}
     parts = []
     for n in names:

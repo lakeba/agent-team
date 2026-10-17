@@ -1,4 +1,4 @@
-"""Session summaries, after ECC's save-session and resume-session: what each run did, kept short.
+"""Session summaries: what each run did, kept short, so the next one starts from it.
 
 At the end of every build and fix, agent-team writes .team/sessions/<when>-<workflow>.md: the task,
 how it ended, the rounds, the files changed, what it cost and the lessons it added. No model is

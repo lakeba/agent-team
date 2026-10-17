@@ -68,6 +68,11 @@ def cmd_doctor(args) -> int:
     if problem:
         failed += 1
         ui.say(f"  [project].rules: FAILED: {problem}")
+    from . import library
+    problem = library.problem(team)
+    if problem:
+        failed += 1
+        ui.say(f"  FAILED: {problem}")
     if team.project.rules or team.project.library:
         ui.say(f"  rules: {len(team.project.rules)} entries; library: {', '.join(team.project.library) or 'off'}")
     found = audit.run(team)
@@ -494,13 +499,13 @@ def cmd_memory(args) -> int:
             raise SystemExit(f"forget takes a lesson number from the list: {e}")
         return 0
     if args.action == "promote":
-        from . import ecc
+        from . import kit
         try:
             text = memory.promote(root, int(args.text))
         except ValueError as e:
             raise SystemExit(f"promote takes a lesson number from the list: {e}")
         path = root / ".team.toml"
-        ecc.save_team_file(root, ecc.add_rule(path.read_text(encoding="utf-8"), memory.LEARNED_RULES))
+        kit.save_team_file(root, kit.add_rule(path.read_text(encoding="utf-8"), memory.LEARNED_RULES))
         ui.say(f"Now a project rule ({memory.LEARNED_RULES}): {text}")
         return 0
     if args.action == "export":
@@ -745,32 +750,33 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--base", default="", help="for run: the commit to compare against (default: HEAD)")
     s.add_argument("--target", default="", help="for run: a commit to check instead of the working tree")
     s.add_argument("--only", default="", help="for run: comma-separated journey names")
-    s = add("templates", cmd_templates, "team templates with ECC's agents and skills for your language: list, show, apply")
+    s = add("templates", cmd_templates, "team templates: reviewers, skills and rules from the library for your language")
     s.add_argument("action", nargs="?", default="list", choices=["list", "show", "apply"])
     s.add_argument("name", nargs="?", default="", help="the template (default: the one that fits the project)")
-    s.add_argument("--ecc", default="", help="use this ECC checkout instead of fetching the pinned release")
     s.add_argument("--yes", action="store_true", help="for apply: don't ask first")
-    s = add("ecc", cmd_ecc, "ECC's agents, skills, commands and rules for the team: browse, add, run")
+    s = add("library", cmd_library, "the built-in library: specialists, skills, playbooks and rules for the team")
     s.add_argument("action", nargs="?", default="status",
-                   choices=["status", "fetch", "agents", "skills", "commands", "rules", "show", "add-skill",
-                            "add-member", "add-rules", "library", "run"])
-    s.add_argument("args", nargs="*", help="a search, a name, languages, or a command and what it's for")
-    s.add_argument("--to", default="", help="add-skill: the member who gets it")
-    s.add_argument("--name", default="", help="add-member: the new member's name")
-    s.add_argument("--role", default="", help="add-member: its role (default reviewer)")
-    s.add_argument("--provider", default="", help="add-member: its provider (default: the lead's)")
-    s.add_argument("--model", default="", help="add-member: its model (default: the lead's)")
-    s.add_argument("--member", default="", help="run: who follows the playbook (default: the lead)")
-    s.add_argument("--build", action="store_true", help="run: make the playbook a build task (changes files)")
-    s.add_argument("--branch", default="", help="run --build: create this branch first")
-    s.add_argument("--pr", action="store_true", help="run --build: open a pull request when approved")
+                   choices=["status", "agents", "skills", "playbooks", "rules", "show", "give", "hire", "add-rules",
+                            "on", "off"])
+    s.add_argument("args", nargs="*", help="a search, a name, or languages")
+    s.add_argument("--to", default="", help="give: the member who gets it")
+    s.add_argument("--name", default="", help="hire: the new member's name")
+    s.add_argument("--role", default="", help="hire: its role (default: the specialist's own)")
+    s.add_argument("--provider", default="", help="hire: its provider (default: the lead's)")
+    s.add_argument("--model", default="", help="hire: its model (default: the lead's)")
     s.add_argument("--limit", type=int, default=0, help="lists: show at most this many")
     s.add_argument("--json", action="store_true", help="lists: as JSON")
-    s.add_argument("--ecc", default="", help="use this ECC checkout instead of the pinned release")
     s.add_argument("--yes", action="store_true", help="don't ask first")
-    s = add("audit", cmd_audit, "check the team's prompts, skills, tool servers, permissions and secrets (like AgentShield)")
+    s = add("playbook", cmd_playbook, "written procedures a member follows: code-review, plan-feature, fix-bug, ...")
+    s.add_argument("action", nargs="?", default="list", choices=["list", "show", "run"])
+    s.add_argument("args", nargs="*", help="the playbook, then what it's for")
+    s.add_argument("--member", default="", help="run: who follows it (default: the lead)")
+    s.add_argument("--report", action="store_true", help="run: report only, change no files")
+    s.add_argument("--build", action="store_true", help="run: make it a build task (changes files)")
+    s.add_argument("--branch", default="", help="run as a build: create this branch first")
+    s.add_argument("--pr", action="store_true", help="run as a build: open a pull request when approved")
+    s = add("audit", cmd_audit, "check the team's prompts, skills, tool servers, permissions and secrets")
     s.add_argument("--json", action="store_true")
-    s.add_argument("--agentshield", action="store_true", help="also run ECC's AgentShield, if installed")
     s = add("sessions", cmd_sessions, "what each build and fix did: task, outcome, files, cost")
     s.add_argument("action", nargs="?", default="list", choices=["list", "show"])
     s.add_argument("number", nargs="?", default="")
@@ -881,7 +887,7 @@ def cmd_templates(args) -> int:
     if args.action == "list":
         for p in packs.PACKS:
             ui.say(f"  {p.name:<11} {p.about}{'   <- fits this project' if p is fit else ''}")
-        ui.say(f"\nApply one: agent-team templates apply {fit.name}   (ECC's pieces, MIT licence, copied into team/skills/ecc/)")
+        ui.say(f"\nApply one: agent-team templates apply {fit.name}   (copies the pieces into team/skills/ and team/rules/)")
         return 0
     name = args.name or fit.name
     if name not in packs.BY_NAME:
@@ -889,9 +895,10 @@ def cmd_templates(args) -> int:
     pack = packs.BY_NAME[name]
     if args.action == "show":
         for role, ref in pack.pieces().items():
-            ui.say(f"  {role:<10} ECC {ref}")
+            ui.say(f"  {role:<10} {ref}")
+        ui.say(f"  {'everyone':<10} rules: common, {', '.join(pack.rules) or '(none for the language)'}; the library on demand")
         return 0
-    return packs.apply(_team(args), pack, args.ecc, args.yes)
+    return packs.apply(_team(args), pack, args.yes)
 
 
 def _confirm(question: str, yes: bool) -> bool:
@@ -903,130 +910,141 @@ def _confirm(question: str, yes: bool) -> bool:
     return input(f"{question} [Y/n] ").strip().lower() in ("", "y", "yes")
 
 
-def cmd_ecc(args) -> int:
-    from . import ecc
+def cmd_library(args) -> int:
+    from . import kit
     words = args.args
     action = args.action
     if action == "status":
-        home = ecc.present()
-        if not home:
-            ui.say(f"ECC {ecc.TAG} isn't on this machine yet. agent-team fetches it (from {ecc.REPO}) the first time "
-                   f"you use it; to do that now: agent-team ecc fetch")
-            return 0
-        counts = {k: len(ecc.catalog(home, k)) for k in ecc.KINDS}
-        ui.say(f"ECC {ecc.TAG} at {home}: " + ", ".join(f"{n} {k}" for k, n in counts.items()) +
-               f", rules for {len(ecc.languages(home))} languages")
+        counts = {k: len(kit.catalog(k)) for k in kit.KINDS}
+        ui.say("The built-in library: " + ", ".join(f"{n} {k}" for k, n in counts.items()) +
+               f" (rules for {len(kit.languages())} languages and common ones)")
+        ui.say("  agent-team library skills testing     search; also agents, playbooks, rules\n"
+               "  agent-team library give NAME --to M   a skill or a specialist's know-how for a member\n"
+               "  agent-team library hire AGENT         a specialist as a new member\n"
+               "  agent-team library add-rules [LANG]   standards every member follows\n"
+               "  agent-team library on                 members read any skill when a task needs it")
         return 0
-    if action == "fetch":
-        ui.say(f"ECC {ecc.TAG}: {ecc.fetch(args.ecc)}")
-        return 0
-    home = ecc.fetch(args.ecc)
-    if action in ecc.KINDS:
-        entries = ecc.catalog(home, action)
+    if action in kit.KINDS:
+        entries = kit.catalog(action)
+        if action == "playbooks":
+            from .workflows import playbook
+            entries = playbook.catalog(Path(args.project).resolve())
         query = " ".join(words)
         if query:
-            entries = ecc.rank(entries, query)
+            entries = kit.rank(entries, query)
         if args.json:
-            print(json.dumps([{"name": e.name, "description": e.description, "ref": e.ref, "chars": e.chars}
+            print(json.dumps([{"name": e.name, "description": e.description, "path": e.ref, "chars": e.chars}
                               for e in entries], indent=1))
             return 0
         for e in entries[: args.limit or None]:
-            ui.say(f"  {e.name:<30} {e.description[:110]}")
-        ui.say(f"\n{len(entries)} {action}" + (f" matching {query!r}" if query else "") + f" (ECC {ecc.TAG}, MIT licence)")
+            ui.say(f"  {e.name:<26} {e.description[:110]}")
+        ui.say(f"\n{len(entries)} {action}" + (f" matching {query!r}" if query else ""))
         return 0
     if action == "show":
         if len(words) != 2:
-            raise SystemExit("show takes a kind and a name, e.g. agent-team ecc show skills api-design")
-        print(ecc.find(home, words[0], words[1]).text())
+            raise SystemExit("show takes a kind and a name, e.g. agent-team library show skills api-design")
+        print(kit.find(words[0], words[1]).text())
         return 0
     team = _team(args)
     root = team.root
     text = (root / config.CONFIG_NAME).read_text(encoding="utf-8")
-    if action == "add-skill":
+    if action == "give":
         if len(words) != 1 or not args.to:
-            raise SystemExit("add-skill takes one skill or agent and --to MEMBER, e.g. "
-                             "agent-team ecc add-skill api-design --to Forge")
-        kind = "agents" if words[0].startswith("agents/") or (not (home / "skills" / words[0]).is_dir()
-                                                              and (home / "agents" / f"{words[0]}.md").exists()) else "skills"
-        entry = ecc.find(home, kind, words[0].split("/", 1)[-1].removesuffix(".md"))
+            raise SystemExit("give takes one skill or agent and --to MEMBER, e.g. "
+                             "agent-team library give api-design --to Forge")
+        name = words[0].split("/", 1)[-1].removesuffix(".md")
+        kind = "skills" if (kit.HOME / "skills" / name).is_dir() else "agents"
+        entry = kit.find(kind, name)
         member = team.get(args.to)
-        ui.say(f"{member.name} gets ECC's {kind[:-1]} {entry.name} ({entry.chars:,} characters, on every call): "
-               f"{entry.description[:120]}")
-        if not _confirm("Add it?", args.yes):
+        ui.say(f"{member.name} gets {entry.name} ({entry.chars:,} characters, on every call): {entry.description[:120]}")
+        if not _confirm("Give it?", args.yes):
             return 0
-        ecc.save_team_file(root, ecc.add_skill(text, member.name, ecc.copy(home, entry.ref, root)))
-        ui.action(f"{member.name} has the skill {entry.name}")
+        kit.save_team_file(root, kit.add_skill(text, member.name, kit.copy(entry.ref, root)))
+        ui.action(f"{member.name} has {entry.name}")
         return 0
-    if action == "add-member":
+    if action == "hire":
         if len(words) != 1:
-            raise SystemExit("add-member takes one ECC agent, e.g. agent-team ecc add-member architect")
-        entry = ecc.find(home, "agents", words[0])
+            raise SystemExit("hire takes one specialist, e.g. agent-team library hire architect")
+        entry = kit.find("agents", words[0])
         name = args.name or entry.name.replace("-", " ").title().replace(" ", "")
         if name in team.agents:
             raise SystemExit(f"there's already a member named {name!r}; choose another with --name")
         like = team.by_role("lead")
         provider, model = args.provider or like.provider, args.model or (like.model if not args.provider else "")
-        role = args.role or "reviewer"
-        ui.say(f"New member {name} ({role}, {provider} {model}) with ECC's {entry.name} agent as its skill: "
-               f"{entry.description[:140]}")
+        role = args.role or entry.meta.get("role") or "reviewer"
+        ui.say(f"New member {name} ({role}, {provider} {model}), the {entry.name}: {entry.description[:140]}")
         if role == "reviewer":
             ui.say("  As a reviewer it joins discussions and signs off the paths it owns (set owns in .team.toml).")
         if not _confirm("Add the member?", args.yes):
             return 0
-        rel = ecc.copy(home, entry.ref, root)
-        ecc.save_team_file(root, ecc.add_member(text, name, role, provider, model, entry.description, rel))
+        rel = kit.copy(entry.ref, root)
+        kit.save_team_file(root, kit.add_member(text, name, role, provider, model, entry.description, rel))
         ui.action(f"{name} joined the team")
         return 0
     if action == "add-rules":
-        langs = words or []
+        langs = words
         if not langs:
             from . import packs
             langs = ["common", *packs.detect(root).rules]
-        known = ecc.languages(home)
+        known = ["common", *kit.languages()]
         bad = [l for l in langs if l not in known]
         if bad:
-            raise SystemExit(f"ECC has no rules for {', '.join(bad)}; it has {', '.join(known)}")
-        refs = [e.ref for e in ecc.catalog(home, "rules") if e.ref.split("/")[1] in langs]
-        size = sum((home / r).stat().st_size for r in refs)
-        ui.say(f"ECC's rules for {', '.join(langs)}: {len(refs)} files, {size:,} characters that every member reads "
-               f"on every call.")
+            raise SystemExit(f"there are no rules for {', '.join(bad)}; there are {', '.join(known)}")
+        refs = [e.ref for e in kit.catalog("rules") if e.ref.split("/")[1] in langs]
+        size = sum((kit.HOME / r).stat().st_size for r in refs)
+        ui.say(f"Rules for {', '.join(langs)}: {len(refs)} files, {size:,} characters that every member reads on every call.")
         if not _confirm("Add them to [project].rules?", args.yes):
             return 0
-        for folder in sorted({str(Path(ecc.copy(home, r, root)).parent) for r in refs}):
-            text = ecc.add_rule(text, folder)
-        ecc.save_team_file(root, text)
-        ui.action(f"rules added: {', '.join(langs)} (in {ecc.RULES_DIR}/)")
+        for folder in sorted({str(Path(kit.copy(r, root)).parent) for r in refs}):
+            text = kit.add_rule(text, folder)
+        kit.save_team_file(root, text)
+        ui.action(f"rules added: {', '.join(langs)} (in {kit.RULES_DIR}/)")
         return 0
-    if action == "library":
-        state = (words or ["on"])[0]
-        if state not in ("on", "off"):
-            raise SystemExit("library takes on or off")
-        change = ecc.add_to_project if state == "on" else ecc.remove_from_project
-        ecc.save_team_file(root, change(text, "library", "ecc"))
-        ui.say(f"The ECC skill library is {state}: " +
-               (f"members can read any of its {len(ecc.catalog(home, 'skills'))} skills when a task needs one."
-                if state == "on" else "members get only the skills listed for them."))
+    if action in ("on", "off"):
+        change = kit.add_to_project if action == "on" else kit.remove_from_project
+        kit.save_team_file(root, change(text, "library", "builtin"))
+        ui.say(f"The library is {action}: " +
+               ("members see the skills that match each task and read the ones they need."
+                if action == "on" else "members get only the skills listed for them."))
         return 0
-    if action == "run":
-        if not words:
-            raise SystemExit("run takes a command, e.g. agent-team ecc run code-review \"the export module\"")
-        from .workflows import playbook
-        if args.build:
-            print_estimate(team, "build")
-        ok = playbook.run(team, words[0], " ".join(words[1:]), args.member, args.build, args.ecc,
-                          **({"branch": args.branch, "open_pr": args.pr} if args.build else {}))
-        return 0 if ok else 2
     raise SystemExit(f"unknown action {action!r}")
+
+
+def cmd_playbook(args) -> int:
+    from . import kit
+    from .workflows import playbook
+    root = Path(args.project).resolve()
+    if args.action == "list":
+        entries = playbook.catalog(root)
+        query = " ".join(args.args)
+        if query:
+            entries = kit.rank(entries, query)
+        for e in entries:
+            ui.say(f"  {e.name:<22} {e.meta.get('mode', 'report'):<7} {e.description[:100]}")
+        ui.say("\nreport: a member reports without changing files; build: a normal build. "
+               "agent-team playbook run NAME \"what for\"")
+        return 0
+    if not args.args:
+        raise SystemExit(f"{args.action} takes a playbook name, e.g. agent-team playbook run code-review \"src/export\"")
+    if args.action == "show":
+        print(playbook.find(args.args[0], root).text())
+        return 0
+    team = _team(args)
+    mode = "build" if args.build else "report" if args.report else ""
+    entry = playbook.find(args.args[0], team.root)
+    if (mode or entry.meta.get("mode")) == "build":
+        print_estimate(team, "build")
+    ok = playbook.run(team, args.args[0], " ".join(args.args[1:]), args.member, mode,
+                      **({"branch": args.branch, "open_pr": args.pr} if (mode or entry.meta.get("mode")) == "build" else {}))
+    return 0 if ok else 2
 
 
 def cmd_audit(args) -> int:
     from . import audit
     team = _team(args)
     result = audit.run(team)
-    shield = audit.agentshield(team.root) if args.agentshield else None
     if args.json:
-        print(json.dumps({**result, **({"agentshield": {"exit": shield[0], "output": shield[1]}} if shield else {})},
-                         indent=1))
+        print(json.dumps(result, indent=1))
         return 0 if result["grade"] in ("A", "B") else 1
     ui.heading(f"Audit: {result['score']}/100, grade {result['grade']} "
                f"({result['files_read']} instruction files read)")
@@ -1037,12 +1055,6 @@ def cmd_audit(args) -> int:
             ui.say(f"             {f['fix']}")
     if not result["findings"]:
         ui.say("  Nothing found.")
-    if args.agentshield:
-        if shield is None:
-            ui.say("\nAgentShield isn't installed. From ECC's official npm package: npm install -g ecc-agentshield")
-        else:
-            ui.heading("AgentShield")
-            ui.say(shield[1])
     return 0 if result["grade"] in ("A", "B") else 1
 
 

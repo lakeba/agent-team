@@ -1,5 +1,5 @@
-"""Everything ECC offers, in agent-team: catalog, library on demand, playbooks, rules, guards,
-sessions, scored lessons, and the audit."""
+"""The built-in library and what goes with it: catalog, library on demand, playbooks, rules,
+guards, quality gates, sessions, scored lessons, and the audit."""
 import json
 import os
 import subprocess
@@ -11,26 +11,9 @@ from unittest import mock
 import helpers
 from helpers import CALLS, SCRIPTS, load, project, quiet
 
-from agent_team import agent, audit, ecc, files, guards, library, mcp_server, memory, rules, sessions
+from agent_team import agent, audit, files, guards, kit, library, mcp_server, memory, quality, rules, sessions
 from agent_team.config import ConfigError
 from agent_team.workflows import build, playbook
-
-
-def fake_ecc() -> Path:
-    home = Path(tempfile.mkdtemp())
-    pieces = {
-        "agents/architect.md": "---\nname: architect\ndescription: System design and architecture decisions\n---\nThink in boundaries.\n",
-        "skills/api-design/SKILL.md": "---\nname: api-design\ndescription: REST API design, status codes, pagination\n---\nUse 404 for missing resources.\n",
-        "skills/python-testing/SKILL.md": "---\nname: python-testing\ndescription: pytest and unittest patterns\n---\nOne behaviour per test.\n",
-        "commands/code-review.md": "---\ndescription: Review the code for bugs and style\n---\nReview $ARGUMENTS carefully.\n",
-        "rules/common/coding-style.md": "# Coding style\nSmall functions.\n",
-        "rules/python/testing.md": "# Python testing\nUse unittest.\n",
-        "LICENSE": "MIT License\nCopyright (c) Affaan Mustafa\n",
-    }
-    for rel, body in pieces.items():
-        (home / rel).parent.mkdir(parents=True, exist_ok=True)
-        (home / rel).write_text(body)
-    return home
 
 
 def with_project(extra: str = "", files_: dict | None = None) -> Path:
@@ -42,31 +25,41 @@ def with_project(extra: str = "", files_: dict | None = None) -> Path:
 
 
 class CatalogTest(unittest.TestCase):
-    def test_catalog_and_rank(self):
-        home = fake_ecc()
-        self.assertEqual([e.name for e in ecc.catalog(home, "skills")], ["api-design", "python-testing"])
-        self.assertEqual([e.name for e in ecc.catalog(home, "rules")], ["common/coding-style", "python/testing"])
-        self.assertEqual(ecc.catalog(home, "commands")[0].description, "Review the code for bugs and style")
-        self.assertEqual(ecc.rank(ecc.catalog(home, "skills"), "design a REST api")[0].name, "api-design")
+    def test_the_library_is_complete_and_well_formed(self):
+        for kind in kit.KINDS:
+            entries = kit.catalog(kind)
+            self.assertGreater(len(entries), 15, kind)
+            for e in entries:
+                self.assertTrue(e.description, f"{kind}/{e.name} has no description")
+                self.assertGreater(len(e.body()), 150, f"{kind}/{e.name} is too short")
+        for e in kit.catalog("playbooks"):
+            self.assertIn(e.meta.get("mode"), ("report", "build"), e.name)
+            self.assertIn("$ARGUMENTS", e.body(), e.name)
+        for e in kit.catalog("agents"):
+            self.assertTrue(e.meta.get("role"), e.name)
+
+    def test_search(self):
+        self.assertEqual(kit.rank(kit.catalog("skills"), "design a REST api")[0].name, "api-design")
+        self.assertEqual(kit.rank(kit.catalog("playbooks"), "review code")[0].name, "code-review")
         with self.assertRaises(SystemExit):
-            ecc.find(home, "skills", "nope")
+            kit.find("skills", "nope")
 
     def test_project_list_edits_keep_the_rest(self):
         text = '[project]\nname = "x"\n# keep me\n\n[[agents]]\nname = "A"\n'
-        out = ecc.add_to_project(ecc.add_to_project(text, "library", "ecc"), "library", "team/lib")
-        self.assertIn('library = ["ecc", "team/lib"]', out)
+        out = kit.add_to_project(kit.add_to_project(text, "library", "builtin"), "library", "team/lib")
+        self.assertIn('library = ["builtin", "team/lib"]', out)
         self.assertIn("# keep me", out)
-        self.assertNotIn("library", ecc.remove_from_project(ecc.remove_from_project(out, "library", "ecc"), "library", "team/lib"))
+        out = kit.remove_from_project(kit.remove_from_project(out, "library", "builtin"), "library", "team/lib")
+        self.assertNotIn("library", out)
 
-    def test_add_member(self):
+    def test_hire_a_specialist(self):
         root = project()
-        home = fake_ecc()
         text = (root / ".team.toml").read_text()
-        rel = ecc.copy(home, "agents/architect.md", root)
-        ecc.save_team_file(root, ecc.add_member(text, "Arch", "reviewer", "fake", "m", "Design", rel))
+        rel = kit.copy("agents/architect.md", root)
+        kit.save_team_file(root, kit.add_member(text, "Arch", "reviewer", "fake", "m", "Design", rel))
         team = load(root)
-        self.assertEqual(team.agents["Arch"].skills, ["team/skills/ecc/agents/architect.md"])
-        self.assertTrue((root / "team/skills/ecc/NOTICE.md").exists())
+        self.assertEqual(team.agents["Arch"].skills, ["team/skills/architect.md"])
+        self.assertIn("boundaries", agent.make(team, team.get("Arch")).system)
 
 
 class RulesTest(unittest.TestCase):
@@ -98,6 +91,17 @@ class LibraryTest(unittest.TestCase):
         self.assertIn("api-design", CALLS[0]["messages"][0]["content"])      # offered in the first message
         self.assertIn("Use 404.", CALLS[1]["messages"][-1]["content"])        # read when asked
         self.assertNotIn("Use 404.", forge.system)                             # never in every prompt
+
+    def test_builtin_library(self):
+        root = with_project('library = ["builtin"]')
+        team = load(root)
+        offer = library.index(team, "Design the REST api for orders with pagination")
+        self.assertIn("api-design", offer)
+        self.assertIn("API design", library.read(team, ["api-design"]))
+
+    def test_unknown_library_entries_are_reported(self):
+        self.assertIn("'ecc'", library.problem(load(with_project('library = ["builtin", "ecc"]'))))
+        self.assertEqual(library.problem(load(with_project('library = ["builtin"]'))), "")
 
     def test_a_real_answer_isnt_a_request(self):
         self.assertEqual(library.requested("SKILL: x\n<file path=\"a\">\n</file>"), [])
@@ -192,24 +196,50 @@ class PlaybookTest(unittest.TestCase):
     def setUp(self):
         helpers.reset()
 
-    def test_runs_read_only(self):
+    def test_report_playbook_changes_nothing(self):
         root = project(files={"app.py": "print(1)\n"})
         SCRIPTS["Atlas"].append('Looks fine.\n<file path="app.py">\nprint(2)\n</file>')
         with quiet():
-            playbook.run(load(root), "code-review", "app.py", source=str(fake_ecc()))
+            playbook.run(load(root), "code-review", "app.py")
         self.assertEqual((root / "app.py").read_text(), "print(1)\n")
-        asked = CALLS[-1]["messages"][0]["content"]
-        self.assertIn("Review app.py carefully.", asked)
+        self.assertIn("Review app.py.", CALLS[-1]["messages"][0]["content"])
         self.assertIn("Don't change any file", CALLS[-1]["system"])
 
+    def test_project_playbook_wins(self):
+        root = project(files={"team/playbooks/code-review.md": "---\nname: code-review\ndescription: Ours\nmode: report\n---\nOur review of $ARGUMENTS.\n"})
+        self.assertEqual(playbook.find("code-review", root).description, "Ours")
+        SCRIPTS["Atlas"].append("ok")
+        with quiet():
+            playbook.run(load(root), "code-review", "x")
+        self.assertIn("Our review of x.", CALLS[-1]["messages"][0]["content"])
+
     def test_mcp_prompts(self):
-        home = fake_ecc()
-        with mock.patch.object(ecc, "present", return_value=home):
-            listed = mcp_server.handle({"jsonrpc": "2.0", "id": 1, "method": "prompts/list"}, Path("."))["result"]
-            got = mcp_server.handle({"jsonrpc": "2.0", "id": 2, "method": "prompts/get",
-                                     "params": {"name": "ecc-code-review", "arguments": {"what": "the parser"}}}, Path("."))
-        self.assertEqual(listed["prompts"][0]["name"], "ecc-code-review")
-        self.assertIn("Review the parser carefully.", got["result"]["messages"][0]["content"]["text"])
+        root = project()
+        listed = mcp_server.handle({"jsonrpc": "2.0", "id": 1, "method": "prompts/list"}, root)["result"]
+        got = mcp_server.handle({"jsonrpc": "2.0", "id": 2, "method": "prompts/get",
+                                 "params": {"name": "code-review", "arguments": {"what": "the parser"}}}, root)
+        self.assertIn("code-review", [p["name"] for p in listed["prompts"]])
+        self.assertIn("Review the parser.", got["result"]["messages"][0]["content"]["text"])
+
+
+class QualityTest(unittest.TestCase):
+    def test_checks_and_leftovers(self):
+        root = with_project('checks = ["false", "true"]', {"src/app.py": "x = 1\n", "tests/test_a.py": "print(1)\n"})
+        subprocess.run(["git", "init", "-q"], cwd=root)
+        subprocess.run(["git", "-c", "user.email=a@b", "-c", "user.name=a", "commit", "-qam", "x", "--allow-empty"], cwd=root)
+        subprocess.run(["git", "add", "-A"], cwd=root)
+        subprocess.run(["git", "-c", "user.email=a@b", "-c", "user.name=a", "commit", "-qm", "base"], cwd=root)
+        base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True).stdout.strip()
+        (root / "src/app.py").write_text("x = 1\nprint(x)\nbreakpoint()\n")
+        (root / "web.js").write_text("console.log('hi')\n")
+        (root / "tests/test_a.py").write_text("print(1)\nprint(2)\n")
+        out = quality.report(load(root), base)
+        self.assertIn("Check `false`: FAILED", out)
+        self.assertIn("Check `true`: passed", out)
+        self.assertIn("src/app.py:2: print()", out)
+        self.assertIn("src/app.py:3: a breakpoint", out)
+        self.assertIn("web.js:1: console.log", out)
+        self.assertNotIn("tests/test_a.py", out)
 
 
 class AuditTest(unittest.TestCase):

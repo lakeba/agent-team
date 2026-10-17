@@ -12,7 +12,7 @@ waiting. `fix` closes that loop:
 from __future__ import annotations
 
 
-from .. import agent, context, files, github, guards, logs, memory, review_tools, routing, sessions, ui
+from .. import agent, context, files, github, guards, logs, memory, quality, review_tools, routing, sessions, ui
 from ..config import Team
 from .build import run_tests
 
@@ -103,7 +103,7 @@ def run(team: Team, number: int, rounds: int = 2, lead: str = "", builder: str =
             focus.add(written)
             focus.add_from_reply(reply)
             log.record(f"{builder_cfg.name}: fix {rnd}", reply, written)
-            tests = run_tests(team)
+            tests = run_tests(team) + quality.report(team, "HEAD")
             if tests:
                 ui.say(tests)
                 log.record(f"Tests: fix {rnd}", tests)

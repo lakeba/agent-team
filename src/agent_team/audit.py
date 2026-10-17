@@ -1,4 +1,4 @@
-"""`agent-team audit`: the team's own setup as an attack surface, after ECC's AgentShield.
+"""`agent-team audit`: the team's own setup as an attack surface.
 
 The prompts, skills, rules, tool servers, permissions and agent files a team works from are
 instructions to models, so a poisoned skill or an over-broad permission matters as much as a bug.
@@ -14,14 +14,12 @@ This looks at:
     that reach the network, secrets in server environments
   - files git tracks that look like keys or hold credentials
 
-Each finding has a severity; the result is a score out of 100 and a grade. With ECC's AgentShield
-installed (npm `ecc-agentshield`, from ECC's official channels), `--agentshield` runs it as well.
+Each finding has a severity; the result is a score out of 100 and a grade.
 """
 from __future__ import annotations
 
 import json
 import re
-import shutil
 import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -247,12 +245,3 @@ def run(team: Team) -> dict:
     return {"score": score, "grade": grade, "files_read": len(files),
             "counts": {s: sum(f.severity == s for f in findings) for s in ORDER},
             "findings": [asdict(f) for f in findings]}
-
-
-def agentshield(root: Path) -> tuple[int, str] | None:
-    """ECC's AgentShield, if it's installed: (exit code, output)."""
-    exe = shutil.which("agentshield")
-    if not exe:
-        return None
-    r = subprocess.run([exe, "scan", "--path", str(root)], capture_output=True, text=True, timeout=600)
-    return r.returncode, (r.stdout + r.stderr).strip()

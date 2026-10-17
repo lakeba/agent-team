@@ -206,20 +206,21 @@ the page's session token and a same-origin request, and are refused if the file 
 
 - `mcp_server.py`: `agent-team mcp` answers MCP over stdio. Its tools wrap `cli.status_data`,
   `readiness`, `jobs` (start, output, list, stop) and the behaviour evidence; approvals aren't
-  offered. ECC's commands are served as MCP prompts when ECC is on the machine. `mcp_install.py`
+  offered. Playbooks are served as MCP prompts. `mcp_install.py`
   registers the server with Claude Code, Codex or Cursor.
 - `workflows/try_demo.py`: `agent-team try` copies the sample in `demo/tipsplit/` to a temporary
   folder and runs `build` with Claude, Ollama or the `replay` provider.
-- `packs.py`: templates, one ECC piece per role and the language's rules.
+- `packs.py`: templates, one library piece per role and the language's rules.
 
-## ECC inside (0.10)
+## The library and its guards (0.10, 0.12)
 
-- `ecc.py`: the pinned ECC release (a sparse, shallow clone of agents, skills, commands and rules
-  under `~/.local/share/agent-team/ecc/<tag>`), its catalog and search (rare words count most),
-  copying pieces into the project with ECC's notice, and editing `.team.toml` as text so comments
-  stay.
-- `workflows/playbook.py`: `ecc run` has a member follow an ECC command without changing files,
-  or makes it a build task.
+- `kit.py` and `builtin/`: agent-team's own library of specialists, skills, playbooks and rules,
+  shipped in the package. `kit.py` reads it (front matter: name, description, role, mode), searches
+  it (rare words count most), copies pieces into the project, and edits `.team.toml` as text so
+  comments stay.
+- `workflows/playbook.py`: built-in playbooks plus the project's `team/playbooks/`; `report` ones run
+  read-only with one member, `build` ones become a build task.
+- `quality.py`: `[project].checks` every round, and debug leftovers in the lines a round added.
 - `guards.py`: `files.write_files` takes a guard. Config protection holds back changes to existing
   linter and formatter configs; "facts first" holds back changes to sensitive files until the reply
   has a `WHY path:` line. Held-back changes are reported like failed edits, and `build` won't
@@ -229,4 +230,4 @@ the page's session token and a same-origin request, and are refused if the file 
 - `memory.py` keeps a confidence and a count for each lesson (`.team/memory-scores.json`), shows the
   most confident first, and can promote a lesson to `team/rules/learned.md`.
 - `audit.py`: the team's setup as an attack surface (the team file, instruction files, Claude Code
-  settings, `.mcp.json`, tracked secrets), scored; it runs ECC's AgentShield too when installed.
+  settings, `.mcp.json`, tracked secrets), scored and graded.

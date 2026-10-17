@@ -183,7 +183,7 @@ def clean(data: dict) -> dict:
         project["guarantees"] = [g.strip() for g in project["guarantees"] if isinstance(g, str) and g.strip()]
     if isinstance(project.get("require_approval"), list):
         project["require_approval"] = [g.strip() for g in project["require_approval"] if isinstance(g, str) and g.strip()]
-    for k in ("rules", "library"):
+    for k in ("checks", "rules", "library"):
         if isinstance(project.get(k), list):
             project[k] = [g.strip() for g in project[k] if isinstance(g, str) and g.strip()]
     if isinstance(project.get("context_skip"), list):

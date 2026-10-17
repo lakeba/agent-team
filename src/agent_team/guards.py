@@ -1,4 +1,4 @@
-"""Guards on what members write, after ECC's config-protection and GateGuard hooks.
+"""Guards on what members write: checks can't be weakened, and sensitive files need the facts first.
 
 Config protection (`[project].protect_config`, on by default): a member may not change an existing
 linter or formatter config (ESLint, Prettier, Ruff, Stylelint, Biome, markdownlint, ...). Agents

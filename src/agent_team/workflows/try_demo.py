@@ -137,7 +137,7 @@ def run(wanted: str = "auto", keep: bool = False, folder: Path | None = None) ->
     ui.say("\nNext, in your own project:\n"
            "  agent-team init                 # a few questions, then your team file\n"
            "  agent-team mcp install          # use the team from Claude Code, Codex or Cursor\n"
-           "  agent-team templates            # roles and skills for your language (with ECC's)")
+           "  agent-team templates            # reviewers, skills and rules for your language")
     if keep or folder:
         ui.say(f"\nThe sample stays in {root}.")
     else:

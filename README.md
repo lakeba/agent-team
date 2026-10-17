@@ -182,9 +182,10 @@ tools can be given to members (`mcp = ["rea"]`). See [configuration](docs/config
 | `agent-team scoreboard` | Each builder's approval and first-round rate, average rounds and cost; each reviewer's pushback; cost per merged PR. |
 | `agent-team memory [add TEXT \| forget N \| promote N \| export \| import FILE]` | The lessons the team learned from its reviews, each with a confidence; every member sees them in later work, and one the team keeps relearning can become a project rule. |
 | `agent-team sessions [show N]` | What each build and fix did: task, outcome, rounds, files and cost. The lead's next plan starts from the latest ones. |
-| `agent-team audit [--json] [--agentshield]` | The team's own setup as an attack surface: prompts, skills, agent files, tool servers, permissions and secrets, with a grade. |
-| `agent-team ecc ...` | ECC's agents, skills, commands and rules for the team (see below). |
-| `agent-team templates [apply]` | A starting set of ECC pieces and rules for your language. |
+| `agent-team audit [--json]` | The team's own setup as an attack surface: prompts, skills, agent files, tool servers, permissions and secrets, with a grade. |
+| `agent-team library ...` | The built-in specialists, skills, playbooks and rules (see below). |
+| `agent-team playbook [list \| run NAME "what for"]` | A written procedure a member follows: code review, feature plan, bug fix, security review, ... |
+| `agent-team templates [apply]` | A starting set of the library for your language. |
 | `agent-team try` | A one-minute demo in a throwaway folder, no setup needed. |
 | `agent-team mcp [install \| config]` | The team as tools for Claude Code, Codex, Cursor and other coding agents. |
 | `agent-team agents`, `agent-team doctor` | List the team; check every member can be reached. |
@@ -192,33 +193,36 @@ tools can be given to members (`mcp = ["rea"]`). See [configuration](docs/config
 `build` takes `--parallel` (split the plan across every builder), `--skip qa,security,docs`,
 `--rounds`, `--builder` and `--lead`. Every command takes `-C <project>`; `--help` lists the rest.
 
-### Everything in ECC, for the team
+### The built-in library
 
-[ECC](https://github.com/affaan-m/ECC) is a large, MIT-licensed library for coding agents. agent-team
-uses a pinned ECC release (fetched once, only what it needs) and maps each part onto the team:
+agent-team ships with its own library, so a team can start with know-how instead of a blank page:
 
-| ECC | In agent-team |
-|---|---|
-| 68 agents | `agent-team ecc add-member architect` (a new member) or `ecc add-skill NAME --to MEMBER` |
-| 293 skills | `ecc add-skill NAME --to MEMBER`, or the whole library on demand: `ecc library on` |
-| 94 commands | playbooks: `ecc run code-review "the export module"` (read-only report), `--build` to make it a task; also MCP prompts for coding agents |
-| Rules | `ecc add-rules` (common and your language): standards every member follows |
-| Hooks and memory | config protection and "facts first" guards on every change, session summaries (`agent-team sessions`), lessons with confidence (`memory promote`, `export`, `import`), long conversations trimmed |
-| AgentShield | `agent-team audit`: prompts, skills, tool servers, permissions and secrets, graded; `--agentshield` runs ECC's own scanner too |
+| | What's in it | How the team uses it |
+|---|---|---|
+| Specialists | 26: architect, planner, security, performance, accessibility, database, API, test strategy, refactoring, build fixing, docs, releases, dependencies, UX, incidents, and a reviewer for each of nine languages | `agent-team library hire architect` adds one as a member; `library give security-reviewer --to Sentinel` gives its know-how to a member you have |
+| Skills | 46: test-first development, API design, migrations, error handling, observability, security, performance, accessibility, CI, containers, caching, concurrency, debugging, and patterns and testing for nine languages | given to a member, or the whole library on demand (`library on`): each member sees the skills that match its task and reads only the ones it asks for |
+| Playbooks | 21: code-review, plan-feature, tdd, fix-bug, fix-build, refactor, test-coverage, security-review, api-review, architecture-review, release-check, changelog, postmortem, ... | `agent-team playbook run code-review "src/export"`: a member follows it and reports, or (for build playbooks) the team does it as a build; also MCP prompts for coding agents |
+| Rules | common rules and rules for 12 languages | `library add-rules` (common and your language): standards every member follows on every call |
 
 ```bash
-agent-team ecc skills "rest api"        # search ECC (agents, skills, commands, rules)
-agent-team templates apply              # one piece per role, plus rules, for your language
-agent-team ecc library on               # members read any ECC skill when a task needs it
+agent-team templates apply              # for your language: a reviewer, skills, rules, the library on
+agent-team library skills testing       # search; also agents, playbooks, rules
+agent-team playbook list                # the procedures a member can follow
 ```
 
 **Templates.** `agent-team templates` lists ten (python, react, typescript, dotnet, go, rust, kotlin,
-java, swift, general); `apply` gives the lead ECC's reviewer for the language, the builders its
-patterns skill, QA its testing skill, the security, docs and marketing members ECC's agents for
-those jobs, and everyone the language's rules. Everything is copied into `team/skills/ecc/` and
-`team/rules/ecc/` with ECC's licence (`NOTICE.md`) and named in `.team.toml`, so you review and
-commit it like any other file. Skills and rules go with every call, so each command shows how many
-characters it adds first; the library costs nothing until a member asks for a skill.
+java, swift, general). `apply` gives the lead the language's reviewer, the builders its patterns
+skill, QA its testing skill, the security member the security reviewer and the docs member the docs
+writer; adds the common and language rules; turns the library on; and adds the project's own lint
+and type checks when it has them. Pieces are copied into `team/skills/` and `team/rules/` and named
+in `.team.toml`, so you review, edit and commit them like any other file. Skills and rules go with
+every call, so each command shows how many characters it adds first; the library costs nothing until
+a member asks for a skill. Your own playbooks go in `team/playbooks/`, your own skills in any folder
+listed in `[project].library`.
+
+**Quality gates.** `[project].checks` (for example `["ruff check .", "mypy ."]`) run every round
+after the tests, and the lead reviews with their results. Each round's new lines are also read for
+debug leftovers (`print`, `console.log`, `debugger`, breakpoints, focused or skipped tests).
 
 **Guards.** Members can't weaken an existing linter or formatter config to make a check pass (unless
 the task names the file), and a change to a sensitive file (CI, migrations, authentication, payment,

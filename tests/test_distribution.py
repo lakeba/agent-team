@@ -10,7 +10,7 @@ from unittest import mock
 import helpers
 from helpers import load, project, quiet
 
-from agent_team import ecc, mcp_install, mcp_server, packs
+from agent_team import kit, mcp_install, mcp_server, packs
 
 
 class McpServerTest(unittest.TestCase):
@@ -81,19 +81,6 @@ class TryTest(unittest.TestCase):
         self.assertIn("--round", (folder / "src" / "tipsplit" / "cli.py").read_text())
 
 
-def fake_ecc() -> Path:
-    ecc = Path(tempfile.mkdtemp())
-    for rel in ("agents/python-reviewer.md", "agents/security-reviewer.md", "agents/code-reviewer.md",
-                "agents/tdd-guide.md", "agents/marketing-agent.md"):
-        (ecc / rel).parent.mkdir(parents=True, exist_ok=True)
-        (ecc / rel).write_text(f"---\nname: {Path(rel).stem}\n---\nReview carefully.\n")
-    for name in ("python-patterns", "python-testing", "verification-loop"):
-        (ecc / "skills" / name).mkdir(parents=True)
-        (ecc / "skills" / name / "SKILL.md").write_text(f"---\nname: {name}\n---\nWrite good code.\n")
-    (ecc / "LICENSE").write_text("MIT License\nCopyright (c) Affaan Mustafa\n")
-    return ecc
-
-
 class TemplatesTest(unittest.TestCase):
     def test_detect(self):
         self.assertEqual(packs.detect(project(files={"pyproject.toml": ""})).name, "python")
@@ -102,35 +89,34 @@ class TemplatesTest(unittest.TestCase):
         self.assertEqual(packs.detect(project(files={"App/App.csproj": ""})).name, "dotnet")
         self.assertEqual(packs.detect(project()).name, "general")
 
-    def test_every_pack_names_real_kinds_of_piece(self):
+    def test_every_template_names_pieces_that_exist(self):
         for p in packs.PACKS:
             for ref in p.pieces().values():
-                self.assertTrue(ref.startswith(("agents/", "skills/")) and (ref.endswith(".md") == ref.startswith("agents/")), ref)
+                self.assertTrue((kit.HOME / ref).exists(), f"{p.name}: {ref}")
+            for folder in p.rules:
+                self.assertTrue((kit.HOME / "rules" / folder).is_dir(), f"{p.name}: rules/{folder}")
 
-    def test_apply_copies_pieces_and_lists_them(self):
+    def test_apply_copies_pieces_rules_and_turns_the_library_on(self):
         root = project(files={"pyproject.toml": ""})
         (root / ".team.toml").write_text((root / ".team.toml").read_text() + "\n# kept\n")
         with quiet():
-            self.assertEqual(packs.apply(load(root), packs.BY_NAME["python"], str(fake_ecc()), yes=True), 0)
+            self.assertEqual(packs.apply(load(root), packs.BY_NAME["python"], yes=True), 0)
         team = load(root)
-        self.assertEqual([str(s) for s in team.agents["Atlas"].skills], ["team/skills/ecc/agents/python-reviewer.md"])
-        self.assertEqual([str(s) for s in team.agents["Forge"].skills], ["team/skills/ecc/skills/python-patterns"])
-        self.assertTrue((root / "team/skills/ecc/skills/python-patterns/SKILL.md").exists())
-        self.assertIn("MIT License", (root / "team/skills/ecc/NOTICE.md").read_text())
+        self.assertEqual(team.agents["Atlas"].skills, ["team/skills/python-reviewer.md"])
+        self.assertEqual(team.agents["Forge"].skills, ["team/skills/python-patterns"])
+        self.assertTrue((root / "team/skills/python-patterns/SKILL.md").exists())
+        self.assertEqual(team.project.rules, ["team/rules/common", "team/rules/python"])
+        self.assertEqual(team.project.library, ["builtin"])
         self.assertIn("# kept", (root / ".team.toml").read_text())
         with quiet():   # applying twice changes nothing
-            packs.apply(load(root), packs.BY_NAME["python"], str(fake_ecc()), yes=True)
+            packs.apply(load(root), packs.BY_NAME["python"], yes=True)
         self.assertEqual(len(load(root).agents["Atlas"].skills), 1)
 
     def test_add_skill_extends_an_existing_list(self):
         text = '[[agents]]\nname = "Forge"\nrole = "builder"\nskills = ["a.md"]\n\n[[agents]]\nname = "Atlas"\n'
-        out = packs.add_skill(text, "Forge", "b.md")
+        out = kit.add_skill(text, "Forge", "b.md")
         self.assertIn('skills = ["a.md", "b.md"]', out)
         self.assertTrue(out.endswith('name = "Atlas"\n'))
-
-    def test_not_an_ecc_checkout(self):
-        with self.assertRaises(SystemExit):
-            ecc.fetch(tempfile.mkdtemp())
 
 
 if __name__ == "__main__":

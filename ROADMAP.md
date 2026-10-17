@@ -18,9 +18,11 @@
 ## Done
 
 - 0.11: behaviour checks for Electron apps, steps for scout sites, a deadline for each browser step.
-- 0.10: everything ECC offers for the team: its agents, skills (on demand), commands as playbooks
-  and rules; guards after its hooks; session summaries; lessons with confidence; `agent-team audit`.
-- 0.9: `agent-team mcp` for any coding agent, `agent-team try`, ECC templates.
+- 0.12: agent-team's own library (26 specialists, 46 skills, 21 playbooks, rules for 12 languages),
+  `agent-team library` and `agent-team playbook`, quality gates (`[project].checks`, debug leftovers).
+- 0.10: skills on demand, playbooks, project rules, guards on sensitive changes, session summaries,
+  lessons with confidence, `agent-team audit`.
+- 0.9: `agent-team mcp` for any coding agent, `agent-team try`, team templates.
 - 0.8: REA, deeper: zero setup, team-written journeys, browser and API checks, evidence,
   release checks, outside-in security, the scout.
 - 0.7: MCP tool servers for members, REA behaviour checks in reviews.

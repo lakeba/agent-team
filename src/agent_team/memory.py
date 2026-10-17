@@ -6,7 +6,7 @@ before the changelog names it"), it adds a line `LESSON: <rule>`. Those lines ar
 them in its instructions, so the same mistake doesn't cost another review round. People can
 add or forget lessons with `agent-team memory`.
 
-Like ECC's instincts, each lesson has a confidence: 0.5 when a reviewer first states it, 0.9 when
+Each lesson has a confidence: 0.5 when a reviewer first states it, 0.9 when
 a person adds it, and higher each time a review states it again. Members see the most confident
 first. A lesson the team keeps relearning can be promoted to a project rule (`memory promote N`,
 into team/rules/learned.md), and lessons move between projects with `memory export` / `import`.

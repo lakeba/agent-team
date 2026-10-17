@@ -27,29 +27,41 @@ Markdown files (or skill folders with a `SKILL.md`) to its prompt, on top of its
 checklists, conventions and domain knowledge one member needs; see
 [configuration.md](configuration.md#skills).
 
-### Start from a template, or take pieces from ECC
+### Start from a template, or take pieces from the library
 
-`agent-team templates apply` gives each member the [ECC](https://github.com/affaan-m/ECC) agent or
-skill that fits its role and the project's language, and everyone the language's rules. To pick
-pieces yourself:
+`agent-team templates apply` gives each member the built-in reviewer or skill that fits its role and
+the project's language, everyone the language's rules, and turns on the library. To pick pieces
+yourself:
 
 ```bash
-agent-team ecc skills testing                 # search; also: agents, commands, rules
-agent-team ecc add-skill python-testing --to Probe
-agent-team ecc add-member architect --role reviewer
-agent-team ecc add-rules python               # common + python by default: the project's language
-agent-team ecc library on                     # every ECC skill, read only when a task needs it
+agent-team library skills testing             # search; also: agents, playbooks, rules
+agent-team library give python-testing --to Probe
+agent-team library hire architect             # a specialist as a new member (its own role by default)
+agent-team library add-rules python           # common + python by default: the project's language
+agent-team library on                         # every built-in skill, read only when a task needs it
 ```
 
-Pieces are copied into `team/skills/ecc/` and `team/rules/ecc/` with ECC's MIT licence; edit or drop
-them like any other file. `--ecc PATH` uses an ECC checkout you already have instead of the pinned
-release.
+Pieces are copied into `team/skills/` and `team/rules/`; edit or drop them like any other file. To add
+your own skills to the on-demand library, put skill folders (each with a `SKILL.md`) or Markdown files
+in a folder and list it in `[project].library`, e.g. `["builtin", "team/library", "~/.claude/skills"]`.
 
-### Run a playbook
+### Run a playbook, or write your own
 
-ECC's commands are written procedures. `agent-team ecc run NAME "what for"` has the lead (or
-`--member`) follow one on the project and report, without changing files; `--build` (with `--branch`
-and `--pr`) makes it a build task instead. Coding agents see the same commands as MCP prompts.
+A playbook is a written procedure. `agent-team playbook run NAME "what for"` has the lead (or
+`--member`) follow it: `report` playbooks report without changing files, `build` playbooks become a
+build (`--branch`, `--pr`); `--report` and `--build` override. Write your own in `team/playbooks/NAME.md`:
+
+```markdown
+---
+name: release-notes
+description: Draft release notes for the marketing site
+mode: report
+---
+Draft release notes for $ARGUMENTS from the changelog, for customers, in our voice.
+```
+
+A project playbook with the same name as a built-in one replaces it. Coding agents connected with
+`agent-team mcp` see every playbook as an MCP prompt.
 
 ## Add a role (no code)
 

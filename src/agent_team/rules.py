@@ -1,12 +1,12 @@
 """Project rules: standards every member follows on every call.
 
     [project]
-    rules = ["team/rules/ecc/common", "team/rules/ecc/python", "team/rules/house-style.md"]
+    rules = ["team/rules/common", "team/rules/python", "team/rules/house-style.md"]
 
 Each entry is a Markdown file or a folder of them (relative to the project; `~` is the home
 folder). They go into every member's instructions after its role prompt, so keep them short:
 skills are for one member, the library (`[project].library`) for knowledge read on demand.
-`agent-team ecc rules LANG` copies ECC's rules for a language into team/rules/ecc/.
+`agent-team library add-rules LANG` copies the built-in rules for a language into team/rules/.
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def files(team: Team) -> list[Path]:
 def render(team: Team) -> str:
     if not team.project.rules:
         return ""
-    from .ecc import front
+    from .kit import front
     parts, total = [HEADER], 0
     for path in files(team):
         body = front(path.read_text(encoding="utf-8"))[1].strip()

@@ -6,6 +6,33 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- agent-team's own library, shipped in the package: 26 specialists (architect, planner, security,
+  performance, accessibility, database, API, test strategy, refactoring, build fixing, docs,
+  releases, dependencies, UX, data, incidents, and a reviewer for nine languages), 46 skills, 21
+  playbooks and rules (common and 12 languages). Nothing is downloaded.
+- `agent-team library`: search the library; `give` a skill or a specialist's know-how to a member,
+  `hire` a specialist as a member, `add-rules`, `on`/`off` for skills on demand (`library = ["builtin"]`).
+- `agent-team playbook list|show|run`: `report` playbooks run read-only with one member, `build`
+  playbooks become a build; a project's own playbooks go in `team/playbooks/`. The MCP server offers
+  every playbook as a prompt.
+- Quality gates: `[project].checks` (linters, type checkers) run every build and fix round with the
+  tests, and debug leftovers in a round's new lines (`print`, `console.log`, `debugger`,
+  breakpoints, focused or skipped tests) are listed for the lead. Templates add the project's own
+  checks when its tools are configured.
+
+### Changed
+
+- Templates, skills on demand, playbooks and rules use the built-in library instead of a third-party
+  one: `agent-team ecc` is replaced by `agent-team library` and `agent-team playbook`, and pieces are
+  copied to `team/skills/` and `team/rules/`. Projects that list `"ecc"` in `[project].library`
+  should use `"builtin"`; files already copied stay where they are.
+
+### Removed
+
+- `agent-team ecc`, `templates --ecc` and `audit --agentshield`.
+
 ## [0.11.0] - 2026-10-17
 
 ### Added

@@ -17,7 +17,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
-from .. import agent, behaviour, context, files, github, guards, memory, review_tools, routing, sessions, ui
+from .. import agent, behaviour, context, files, github, guards, memory, quality, review_tools, routing, sessions, ui
 from ..config import AgentConfig, Team
 
 TEST_PREFIXES = ("tests/", "test/", "spec/", "__tests__/", "test_")
@@ -164,7 +164,7 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
             focus.add_from_reply(reply)
             round_written += written
             log.record(f"{part.builder.name}: round {rnd}", reply, written)
-        tests = run_tests(team)
+        tests = run_tests(team) + quality.report(team, base)
         if tests:
             ui.say(tests)
             log.record(f"Tests: round {rnd}", tests)

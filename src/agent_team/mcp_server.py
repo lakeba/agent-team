@@ -11,8 +11,8 @@ Runs go through the same background jobs as the dashboard (.team/jobs/), with th
 limits, shift lock and guardrails. What stays with you: approving pull requests and releases.
 Those tools aren't offered, so no agent can approve on your behalf.
 
-With ECC fetched (`agent-team ecc fetch`), its commands are offered as MCP prompts too, so an
-agent's own prompt menu lists ECC's playbooks (code-review, plan, tdd, ...).
+The built-in playbooks are offered as MCP prompts too, so an agent's own prompt menu lists them
+(code-review, plan-feature, fix-bug, ...).
 """
 from __future__ import annotations
 
@@ -147,11 +147,14 @@ def call(name: str, args: dict, default: Path) -> dict:
     raise ToolError(f"no tool named {name!r}")
 
 
-def _commands() -> list:
-    """ECC's commands, when the pinned release is on this machine (the server never fetches it)."""
-    from . import ecc
-    home = ecc.present()
-    return ecc.catalog(home, "commands") if home else []
+def _playbooks(default: Path) -> list:
+    """The built-in playbooks, and the project's own when the server runs in one."""
+    from .workflows import playbook
+    try:
+        root = _root({}, default)
+    except ToolError:
+        root = None
+    return playbook.catalog(root)
 
 
 def handle(message: dict, default: Path) -> dict | None:
@@ -167,13 +170,13 @@ def handle(message: dict, default: Path) -> dict | None:
     elif method == "tools/list":
         result = {"tools": TOOLS}
     elif method == "prompts/list":
-        result = {"prompts": [{"name": f"ecc-{e.name}", "description": e.description[:300],
+        result = {"prompts": [{"name": e.name, "description": e.description[:300],
                                "arguments": [{"name": "what", "description": "what it's for this time", "required": False}]}
-                              for e in _commands()]}
+                              for e in _playbooks(default)]}
     elif method == "prompts/get":
         params = message.get("params") or {}
-        name = str(params.get("name", "")).removeprefix("ecc-")
-        found = next((e for e in _commands() if e.name == name), None)
+        name = str(params.get("name", ""))
+        found = next((e for e in _playbooks(default) if e.name == name), None)
         if not found:
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": f"no prompt named {name!r}"}}
         from .workflows.playbook import text

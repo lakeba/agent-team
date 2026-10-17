@@ -43,4 +43,5 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 agent_team = ["prompts/*.md", "dashboard/static/*", "demo/*.json", "demo/tipsplit/*.md", "demo/tipsplit/*.toml",
-              "demo/tipsplit/src/tipsplit/*.py", "demo/tipsplit/tests/*.py"]
+              "demo/tipsplit/src/tipsplit/*.py", "demo/tipsplit/tests/*.py", "builtin/agents/*.md",
+              "builtin/playbooks/*.md", "builtin/rules/*/*.md", "builtin/skills/*/SKILL.md"]

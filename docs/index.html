@@ -22,7 +22,7 @@ description: An AI dev team for your repository. It plans, builds, reviews, fixe
       </div>
       <div class="facts">
         <span class="pill">Claude</span><span class="pill">Ollama</span><span class="pill">OpenAI-compatible</span>
-        <span class="pill">Your other machines</span><span class="pill">Behaviour checks with REA</span><span class="pill">ECC inside</span><span class="pill">MCP for any coding agent</span><span class="pill">macOS &amp; Linux</span>
+        <span class="pill">Your other machines</span><span class="pill">Behaviour checks with REA</span><span class="pill">Built-in specialists &amp; playbooks</span><span class="pill">MCP for any coding agent</span><span class="pill">macOS &amp; Linux</span>
       </div>
     </div>
     <div class="terminal" role="img" aria-label="A build run: the lead plans, the builder implements, tests pass, the lead approves, the PR merges">
@@ -149,30 +149,33 @@ First difference: screen line 3:
   </div>
 </section>
 
-<section id="ecc">
+<section id="library">
   <div class="wrap">
-    <p class="eyebrow">ECC inside</p>
-    <h2 class="title">A whole library of know-how, for every member.</h2>
-    <p class="intro"><a href="https://github.com/affaan-m/ECC">ECC</a> is a large, community-built library for coding agents
-      (MIT licence). agent-team brings every part of it to the team, from a pinned release, copied into your project
-      with its licence so you review it like any other file.</p>
+    <p class="eyebrow">The built-in library</p>
+    <h2 class="title">Know-how for every member, from day one.</h2>
+    <p class="intro">agent-team ships with its own library of specialists, skills, playbooks and rules. A template sets up
+      the right pieces for your language in one step; everything is copied into your project, so you read, edit and
+      commit it like any other file.</p>
     <div class="grid g3">
-      <div class="card"><div class="kind">agents</div><h3>Specialists as members</h3>
-        <p>Any of ECC's agents joins as a member (<code>ecc add-member architect</code>) or adds its know-how to one you have.</p></div>
-      <div class="card"><div class="kind">skills</div><h3>Skills on demand</h3>
-        <p>Give a member a skill, or open the whole library: each member sees the skills that match its task and reads only the ones it asks for.</p></div>
-      <div class="card"><div class="kind">commands</div><h3>Playbooks</h3>
-        <p><code>ecc run code-review</code> has a member follow ECC's procedure and report, or make it a build. Coding agents get them as MCP prompts.</p></div>
+      <div class="card"><div class="kind">26 specialists</div><h3>Experts to hire</h3>
+        <p>Architect, security, performance, accessibility, database, API, test strategy, releases, and a reviewer for nine languages.
+          <code>library hire architect</code> adds one as a member.</p></div>
+      <div class="card"><div class="kind">46 skills</div><h3>Skills on demand</h3>
+        <p>Test-first development, API design, migrations, observability, debugging, patterns and testing per language.
+          Members see the ones that match a task and read only those.</p></div>
+      <div class="card"><div class="kind">21 playbooks</div><h3>Procedures to follow</h3>
+        <p><code>playbook run code-review</code>, plan-feature, fix-bug, security-review, release-check, postmortem...
+          A report or a full build. Coding agents get them as MCP prompts.</p></div>
       <div class="card"><div class="kind">rules</div><h3>Standards for your language</h3>
-        <p>Common and language rules every member follows. <code>templates apply</code> sets up one piece per role and the rules in one step.</p></div>
-      <div class="card"><div class="kind">hooks &amp; memory</div><h3>Guards and a memory that grows</h3>
-        <p>Checks can't be weakened, sensitive files need the facts first, sessions are summarised, lessons gain confidence.</p></div>
-      <div class="card"><div class="kind">audit</div><h3>The team, audited</h3>
-        <p><code>agent-team audit</code> checks prompts, skills, agent files, tool servers, permissions and secrets, and grades them, like AgentShield.</p></div>
+        <p>Common rules and rules for 12 languages, followed by every member. Add your house style the same way.</p></div>
+      <div class="card"><div class="kind">quality gates</div><h3>Checks every round</h3>
+        <p>Your linters and type checkers run with the tests, and new debug leftovers are flagged before the lead approves.</p></div>
+      <div class="card"><div class="kind">memory</div><h3>A team that remembers</h3>
+        <p>Every run is summarised for the next plan; lessons gain confidence each time they recur, and the surest become rules.</p></div>
     </div>
-    <div class="code" style="margin-top:18px"><button class="copy" type="button" data-copy="agent-team templates apply">Copy</button>agent-team ecc skills "rest api"     <span class="c-dim"># search agents, skills, commands, rules</span>
-agent-team templates apply          <span class="c-dim"># one piece per role and the rules, for your language</span>
-agent-team ecc library on           <span class="c-dim"># every ECC skill, read only when needed</span></div>
+    <div class="code" style="margin-top:18px"><button class="copy" type="button" data-copy="agent-team templates apply">Copy</button>agent-team templates apply          <span class="c-dim"># a reviewer, skills, rules and checks for your language</span>
+agent-team library skills testing   <span class="c-dim"># search specialists, skills, playbooks, rules</span>
+agent-team playbook run code-review "src/export"</div>
   </div>
 </section>
 
@@ -276,9 +279,8 @@ agent-team ecc library on           <span class="c-dim"># every ECC skill, read 
       <div class="cmd"><code>/team-panel</code><span>the side panel</span></div>
     </div>
     <p class="muted" style="margin-top:18px">New here? <code>agent-team try</code> shows a team at work in a minute, with no setup and no key.
-      Everything in <a href="https://github.com/affaan-m/ECC">ECC</a> works with the team: its agents as members, its skills on
-      demand, its commands as playbooks, its rules for your language, guards like its hooks, and <code>agent-team audit</code>
-      in the spirit of AgentShield.</p>
+      <code>agent-team templates apply</code> gives your team a reviewer, skills and rules for your language, and
+      <code>agent-team playbook run code-review</code> puts a procedure to work.</p>
   </div>
 </section>
 

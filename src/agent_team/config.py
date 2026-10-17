@@ -78,8 +78,9 @@ class ProjectConfig:
     release: str = "auto"           # auto: the devops shift releases on its own; ask: it proposes, you approve
     review: str = "tools"           # tools: reviewers read files and run tests themselves; snapshot: all files up front
     require_approval: list[str] = field(default_factory=list)   # paths whose changes need the owners' approval
+    checks: list[str] = field(default_factory=list)     # linters and type checkers run every round, e.g. "ruff check ."
     rules: list[str] = field(default_factory=list)      # standards every member follows: Markdown files or folders
-    library: list[str] = field(default_factory=list)    # skills members read on demand: "ecc" or skill folders
+    library: list[str] = field(default_factory=list)    # skills members read on demand: "builtin" or skill folders
     protect_config: bool = True     # members can't weaken linter/formatter configs to make checks pass
     gate_sensitive: bool = True     # changes to CI, migrations, auth, secrets need a WHY line first
     history_limit: int = 400_000    # characters of one member's conversation before old file copies are dropped
@@ -358,9 +359,10 @@ def parse(data: dict, root: Path) -> Team:
         raise ConfigError(f"[project].review: use tools or snapshot, not {project.review!r}")
     if project.release not in ("auto", "ask"):
         raise ConfigError(f"[project].release: use auto or ask, not {project.release!r}")
-    for key in ("rules", "library"):
+    for key in ("checks", "rules", "library"):
         if not isinstance(getattr(project, key), list) or not all(isinstance(x, str) and x.strip() for x in getattr(project, key)):
-            raise ConfigError(f"[project].{key} is a list of paths" + (' (or "ecc")' if key == "library" else ""))
+            raise ConfigError(f"[project].{key} is a list of " + ("commands" if key == "checks" else "paths") +
+                              (' (or "builtin")' if key == "library" else ""))
     if not isinstance(project.protect_config, bool) or not isinstance(project.gate_sensitive, bool):
         raise ConfigError("[project].protect_config and gate_sensitive are true or false")
     if not isinstance(project.history_limit, int) or project.history_limit < 20_000:
