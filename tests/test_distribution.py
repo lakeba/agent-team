@@ -10,7 +10,7 @@ from unittest import mock
 import helpers
 from helpers import load, project, quiet
 
-from agent_team import mcp_install, mcp_server, packs
+from agent_team import ecc, mcp_install, mcp_server, packs
 
 
 class McpServerTest(unittest.TestCase):
@@ -130,7 +130,7 @@ class TemplatesTest(unittest.TestCase):
 
     def test_not_an_ecc_checkout(self):
         with self.assertRaises(SystemExit):
-            packs.fetch(tempfile.mkdtemp())
+            ecc.fetch(tempfile.mkdtemp())
 
 
 if __name__ == "__main__":

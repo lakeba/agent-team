@@ -184,21 +184,39 @@ tools can be given to members (`mcp = ["rea"]`). See [configuration](docs/config
 `build` takes `--parallel` (split the plan across every builder), `--skip qa,security,docs`,
 `--rounds`, `--builder` and `--lead`. Every command takes `-C <project>`; `--help` lists the rest.
 
-### Team templates with ECC's agents and skills
+### Everything in ECC, for the team
 
-[ECC](https://github.com/affaan-m/ECC) is a large, MIT-licensed library of agent prompts and skills
-for coding agents. A template gives each member the ECC piece that fits its role and your language:
+[ECC](https://github.com/affaan-m/ECC) is a large, MIT-licensed library for coding agents. agent-team
+uses a pinned ECC release (fetched once, only what it needs) and maps each part onto the team:
+
+| ECC | In agent-team |
+|---|---|
+| 68 agents | `agent-team ecc add-member architect` (a new member) or `ecc add-skill NAME --to MEMBER` |
+| 293 skills | `ecc add-skill NAME --to MEMBER`, or the whole library on demand: `ecc library on` |
+| 94 commands | playbooks: `ecc run code-review "the export module"` (read-only report), `--build` to make it a task; also MCP prompts for coding agents |
+| Rules | `ecc add-rules` (common and your language): standards every member follows |
+| Hooks and memory | config protection and "facts first" guards on every change, session summaries (`agent-team sessions`), lessons with confidence (`memory promote`, `export`, `import`), long conversations trimmed |
+| AgentShield | `agent-team audit`: prompts, skills, tool servers, permissions and secrets, graded; `--agentshield` runs ECC's own scanner too |
 
 ```bash
-agent-team templates               # python, react, typescript, dotnet, go, rust, kotlin, java, swift, general
-agent-team templates apply         # the one that fits this project (or name one); asks first
+agent-team ecc skills "rest api"        # search ECC (agents, skills, commands, rules)
+agent-team templates apply              # one piece per role, plus rules, for your language
+agent-team ecc library on               # members read any ECC skill when a task needs it
 ```
 
-The lead gets ECC's reviewer for the language, the builders its patterns skill, QA its testing
-skill, and the security, docs and marketing members ECC's agents for those jobs. The files are
-copied from a pinned ECC release into `team/skills/ecc/` with ECC's licence (`NOTICE.md`), and each
-member's `skills` names them, so you review and commit them like any other file. `apply` shows how
-many characters each member's prompt gains first, since skills go with every call.
+**Templates.** `agent-team templates` lists ten (python, react, typescript, dotnet, go, rust, kotlin,
+java, swift, general); `apply` gives the lead ECC's reviewer for the language, the builders its
+patterns skill, QA its testing skill, the security, docs and marketing members ECC's agents for
+those jobs, and everyone the language's rules. Everything is copied into `team/skills/ecc/` and
+`team/rules/ecc/` with ECC's licence (`NOTICE.md`) and named in `.team.toml`, so you review and
+commit it like any other file. Skills and rules go with every call, so each command shows how many
+characters it adds first; the library costs nothing until a member asks for a skill.
+
+**Guards.** Members can't weaken an existing linter or formatter config to make a check pass (unless
+the task names the file), and a change to a sensitive file (CI, migrations, authentication, payment,
+secrets, deployment) waits until the member writes a `WHY path: ...` line with the facts it rests
+on. A held-back change keeps the build open. `[project].protect_config` and `gate_sensitive` turn
+them off.
 
 ### Use it from any coding agent (MCP)
 

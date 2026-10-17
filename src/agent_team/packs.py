@@ -15,18 +15,15 @@ one piece per role and say how much they add.
 """
 from __future__ import annotations
 
-import re
-import shutil
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import ui
+from . import ecc as ecc_lib, ui
 from .config import CONFIG_NAME, Team
 
-ECC_REPO = "https://github.com/affaan-m/ECC.git"
-ECC_TAG = "v2.2.3"                  # the release these templates were chosen from
-TARGET = "team/skills/ecc"
+ECC_TAG = ecc_lib.TAG
+TARGET = ecc_lib.SKILLS_DIR
+COMMON_RULES = ("common/coding-style", "common/security", "common/testing")
 LOCAL_MODEL_NOTE = 15_000            # characters a local model's prompt gains before we mention it
 
 COMMON = {"security": "agents/security-reviewer.md", "docs": "agents/doc-updater.md",
@@ -40,6 +37,7 @@ class Pack:
     roles: dict[str, str]                   # role -> ECC path (agents/x.md or skills/x)
     markers: tuple[str, ...] = ()           # glob patterns that suggest this pack
     needs: tuple[str, ...] = field(default=())   # words that must appear in package.json (for JS packs)
+    rules: tuple[str, ...] = ()             # ECC rule folders for the language (rules/<x>), besides the common ones
 
     def pieces(self) -> dict[str, str]:
         return {**COMMON, **self.roles}
@@ -48,31 +46,31 @@ class Pack:
 PACKS = [
     Pack("python", "Python: ECC's Python reviewer, patterns and testing skills",
          {"lead": "agents/python-reviewer.md", "builder": "skills/python-patterns", "qa": "skills/python-testing"},
-         ("pyproject.toml", "setup.py", "requirements.txt")),
+         ("pyproject.toml", "setup.py", "requirements.txt"), rules=("python",)),
     Pack("react", "React: ECC's React reviewer, patterns and testing skills",
          {"lead": "agents/react-reviewer.md", "builder": "skills/react-patterns", "qa": "skills/react-testing"},
-         ("package.json",), ("react",)),
+         ("package.json",), ("react",), rules=("typescript", "react")),
     Pack("typescript", "TypeScript and JavaScript: ECC's TypeScript reviewer, frontend patterns and end-to-end testing",
          {"lead": "agents/typescript-reviewer.md", "builder": "skills/frontend-patterns", "qa": "skills/e2e-testing"},
-         ("package.json", "tsconfig.json")),
+         ("package.json", "tsconfig.json"), rules=("typescript",)),
     Pack("dotnet", ".NET and C#: ECC's C# reviewer, .NET patterns and C# testing",
          {"lead": "agents/csharp-reviewer.md", "builder": "skills/dotnet-patterns", "qa": "skills/csharp-testing"},
-         ("*.sln", "*.slnx", "*.csproj", "*/*.csproj", "src/*/*.csproj")),
+         ("*.sln", "*.slnx", "*.csproj", "*/*.csproj", "src/*/*.csproj"), rules=("csharp",)),
     Pack("go", "Go: ECC's Go reviewer, patterns and testing skills",
          {"lead": "agents/go-reviewer.md", "builder": "skills/golang-patterns", "qa": "skills/golang-testing"},
-         ("go.mod",)),
+         ("go.mod",), rules=("golang",)),
     Pack("rust", "Rust: ECC's Rust reviewer, patterns and testing skills",
          {"lead": "agents/rust-reviewer.md", "builder": "skills/rust-patterns", "qa": "skills/rust-testing"},
-         ("Cargo.toml",)),
+         ("Cargo.toml",), rules=("rust",)),
     Pack("kotlin", "Kotlin: ECC's Kotlin reviewer, patterns and testing skills",
          {"lead": "agents/kotlin-reviewer.md", "builder": "skills/kotlin-patterns", "qa": "skills/kotlin-testing"},
-         ("build.gradle.kts", "settings.gradle.kts")),
+         ("build.gradle.kts", "settings.gradle.kts"), rules=("kotlin",)),
     Pack("java", "Java: ECC's Java reviewer, coding standards and test-first guide",
          {"lead": "agents/java-reviewer.md", "builder": "skills/java-coding-standards", "qa": "agents/tdd-guide.md"},
-         ("pom.xml", "build.gradle")),
+         ("pom.xml", "build.gradle"), rules=("java",)),
     Pack("swift", "Swift: ECC's Swift reviewer, SwiftUI patterns and test-first guide",
          {"lead": "agents/swift-reviewer.md", "builder": "skills/swiftui-patterns", "qa": "agents/tdd-guide.md"},
-         ("Package.swift", "*.xcodeproj")),
+         ("Package.swift", "*.xcodeproj"), rules=("swift",)),
     Pack("general", "Any language: ECC's code reviewer, verification loop and test-first guide",
          {"lead": "agents/code-reviewer.md", "builder": "skills/verification-loop", "qa": "agents/tdd-guide.md"}),
 ]
@@ -90,37 +88,7 @@ def detect(root: Path) -> Pack:
 
 
 # ---------------------------------------------------------------------------------------------
-# ECC's files: a pinned release, fetched once (only its agents and skills)
-
-def ecc_home() -> Path:
-    import os
-    base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
-    return Path(base) / "agent-team" / "ecc" / ECC_TAG
-
-
-def fetch(source: str = "") -> Path:
-    """A folder with ECC's agents/ and skills/: `source` if given (an ECC checkout), else the pinned
-    release, cloned once (sparse: agents, skills and the licence)."""
-    if source:
-        path = Path(source).expanduser().resolve()
-        if not (path / "agents").is_dir() or not (path / "skills").is_dir():
-            raise SystemExit(f"{path} doesn't look like an ECC checkout (no agents/ and skills/)")
-        return path
-    home = ecc_home()
-    if (home / "agents").is_dir() and (home / "skills").is_dir():
-        return home
-    home.parent.mkdir(parents=True, exist_ok=True)
-    ui.action(f"fetching ECC {ECC_TAG} (agents and skills only) into {home}")
-    steps = [["git", "clone", "-q", "--depth", "1", "--branch", ECC_TAG, "--filter=blob:none", "--sparse", ECC_REPO, str(home)],
-             ["git", "-C", str(home), "sparse-checkout", "set", "agents", "skills"]]
-    for argv in steps:
-        r = subprocess.run(argv, capture_output=True, text=True)
-        if r.returncode != 0:
-            shutil.rmtree(home, ignore_errors=True)
-            raise SystemExit(f"couldn't fetch ECC ({' '.join(argv[:3])}): {r.stderr.strip()[-400:]}\n"
-                             f"With ECC already on this machine: --ecc PATH")
-    return home
-
+# Applying a template
 
 def text_of(ecc: Path, ref: str) -> str:
     path = ecc / ref
@@ -128,8 +96,13 @@ def text_of(ecc: Path, ref: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-# ---------------------------------------------------------------------------------------------
-# Applying a template
+def rule_files(pack: Pack, ecc: Path) -> list[str]:
+    """The ECC rule files (rules/...) the template adds: a few common ones, and the language's."""
+    out = [f"rules/{r}.md" for r in COMMON_RULES if (ecc / f"rules/{r}.md").exists()]
+    for lang in pack.rules:
+        out += sorted(f"rules/{lang}/{p.name}" for p in (ecc / "rules" / lang).glob("*.md"))
+    return out
+
 
 def plan(team: Team, pack: Pack, ecc: Path) -> list[tuple[str, str, str, int]]:
     """(member, role, ECC path, characters) for each member the template gives a piece to."""
@@ -141,59 +114,15 @@ def plan(team: Team, pack: Pack, ecc: Path) -> list[tuple[str, str, str, int]]:
     return out
 
 
-def project_path(ref: str) -> str:
-    """Where a piece lives in the project: team/skills/ecc/agents/x.md or team/skills/ecc/skills/x."""
-    return f"{TARGET}/{ref}"
-
-
-NOTICE = """# ECC pieces in this project
-
-These files come from ECC (https://github.com/affaan-m/ECC), release {tag}, under the MIT licence
-below. agent-team copied them here with `agent-team templates apply`; they're project files now:
-review them, edit them, or remove them (and their line under `skills` in .team.toml).
-
-{license}
-"""
-
-
-def copy_piece(ecc: Path, ref: str, root: Path) -> None:
-    src, dest = ecc / ref, root / project_path(ref)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    if src.is_dir():   # a skill: its SKILL.md is what members read
-        dest.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(src / "SKILL.md", dest / "SKILL.md")
-    else:
-        shutil.copyfile(src, dest)
-
-
-def add_skill(text: str, member: str, entry: str) -> str:
-    """The team file with `entry` added to `member`'s skills, editing only that member's block so the
-    rest of the file (comments included) stays as it is."""
-    blocks = re.split(r"(?m)^(?=\[\[agents\]\])", text)
-    for i, block in enumerate(blocks):
-        if not re.search(rf'(?m)^name\s*=\s*"{re.escape(member)}"\s*$', block):
-            continue
-        if entry in block:
-            return text
-        m = re.search(r"(?m)^skills\s*=\s*\[(.*?)\]", block, re.S)
-        if m:
-            inner = m.group(1).rstrip().rstrip(",")
-            new = f'skills = [{inner}{", " if inner.strip() else ""}"{entry}"]'
-            blocks[i] = block[:m.start()] + new + block[m.end():]
-        else:
-            lines = block.split("\n")
-            at = max((n for n, l in enumerate(lines) if re.match(r"^(name|role|provider|model|owns|effort)\s*=", l)), default=0)
-            lines.insert(at + 1, f'skills = ["{entry}"]')
-            blocks[i] = "\n".join(lines)
-        return "".join(blocks)
-    return text
+project_path = ecc_lib.project_path
+add_skill = ecc_lib.add_skill
 
 
 def apply(team: Team, pack: Pack, source: str = "", yes: bool = False) -> int:
     import sys
-    from .config import ConfigError, load
-    ecc = fetch(source)
+    ecc = ecc_lib.fetch(source)
     pieces = plan(team, pack, ecc)
+    rules = rule_files(pack, ecc)
     if not pieces:
         ui.say(f"The {pack.name} template has nothing for this team's roles.")
         return 1
@@ -203,7 +132,11 @@ def apply(team: Team, pack: Pack, source: str = "", yes: bool = False) -> int:
         note = ("  (a local model: this adds to every prompt it reads)" if provider.kind == "ollama"
                 and chars >= LOCAL_MODEL_NOTE else "")
         ui.say(f"  {member} ({role}): ECC {ref}, {chars:,} characters{note}")
-    ui.say(f"\nFiles go to {TARGET}/ with ECC's licence; each member's skills list in {CONFIG_NAME} names them.")
+    if rules:
+        size = sum((ecc / r).stat().st_size for r in rules)
+        ui.say(f"  everyone: ECC's rules ({', '.join(sorted({r.split('/')[1] for r in rules}))}), {size:,} characters")
+    ui.say(f"\nFiles go to {TARGET}/ and {ecc_lib.RULES_DIR}/ with ECC's licence; {CONFIG_NAME} names them "
+           f"(members' skills, [project].rules).")
     if not yes:
         if not sys.stdin.isatty():
             ui.say("Run again with --yes to apply.")
@@ -212,20 +145,11 @@ def apply(team: Team, pack: Pack, source: str = "", yes: bool = False) -> int:
             ui.say("Nothing was changed.")
             return 0
     root = Path(team.root)
-    path = root / CONFIG_NAME
-    old = path.read_text(encoding="utf-8")
-    text = old
+    text = (root / CONFIG_NAME).read_text(encoding="utf-8")
     for member, _, ref, _ in pieces:
-        copy_piece(ecc, ref, root)
-        text = add_skill(text, member, project_path(ref))
-    license_text = (ecc / "LICENSE").read_text(encoding="utf-8") if (ecc / "LICENSE").exists() else \
-        "MIT License, Copyright (c) Affaan Mustafa (see https://github.com/affaan-m/ECC/blob/main/LICENSE)"
-    (root / TARGET / "NOTICE.md").write_text(NOTICE.format(tag=ECC_TAG, license=license_text), encoding="utf-8")
-    path.write_text(text, encoding="utf-8")
-    try:
-        load(root)
-    except ConfigError as e:
-        path.write_text(old, encoding="utf-8")
-        raise SystemExit(f"the template would leave {CONFIG_NAME} invalid ({e}); nothing was changed there")
+        text = ecc_lib.add_skill(text, member, ecc_lib.copy(ecc, ref, root))
+    for folder in sorted({str(Path(ecc_lib.copy(ecc, r, root)).parent) for r in rules}):
+        text = ecc_lib.add_rule(text, folder)
+    ecc_lib.save_team_file(root, text)
     ui.action(f"applied the {pack.name} template: {len(pieces)} members got an ECC piece")
     return 0

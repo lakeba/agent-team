@@ -24,7 +24,11 @@ To create a new file, or to rewrite one completely, send it in full:
 <file path="relative/path.ext">
 ...entire file contents...
 </file>
-Paths are relative to the project folder. Don't repeat unchanged files."""
+Paths are relative to the project folder. Don't repeat unchanged files.
+
+Fix code rather than weakening linter or formatter configs. Before changing a sensitive file (CI
+workflows, migrations, authentication, payment, secrets, deployment), add a line to your message:
+WHY path/of/file: what uses it, what the change could break, and how it's checked."""
 
 # A missing </file> ends the block at the next <file> tag or the end of the message.
 FILE_RE = re.compile(r'<file path="([^"]+)">\n?(.*?)(</file>|(?=\n<file path=")|\Z)', re.S)
@@ -38,6 +42,7 @@ class Written(list):
     def __init__(self, *a):
         super().__init__(*a)
         self.problems: list[str] = []
+        self.held: list[str] = []       # changes a guard held back (also in problems)
 
 
 def _safe_dest(base: str, rel: str) -> str | None:
@@ -91,12 +96,22 @@ def last_marker(regex: re.Pattern, text: str) -> str:
     return found[-1] if found else ""
 
 
-def write_files(root: str | Path, text: str, allowed: tuple[str, ...] | None = None) -> Written:
+def write_files(root: str | Path, text: str, allowed: tuple[str, ...] | None = None, guard=None) -> Written:
     """Apply every <edit> block and write every <file> block in `text` under `root`. Refuses paths
     that escape `root`, and, if `allowed` is given, paths outside those prefixes. Edits that can't
-    be applied leave their file unchanged and are listed in the result's `.problems`."""
+    be applied leave their file unchanged and are listed in the result's `.problems`. `guard`
+    (guards.make) may hold a change back: (path, exists, text) -> the reason, or ""."""
     written = Written()
     base = os.path.realpath(root)
+    reply = text
+
+    def held(rel: str, dest: str) -> bool:
+        why = guard(rel, os.path.exists(dest), reply) if guard else ""
+        if why:
+            ui.warn(f"held back {rel}: {why.split(', so')[0].split(': fix')[0]}")
+            written.problems.append(f"{rel}: {why}")
+            written.held.append(rel)
+        return bool(why)
     for rel, body in EDIT_RE.findall(text):
         dest = _safe_dest(base, rel)
         if dest is None:
@@ -105,6 +120,8 @@ def write_files(root: str | Path, text: str, allowed: tuple[str, ...] | None = N
         if allowed is not None and not rel.startswith(allowed):
             ui.warn(f"skipped {rel!r}: outside the paths this step may change")
             written.problems.append(f"{rel}: outside the paths this step may change")
+            continue
+        if held(rel, dest):
             continue
         try:
             with open(dest, encoding="utf-8") as f:
@@ -136,6 +153,8 @@ def write_files(root: str | Path, text: str, allowed: tuple[str, ...] | None = N
             continue
         if allowed is not None and not rel.startswith(allowed):
             ui.warn(f"skipped {rel!r}: outside the paths this step may change")
+            continue
+        if held(rel, dest):
             continue
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         with open(dest, "w", encoding="utf-8") as f:

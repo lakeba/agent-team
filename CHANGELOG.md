@@ -6,6 +6,29 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- Everything ECC offers, mapped onto the team (pinned ECC v2.2.3, fetched once, MIT licence):
+  - `agent-team ecc`: browse and search ECC's 68 agents, 293 skills, 94 commands and rules;
+    `add-skill`, `add-member` (an ECC agent as a new member), `add-rules`, `library on|off`.
+  - The skill library (`[project].library`): members see the skills that match a task and read
+    up to three on demand (`SKILL: name`), so a large library costs nothing until it's used.
+  - Playbooks: `agent-team ecc run COMMAND "what for"` has a member follow an ECC command and
+    report without changing files; `--build` makes it a build task. The MCP server offers ECC's
+    commands as prompts.
+  - Project rules (`[project].rules`): standards every member follows; templates now add the
+    language's rules too.
+  - Guards, after ECC's hooks: config protection (`protect_config`) and facts first for sensitive
+    files (`gate_sensitive`, a `WHY path:` line); a held-back change keeps the build open.
+  - Session summaries after every build and fix (`agent-team sessions`); the lead's next plan
+    starts from the latest ones.
+  - Lessons with confidence, like ECC's instincts: relearned lessons gain confidence, members see
+    the most confident first; `memory promote N` makes one a project rule; `memory export|import`.
+  - Long conversations are trimmed (`[project].history_limit`).
+  - `agent-team audit`, after AgentShield: prompts, skills, agent files, tool servers, Claude Code
+    permissions and hooks, `.mcp.json` and tracked secrets, scored and graded; `--agentshield`
+    runs ECC's scanner when installed; `doctor` shows the grade.
+
 ## [0.9.0] - 2026-10-17
 
 ### Added

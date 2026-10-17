@@ -12,7 +12,7 @@ waiting. `fix` closes that loop:
 from __future__ import annotations
 
 
-from .. import agent, context, files, github, logs, memory, review_tools, routing, ui
+from .. import agent, context, files, github, guards, logs, memory, review_tools, routing, sessions, ui
 from ..config import Team
 from .build import run_tests
 
@@ -98,7 +98,7 @@ def run(team: Team, number: int, rounds: int = 2, lead: str = "", builder: str =
         for rnd in range(1, rounds + 1):
             ui.heading(f"=========== Round {rnd}/{rounds} ===========")
             reply = worker.turn(f"{note}\n\n# Current files on the PR branch\n\n{focus.render()}")
-            written = files.write_files(team.root, reply)
+            written = files.write_files(team.root, reply, guard=guards.make(team, info["title"]))
             touched.update(written)
             focus.add(written)
             focus.add_from_reply(reply)
@@ -132,6 +132,8 @@ def run(team: Team, number: int, rounds: int = 2, lead: str = "", builder: str =
                 builder_cfg = stronger
                 worker = agent.make(team, stronger, "builder", file_format=files.FILE_FORMAT, label_suffix=f" · PR #{number}")
 
+        sessions.save(team, "fix", f"PR #{number}: {info['title']}", "fixed" if approved and touched else "not fixed",
+                      rnd, touched)
         if not approved or not touched:
             why = "the lead didn't confirm the fix" if not approved else "the builder changed no files"
             ui.heading(f"Not pushed: {why}. The branch is left as it was.")

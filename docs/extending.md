@@ -27,14 +27,29 @@ Markdown files (or skill folders with a `SKILL.md`) to its prompt, on top of its
 checklists, conventions and domain knowledge one member needs; see
 [configuration.md](configuration.md#skills).
 
-### Start from a template
+### Start from a template, or take pieces from ECC
 
 `agent-team templates apply` gives each member the [ECC](https://github.com/affaan-m/ECC) agent or
-skill that fits its role and the project's language (the lead a reviewer, builders a patterns
-skill, QA a testing skill, and security, docs and marketing ECC's agents for those jobs). The files
-are copied into `team/skills/ecc/` with ECC's MIT licence and listed under each member's `skills`;
-edit or drop them like any other skill. `--ecc PATH` uses an ECC checkout you already have instead
-of fetching the pinned release.
+skill that fits its role and the project's language, and everyone the language's rules. To pick
+pieces yourself:
+
+```bash
+agent-team ecc skills testing                 # search; also: agents, commands, rules
+agent-team ecc add-skill python-testing --to Probe
+agent-team ecc add-member architect --role reviewer
+agent-team ecc add-rules python               # common + python by default: the project's language
+agent-team ecc library on                     # every ECC skill, read only when a task needs it
+```
+
+Pieces are copied into `team/skills/ecc/` and `team/rules/ecc/` with ECC's MIT licence; edit or drop
+them like any other file. `--ecc PATH` uses an ECC checkout you already have instead of the pinned
+release.
+
+### Run a playbook
+
+ECC's commands are written procedures. `agent-team ecc run NAME "what for"` has the lead (or
+`--member`) follow one on the project and report, without changing files; `--build` (with `--branch`
+and `--pr`) makes it a build task instead. Coding agents see the same commands as MCP prompts.
 
 ## Add a role (no code)
 

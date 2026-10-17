@@ -46,8 +46,26 @@ class Agent:
     def turn(self, content) -> str:
         if not self.provider.supports_images and not isinstance(content, str):
             content = providers.base.to_text(content)
+        if not self.messages and isinstance(content, str) and self.team.project.library:
+            from . import library
+            offer = library.index(self.team, content)
+            if offer:
+                content = f"{content}\n\n{offer}"
+        text = self._ask(content)
+        if self.team.project.library:
+            from . import library
+            for _ in range(library.MAX_ROUNDS):   # the member asked to read skills first
+                wanted = library.requested(text)
+                if not wanted:
+                    break
+                ui.action(f"{self.cfg.name} reads {', '.join(wanted)} from the library")
+                text = self._ask(library.read(self.team, wanted))
+        return text
+
+    def _ask(self, content) -> str:
         budget.check(self.team)
         self.messages.append({"role": "user", "content": content})
+        self._compact()
         reply = self.provider.complete(self.system, self.messages, model=self.cfg.model,
                                        effort=self.cfg.effort, label=self.label)
         self.messages.append({"role": "assistant", "content": reply.content})
@@ -56,6 +74,21 @@ class Agent:
         kind, model = u.pop("kind", "") or self.provider.kind, u.pop("model", "") or self.cfg.model
         usage.record(self.team.root, self.cfg.name, kind, model, u)
         return reply.text
+
+    def _compact(self) -> None:
+        """Keep a long conversation under [project].history_limit: earlier messages of ours lose the
+        copies of files they carried (the latest message always has the current ones)."""
+        from . import files
+        limit = self.team.project.history_limit
+        size = lambda: sum(len(m["content"]) if isinstance(m["content"], str) else len(str(m["content"]))
+                           for m in self.messages)
+        if size() <= limit:
+            return
+        for m in self.messages[:-2]:
+            if m["role"] == "user" and isinstance(m["content"], str) and "<file path=" in m["content"]:
+                m["content"] = files.strip_files(m["content"])
+                if size() <= limit:
+                    break
 
 
 def _skill_names(team: Team, cfg: AgentConfig) -> list[str]:
@@ -81,6 +114,9 @@ def make(team: Team, cfg: AgentConfig, prompt_name: str | None = None, label_suf
         **fields,
     }
     system = _fill(template, values)
+    if team.project.rules:
+        from . import rules
+        system = f"{system.rstrip()}\n\n{rules.render(team)}"
     from . import memory
     learned = memory.for_prompt(team.root)
     if learned:

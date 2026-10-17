@@ -10,6 +10,9 @@ command as a PR", and the agent calls team_start_run, follows team_run_output, a
 Runs go through the same background jobs as the dashboard (.team/jobs/), with the same spend
 limits, shift lock and guardrails. What stays with you: approving pull requests and releases.
 Those tools aren't offered, so no agent can approve on your behalf.
+
+With ECC fetched (`agent-team ecc fetch`), its commands are offered as MCP prompts too, so an
+agent's own prompt menu lists ECC's playbooks (code-review, plan, tdd, ...).
 """
 from __future__ import annotations
 
@@ -144,18 +147,39 @@ def call(name: str, args: dict, default: Path) -> dict:
     raise ToolError(f"no tool named {name!r}")
 
 
+def _commands() -> list:
+    """ECC's commands, when the pinned release is on this machine (the server never fetches it)."""
+    from . import ecc
+    home = ecc.present()
+    return ecc.catalog(home, "commands") if home else []
+
+
 def handle(message: dict, default: Path) -> dict | None:
     """The reply to one JSON-RPC message (None for notifications)."""
     method, rid = message.get("method"), message.get("id")
     if rid is None:
         return None
     if method == "initialize":
-        result = {"protocolVersion": PROTOCOL, "capabilities": {"tools": {}},
+        result = {"protocolVersion": PROTOCOL, "capabilities": {"tools": {}, "prompts": {}},
                   "serverInfo": {"name": "agent-team", "version": __version__}, "instructions": INSTRUCTIONS}
     elif method == "ping":
         result = {}
     elif method == "tools/list":
         result = {"tools": TOOLS}
+    elif method == "prompts/list":
+        result = {"prompts": [{"name": f"ecc-{e.name}", "description": e.description[:300],
+                               "arguments": [{"name": "what", "description": "what it's for this time", "required": False}]}
+                              for e in _commands()]}
+    elif method == "prompts/get":
+        params = message.get("params") or {}
+        name = str(params.get("name", "")).removeprefix("ecc-")
+        found = next((e for e in _commands() if e.name == name), None)
+        if not found:
+            return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": f"no prompt named {name!r}"}}
+        from .workflows.playbook import text
+        what = str((params.get("arguments") or {}).get("what", ""))
+        result = {"description": found.description[:300],
+                  "messages": [{"role": "user", "content": {"type": "text", "text": text(found, what)}}]}
     elif method == "tools/call":
         params = message.get("params") or {}
         try:

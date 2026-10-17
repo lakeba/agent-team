@@ -17,7 +17,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
-from .. import agent, behaviour, context, files, github, memory, review_tools, routing, ui
+from .. import agent, behaviour, context, files, github, guards, memory, review_tools, routing, sessions, ui
 from ..config import AgentConfig, Team
 
 TEST_PREFIXES = ("tests/", "test/", "spec/", "__tests__/", "test_")
@@ -93,6 +93,7 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
     use_tools = review_tools.supported(team, lead_cfg)
     last_review = ""
     log = files.Log(team.root, "build", f"Build: {task}")
+    guard = guards.make(team, task)
     touched: set[str] = set()
 
     ui.heading(f"Build: {task}")
@@ -101,7 +102,8 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
         ui.action(f"focused context: {len(focus.paths)} files chosen by {lead_cfg.name}")
         log.record(f"{lead_cfg.name}: context", "Files chosen: " + ", ".join(sorted(focus.paths)))
 
-    ask = f"Task: {task}\n\nWrite PLAN.md for {', '.join(b.name for b in builders) if parallel else builders[0].name}."
+    recent = sessions.for_prompt(team.root)
+    ask = (f"{recent}\n\n" if recent else "") + f"Task: {task}\n\nWrite PLAN.md for {', '.join(b.name for b in builders) if parallel else builders[0].name}."
     if parallel:
         ask += PARALLEL_NOTE.format(count=len(builders), names=", ".join(b.name for b in builders))
     plan = planner.turn(f"{ask}\n\n# Current project files\n\n{focus.render()}")
@@ -130,7 +132,7 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
         qa = agent.make(team, qa_cfg, "qa", file_format=files.FILE_FORMAT, test_paths=", ".join(allowed))
         reply = qa.turn(f"Task: {task}\n\nWrite the tests for PLAN.md before the builders start.\n\n"
                         f"# Current project files\n\n{focus.render()}")
-        written = files.write_files(team.root, reply, allowed=allowed)
+        written = files.write_files(team.root, reply, allowed=allowed, guard=guard)
         touched.update(written)
         focus.add(written)
         log.record(f"{qa_cfg.name}: tests first", reply, written)
@@ -149,9 +151,11 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
     note = f"Task: {task}\n\nStart building from PLAN.md."
     approved, rejected = False, 0
     checks: list = []
+    learned: list[str] = []
+    rnd = 0
     for rnd in range(1, rounds + 1):
         ui.heading(f"=========== Round {rnd}/{rounds} ===========")
-        results = _build_round(team, parts, note, focus)
+        results = _build_round(team, parts, note, focus, guard)
         round_written: list[str] = []
         problems = "".join(files.problems_note(w) for _, w in results)
         for part, (reply, written) in zip(parts, results):
@@ -186,12 +190,18 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
                 f"{messages}\n\nFiles written this round: {', '.join(round_written) or 'none'}{problems}"
                 f"\n\n# Current project files\n\n{focus.render()}{tests}")
         last_review = review
-        memory.learn(team, review, lead_cfg.name)
+        learned += memory.learn(team, review, lead_cfg.name)
         plan_files = files.write_files(team.root, review, allowed=("PLAN.md",))
         touched.update(plan_files)
         focus.add_from_reply(review)
         log.record(f"{lead_cfg.name}: review {rnd}", review, plan_files)
-        if files.last_marker(files.VERDICT_RE, review) != "APPROVED":
+        held = [p for _, w in results for p in getattr(w, "held", [])]
+        verdict = files.last_marker(files.VERDICT_RE, review)
+        if verdict == "APPROVED" and held:   # the task isn't done while part of it waits on a guard
+            ui.action(f"not approved yet: {', '.join(held)} held back; the builders resend it")
+            review += f"\n\n(agent-team: not approved yet, because these changes were held back: {', '.join(held)})"
+            verdict = "CHANGES"
+        if verdict != "APPROVED":
             note = f"# {lead_cfg.name}'s review\n\n{review}{tests}{problems}"
             rejected += 1
             for part in parts:
@@ -231,6 +241,7 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
             touched.update(written)
             log.record(f"{docs_cfg.name}: docs", reply, written)
 
+    sessions.save(team, "build", task, "approved" if approved else "not approved", rnd, touched, learned)
     if approved and open_pr:
         names = ", ".join(p.builder.name for p in parts)
         open_pull_request(team, task, sorted(touched), lead_cfg.name, names, closes,
@@ -239,7 +250,8 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
     return approved
 
 
-def _build_round(team: Team, parts: list[Part], note: str, focus: context.Focus) -> list[tuple[str, list[str]]]:
+def _build_round(team: Team, parts: list[Part], note: str, focus: context.Focus,
+                 guard=None) -> list[tuple[str, list[str]]]:
     current = focus.render()
 
     def one(part: Part) -> tuple[str, list[str]]:
@@ -247,7 +259,7 @@ def _build_round(team: Team, parts: list[Part], note: str, focus: context.Focus)
                  f"{', '.join(part.prefixes)}. Other builders are working on the rest at the same time."
                  if part.prefixes else "")
         reply = part.worker.turn(f"{note}{scope}\n\n# Current project files\n\n{current}")
-        return reply, files.write_files(team.root, reply, allowed=part.prefixes or None)
+        return reply, files.write_files(team.root, reply, allowed=part.prefixes or None, guard=guard)
 
     if len(parts) == 1:
         return [one(parts[0])]

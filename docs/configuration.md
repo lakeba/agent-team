@@ -14,6 +14,11 @@
 | `context_skip` | `[]` | Path prefixes never sent to the models (vendored code, large assets). Files git ignores are never sent either, nor `bin/` and `obj/` next to a .NET project file, so build output listed in `.gitignore` needs no entry. |
 | `context_limit` | `200000` | Maximum characters of project files in one prompt. Raising it costs tokens; prefer `context_skip`. |
 | `review` | `tools` | How the lead reviews builds and fixes. `tools`: with tools to read files, search, see the diff and run the tests (needs a provider that can call tools; others fall back). `snapshot`: every file sent up front, as before. |
+| `rules` | `[]` | Standards every member follows on every call: Markdown files or folders of them (`agent-team ecc add-rules` copies ECC's). 40,000 characters together at most. |
+| `library` | `[]` | Skills members read on demand: `"ecc"` (ECC's skills) and/or folders of skill folders. A member's first message lists the ones that match the task; it answers `SKILL: name` to read up to three. |
+| `protect_config` | `true` | Members can't change an existing linter or formatter config (ESLint, Prettier, Ruff, ...) unless the task names the file. |
+| `gate_sensitive` | `true` | A change to CI, migrations, authentication, payment, secrets or deployment files waits for a `WHY path: ...` line in the member's reply. |
+| `history_limit` | `400000` | Characters of one member's conversation before earlier copies of files are dropped from it. |
 | `require_approval` | `[]` | Paths (prefixes or globs like `*.csproj`) whose changes need the owners' approval: such a PR merges only after `agent-team approve <PR>` (or the dashboard's or panel's Approve) for its exact head commit. |
 | `release` | `auto` | Who decides when a version ships. `auto`: the devops shift releases on its own when merged changes are worth it. `ask`: it proposes a release (version and notes) and you approve it with `agent-team ship --release X.Y.Z`, the dashboard's Approve button or the panel's. `agent-team init` writes `ask`. |
 | `context` | `auto` | What prompts include. `full`: every file, every time (fails when that's over `context_limit`). `focused`: the lead sees a map of the project and picks the files a task needs; members can ask for more with `FILE: path` lines. `auto`: full when it fits, focused when it doesn't. |
