@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-17
+
 ### Added
 
 - `agent-team mcp`: the team as an MCP server for any coding agent (Claude Code, Codex, Cursor and
