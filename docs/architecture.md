@@ -3,12 +3,14 @@
 agent-team has four layers. Each one can grow without changes to the others.
 
 ```
- .team.toml ──► config.Team ──► workflows (discuss, build, market, setup, ship)
-                   │                    │ find members by role
-                   ▼                    ▼
+ .team.toml ──► config.Team ──► workflows (discuss, build, market, setup, ship, fix, autopilot)
+ team/behaviour.toml │                  │ find members by role       │ behaviour checks
+                   ▼                    ▼                              ▼
                AgentConfig ──────► agent.Agent ──► providers.Provider ──► a model somewhere
                (name, role,        (prompt +       anthropic | ollama | openai | agent-http
-                owns, model)        history)        | any kind you register
+                owns, model, mcp)   history)        | any kind you register
+                   │
+                   └──► mcp.Session ──► MCP tool servers (stdio), e.g. REA ──► terminal, browser, binaries
 ```
 
 ## 1. Configuration (`config.py`)
@@ -67,7 +69,9 @@ stay tied to commits, so the next shift reviews the new head before anything mer
 `build` brings in the optional members when the team has them: a `qa` member writes tests for the
 plan first, a `security` member reviews the result once the lead approves (a NO sends it back),
 and a `docs` member updates the documentation afterwards. With several builders and `--parallel`,
-the lead splits the plan into parts with separate paths.
+the lead splits the plan into parts with separate paths. With behaviour checks set up, the QA
+member (or the lead) also writes the task's journeys into `team/behaviour.toml` before anyone
+builds (`workflows/journeys.py`), and every round runs them after the tests (`behaviour.py`).
 
 ## Records
 
@@ -90,6 +94,12 @@ the page's session token and a same-origin request, and are refused if the file 
 - Text from outside the team is wrapped in `<untrusted>` and the prompts say to treat it as data.
 - Secrets never go into `.team.toml`: providers name the environment variable that holds them.
   `.env*` files and the config itself are never sent to a model.
+- MCP tool servers start with a small environment (no API keys), members see only the tools a
+  server's allowlist names, and every result reaches the models as untrusted, cut to `max_output`.
+  So does what behaviour checks capture: it's the output of code the team wrote.
+- Members who write code (builder, QA, docs) can't be given tools that look inside other software,
+  and the scout may only observe; `config.py` refuses the team file otherwise. The scout's brief
+  goes to `discuss` only.
 
 ## Cost, context and running unattended
 
@@ -146,4 +156,38 @@ the page's session token and a same-origin request, and are refused if the file 
   from `~/.config/agent-team/projects.json`).
 - `.github/workflows/release.yml` publishes tagged versions to PyPI (trusted publishing) and GitHub
   Releases; `packaging/homebrew/` holds the tap formula; `docs/` is the GitHub Pages site.
+
+## Setup, vision and tool servers (0.6, 0.7)
+
+- `composition.py` describes a team (where the models run, which members, how many builders,
+  spend limits) once: `init` writes a new team file from it, from questions in a terminal or from
+  flags, and the dashboard's Team composition card applies it to an existing team as a diff.
+  `readiness.find_ollama` looks for Ollama on this machine, at `OLLAMA_HOST`, on a VM's or a
+  container's host and at the gateway.
+- `VISION.md` is the owner's description of the product: every workflow receives it with the
+  README (`context.ALWAYS`), and `discuss` gives it its own section.
+- `completion.py`: Tab completion from the CLI's own parser, with the team's member names.
+- `mcp.py` is a small MCP client (JSON-RPC over stdio). `Session` starts a member's servers for one
+  task; `Tool` gives each allowed tool the shape the tool loop uses, so any provider that can call
+  tools can call MCP tools; members' MCP tools are offered in reviews (`review_tools.review`) and
+  devops shifts.
+
+## Behaviour checks with REA (0.8)
+
+- `behaviour.py` runs each scenario on the base commit (a temporary git worktree) and on the work,
+  through REA's MCP tools: `capture_process_scenario` (terminal), `capture_browser_scenario` with
+  steps from `steps.py` (browser), `inspect_managed_members` and `analyze_javascript_application`
+  (api). It compares what a user would notice (the final screen, the page's accessibility text,
+  URL, errors, a screenshot ratio, the public API) rather than raw bytes, keeps the evidence under
+  `.team/evidence/`, and writes the report the lead reviews. With the container sandbox, prepare,
+  run and serve go into the container through `sandbox.container`.
+- `rea.py` finds REA (agent-team's pinned copy, the PATH, Claude Code's registration), installs it
+  into agent-team's folder, and writes `[mcp.rea]` and `[behaviour]`.
+- `release_check.py`: the public API since the last release tag sets the smallest allowed version,
+  and `ship`'s `create_release` refuses smaller ones.
+- `outside_in.py`: after approval, the security member also gets what the build ships (secrets,
+  internal addresses and source maps in build output, and strings REA reads from .NET assemblies).
+- `workflows/scout.py`: the scout observes `[research] sites` through REA's browser before `discuss`.
+- The dashboard's Behaviour tab reads `.team/evidence/` (`/api/behaviour`, screenshots through
+  `/api/evidence/<check>/<n>-base|work.png`).
 

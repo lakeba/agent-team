@@ -28,7 +28,11 @@ function side(checkId, label, obs, kind) {
     .filter(Boolean).join(" · ");
   if (facts) box.append(h("p", { class: "muted small" }, facts));
   if (obs.errors?.length) box.append(h("p", {}, status("bad", `${obs.errors.length} error(s)`), " ", obs.errors.slice(0, 3).join("; ")));
-  if (obs.screenshot) box.append(h("img", { class: "shot", alt: `${label}: screenshot`, src: `/api/evidence/${encodeURIComponent(checkId)}/${encodeURIComponent(obs.screenshot)}` }));
+  if (obs.screenshot) {
+    const src = `/api/evidence/${encodeURIComponent(checkId)}/${encodeURIComponent(obs.screenshot)}`;
+    box.append(h("a", { href: src, target: "_blank", rel: "noopener", title: "Open the full screenshot" },
+      h("img", { class: "shot", alt: `${label}: screenshot`, src })));
+  }
   if (obs.view && kind !== "api") box.append(h("pre", { class: "screen" }, obs.view));
   if (kind === "api" && obs.view) box.append(h("details", {}, h("summary", {}, `${obs.view.split("\n").length} public members`), h("pre", { class: "screen" }, obs.view)));
   return box;
@@ -60,7 +64,7 @@ function renderBehaviour() {
   if (!c) return;
   for (const o of c.outcomes) {
     const card = h("div", { class: "card" }, h("h2", {}, o.name, " ", outcomeBadge(o)),
-      h("p", { class: "muted small" }, `${o.kind} · base ${String(c.base).slice(0, 10)} → ${c.target}`));
+      h("p", { class: "muted small" }, `${o.kind} · base ${String(c.base).slice(0, 10)} → ${/^[0-9a-f]{40}$/.test(c.target) ? c.target.slice(0, 10) : c.target}`));
     if (o.first_difference) card.append(h("p", {}, h("strong", {}, "First difference: "), o.first_difference));
     if (o.breaking?.length) card.append(h("p", {}, status("bad", "breaks callers"), " ", o.breaking.join(", ")));
     if (o.added?.length) card.append(h("p", {}, status("good", "added"), " ", o.added.join(", ")));

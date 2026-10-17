@@ -95,7 +95,7 @@ class KindsTests(unittest.TestCase):
             outcomes = behaviour.run(team, base, label="test")
         o = outcomes[0]
         self.assertEqual((o.kind, o.status), ("browser", "changed"))
-        self.assertIn('"Tally No timer running."', o.first_difference)
+        self.assertIn("“Tally No timer running.”", o.first_difference)
         self.assertIn("5.0% of the screenshot's pixels changed", o.notes)
         saved = behaviour.recent(team)
         self.assertEqual(saved[0]["outcomes"][0]["status"], "changed")

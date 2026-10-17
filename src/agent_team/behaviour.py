@@ -397,8 +397,8 @@ def _first_line_difference(a: str, b: str, what: str) -> str:
     x, y = a.splitlines(), b.splitlines()
     i = next((i for i, (p, q) in enumerate(zip(x, y)) if p != q), min(len(x), len(y)))
 
-    def line(lines):
-        return json.dumps(lines[i] if i < len(lines) else "(nothing)", ensure_ascii=False)
+    def line(lines):   # as people read it: trimmed, in curly quotes (no escaped ones)
+        return f"“{lines[i].strip().removeprefix('- ')}”" if i < len(lines) else "(nothing)"
 
     return f"{what} line {i + 1}: before {line(x)}, now {line(y)}"
 

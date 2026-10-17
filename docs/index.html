@@ -21,7 +21,7 @@ description: An AI dev team for your repository. It plans, builds, reviews, fixe
       </div>
       <div class="facts">
         <span class="pill">Claude</span><span class="pill">Ollama</span><span class="pill">OpenAI-compatible</span>
-        <span class="pill">Your other machines</span><span class="pill">macOS &amp; Linux</span>
+        <span class="pill">Your other machines</span><span class="pill">Behaviour checks with REA</span><span class="pill">macOS &amp; Linux</span>
       </div>
     </div>
     <div class="terminal" role="img" aria-label="A build run: the lead plans, the builder implements, tests pass, the lead approves, the PR merges">
@@ -33,6 +33,7 @@ description: An AI dev team for your repository. It plans, builds, reviews, fixe
         <span class="line" style="animation-delay:1.3s"><span class="who c-build">Forge · builder</span> <span class="c-dim">(qwen on your Mac)</span></span>
         <span class="line" style="animation-delay:1.6s">  &lt;edit path="todo.py"&gt; 2 changes · export.py created</span>
         <span class="line" style="animation-delay:2s"><span class="c-ok">✓ tests: 31 passed</span> <span class="c-dim">(in a sandbox, no network)</span></span>
+        <span class="line" style="animation-delay:2.2s"><span class="c-ok">✓ behaviour: 4 journeys</span> <span class="c-dim">used like a user would (REA)</span></span>
         <span class="line" style="animation-delay:2.4s"><span class="who c-lead">Atlas</span> read export.py, ran the tests</span>
         <span class="line" style="animation-delay:2.7s">  <span class="c-ok">VERDICT: APPROVED</span> after 1 round</span>
         <span class="line" style="animation-delay:3.1s"><span class="who c-sec">Sentinel · security</span>  <span class="c-ok">SIGN-OFF: YES</span></span>
@@ -96,11 +97,13 @@ description: An AI dev team for your repository. It plans, builds, reviews, fixe
     <p class="eyebrow">How it works</p>
     <h2 class="title">From roadmap to release, a pull request at a time.</h2>
     <p class="intro">Run each step yourself, or let autopilot work through a milestone: it builds the next issue,
-      and each devops shift reviews, fixes and merges, until the lead says the milestone is done.</p>
+      and each devops shift reviews, fixes and merges, until the lead says the milestone is done. Every plan
+      starts from your product's vision, in <code>VISION.md</code>.</p>
     <div class="loop" role="list">
       <div class="step" role="listitem"><b>Plan</b><span>The team agrees a roadmap; items become issues</span></div>
       <div class="step" role="listitem"><b>Build</b><span>The lead plans, builders write the code</span></div>
       <div class="step" role="listitem"><b>Test</b><span>Every round, in a sandbox if you like</span></div>
+      <div class="step" role="listitem"><b>Check</b><span>The app is used like a user would, before and after</span></div>
       <div class="step" role="listitem"><b>Review</b><span>The lead reads files and runs tests itself</span></div>
       <div class="step" role="listitem"><b>Fix</b><span>Requested changes go back to the builder</span></div>
       <div class="step" role="listitem"><b>Merge</b><span>Only with green CI and every approval</span></div>
@@ -111,7 +114,39 @@ description: An AI dev team for your repository. It plans, builds, reviews, fixe
   </div>
 </section>
 
-<section class="alt" id="rules">
+<section class="alt" id="behaviour">
+  <div class="wrap">
+    <p class="eyebrow">Behaviour checks</p>
+    <h2 class="title">Tested the way your users will use it.</h2>
+    <p class="intro">Tests check what their authors thought of. Every build round, <a href="https://rea.tools">REA</a>
+      uses the program like a user would, on the version the work started from and with the changes, and the lead
+      reviews what a user would notice, with the screens as evidence.</p>
+    <div class="grid g3">
+      <div class="card"><div class="kind">terminal</div><h3>Command-line programs</h3>
+        <p>The commands run in a real terminal, with typed input. The final screen, the exit code and the files left behind are compared.</p></div>
+      <div class="card"><div class="kind">browser</div><h3>Web apps</h3>
+        <p>The app is started and a browser follows plain steps like <code>click button "Start"</code>. The page as a screen reader sees it, errors and a screenshot are compared.</p></div>
+      <div class="card"><div class="kind">api</div><h3>Libraries</h3>
+        <p>The public API of a built .NET assembly or a JavaScript package. A removed or changed member breaks callers, and releases follow it.</p></div>
+    </div>
+    <div class="grid g2" style="margin-top:18px">
+      <div class="card"><h3>The team writes its own journeys</h3>
+        <p>The lead drafts them from your vision; for each task, QA adds the journeys it needs before anyone builds, the way it writes tests first.
+          Set up REA (installed for you if needed), then let the lead write the first ones:</p>
+        <div class="code"><button class="copy" type="button" data-copy="agent-team rea setup && agent-team behaviour suggest">Copy</button>agent-team rea setup
+agent-team behaviour suggest</div></div>
+      <div class="card"><h3>What the lead sees</h3>
+        <div class="code" style="padding-right:16px"><span class="c-dim">## start and stop a timer: behaves differently</span>
+First difference: screen line 3:
+  before <span class="c-ok">"No timer running."</span>
+  now    <span class="c-err">"⏱ client-a (since 23:20)"</span>
+<span class="c-dim">→ stop no longer saves: CHANGES_NEEDED</span></div>
+        <p class="muted small" style="margin-top:10px">Every check's evidence is kept and shown in the dashboard's Behaviour tab.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="rules">
   <div class="wrap">
     <p class="eyebrow">Guardrails</p>
     <h2 class="title">Rules in code, not in prompts.</h2>
@@ -129,17 +164,24 @@ description: An AI dev team for your repository. It plans, builds, reviews, fixe
       <div class="card rule"><div class="icon">$</div><div><h3>Spend limits</h3>
         <p>Per run, per day and per milestone, checked before every model call, with an estimate before you start.</p></div></div>
       <div class="card rule"><div class="icon">⌧</div><div><h3>Outside text is data</h3>
-        <p>Issues, PR text and comments reach the models marked untrusted, never as instructions.</p></div></div>
+        <p>Issues, PR text, comments and tool results reach the models marked untrusted, never as instructions.</p></div></div>
+      <div class="card rule"><div class="icon">#</div><div><h3>Versions follow the API</h3>
+        <p>A release smaller than the public API's changes allow is refused: removing a member needs a major version.</p></div></div>
+      <div class="card rule"><div class="icon">⌕</div><div><h3>What ships is checked</h3>
+        <p>The security member also reviews the build output: credentials, internal addresses and source maps.</p></div></div>
+      <div class="card rule"><div class="icon">◎</div><div><h3>Observe, never copy</h3>
+        <p>Tools that look inside other software never reach the members who write code. The scout only looks from outside.</p></div></div>
     </div>
   </div>
 </section>
 
-<section id="models">
+<section class="alt" id="models">
   <div class="wrap">
     <p class="eyebrow">Any model, any machine</p>
     <h2 class="title">Mix Claude, local models and your own hardware.</h2>
     <p class="intro">A team runs entirely on Ollama with no API key, entirely on Claude, or anything in between.
-      A weaker model hands its work to a stronger one after a rejected round.</p>
+      A weaker model hands its work to a stronger one after a rejected round. Any MCP tool server, such as REA,
+      can give members tools, only the ones you allow.</p>
     <div class="models">
       <div class="card model-card"><div class="kind">anthropic</div><h3>Claude</h3><p>Opus to lead and review, Sonnet to build and ship, Haiku for routine checks.</p></div>
       <div class="card model-card"><div class="kind">ollama</div><h3>Local models</h3><p>Ollama on this machine or another: Qwen, Llama and friends, at no per-token cost.</p></div>
@@ -149,12 +191,13 @@ description: An AI dev team for your repository. It plans, builds, reviews, fixe
   </div>
 </section>
 
-<section class="alt" id="dashboard">
+<section id="dashboard">
   <div class="wrap">
     <p class="eyebrow">The dashboard</p>
     <h2 class="title">See everything. Change anything. Approve with a click.</h2>
     <p class="intro"><code>agent-team ui</code> runs on your machine: the team and its health, every run with each
-      member's verdicts, costs and the scoreboard, live activity, easy settings and templates, and every project you have.</p>
+      member's verdicts, costs and the scoreboard, live activity, behaviour checks, easy settings, team composition and
+      templates, and every project you have.</p>
     <div data-gallery>
       <div class="gallery-tabs" role="tablist">
         <button type="button" role="tab" aria-selected="true" data-shot="overview" data-caption="Overview: the team's health, recent runs, spend and GitHub at a glance.">Overview</button>
@@ -162,6 +205,7 @@ description: An AI dev team for your repository. It plans, builds, reviews, fixe
         <button type="button" role="tab" aria-selected="false" data-shot="costs" data-caption="Costs: spend by member and day, and the scoreboard: approval rates, rounds and cost per merged PR.">Costs</button>
         <button type="button" role="tab" aria-selected="false" data-shot="settings" data-caption="Settings: team templates and the switches people change most, always previewed as a diff.">Settings</button>
         <button type="button" role="tab" aria-selected="false" data-shot="runs" data-caption="Runs: start a build, a shift or autopilot in the background and follow every run's verdicts.">Runs</button>
+        <button type="button" role="tab" aria-selected="false" data-shot="behaviour" data-caption="Behaviour: every check's journeys, before and now side by side, with the first difference and screenshots.">Behaviour</button>
       </div>
       <div class="shot">
         <div class="chrome"><i></i><i></i><i></i><span>127.0.0.1:8790/#overview</span></div>
@@ -170,13 +214,14 @@ description: An AI dev team for your repository. It plans, builds, reviews, fixe
         <img data-name="costs" src="{{ '/assets/img/dashboard-costs.png' | relative_url }}" alt="The dashboard's costs and scoreboard" loading="lazy" width="1600" height="1059" hidden>
         <img data-name="settings" src="{{ '/assets/img/dashboard-settings.png' | relative_url }}" alt="The dashboard's settings and templates" loading="lazy" width="1600" height="1059" hidden>
         <img data-name="runs" src="{{ '/assets/img/dashboard-runs.png' | relative_url }}" alt="The dashboard's runs page" loading="lazy" width="1600" height="1059" hidden>
+        <img data-name="behaviour" src="{{ '/assets/img/dashboard-behaviour.png' | relative_url }}" alt="The dashboard's behaviour checks, before and now side by side" loading="lazy" width="1600" height="1059" hidden>
       </div>
       <p class="caption">Overview: the team's health, recent runs, spend and GitHub at a glance.</p>
     </div>
   </div>
 </section>
 
-<section id="claude-code">
+<section class="alt" id="claude-code">
   <div class="wrap">
     <p class="eyebrow">Claude Code</p>
     <h2 class="title">Drive the team from Claude Code.</h2>
@@ -196,20 +241,21 @@ description: An AI dev team for your repository. It plans, builds, reviews, fixe
   </div>
 </section>
 
-<section class="alt" id="start">
+<section id="start">
   <div class="wrap">
     <p class="eyebrow">Get started</p>
     <h2 class="title">Three commands to a working team.</h2>
     <p class="intro">macOS or Linux with Python 3.11+ and git. GitHub's CLI for the pull-request workflows.
-      An Anthropic key only if members use Claude.</p>
+      An Anthropic key only if members use Claude. Node.js 22+ if you want behaviour checks (REA).</p>
     <div class="grid g3 steps3">
       <div class="card"><h3>Install</h3><p>The CLI, and the Claude Code plugin if you use it.</p>
         <div class="code"><button class="copy" type="button" data-copy="pipx install agent-team">Copy</button>pipx install agent-team</div>
         <p class="muted" style="margin-top:10px;font-size:14px">or the one-line installer from the <a href="https://github.com/lakeba/agent-team#install">README</a></p></div>
-      <div class="card"><h3>Set up a project</h3><p>A checklist of what's missing, then a team file you can edit.</p>
+      <div class="card"><h3>Set up a project</h3><p>A checklist, then a few questions: your product's vision, where the models run, who's on the team.</p>
         <div class="code"><button class="copy" type="button" data-copy="cd my-project && agent-team ready && agent-team init">Copy</button>cd my-project
 agent-team ready
-agent-team init <span class="c-dim"># asks: Claude, Ollama or both</span></div></div>
+agent-team init
+agent-team rea setup</div></div>
       <div class="card"><h3>Put it to work</h3><p>Plan, build, or open the dashboard.</p>
         <div class="code"><button class="copy" type="button" data-copy='agent-team build "add an export command" --branch team/export --pr'>Copy</button>agent-team discuss "next features"
 agent-team build "add export" \

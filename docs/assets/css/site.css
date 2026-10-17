@@ -116,7 +116,7 @@ code, pre { font-family: var(--mono); }
 .terminal .line { display: block; white-space: pre-wrap; animation: show .4s ease both; }
 .terminal .who { font-weight: 700; }
 .c-lead { color: #7fa9f5; } .c-build { color: #f3a462; } .c-ops { color: #6fd08a; } .c-sec { color: #f0786c; } .c-qa { color: #a9c4fb; }
-.c-dim { color: var(--term-dim); } .c-ok { color: #7fd37f; } .c-warn { color: #e8c15f; }
+.c-dim { color: var(--term-dim); } .c-ok { color: #7fd37f; } .c-warn { color: #e8c15f; } .c-err { color: #f08a7e; }
 @keyframes show { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .terminal .line { animation: none; } }
 
@@ -153,7 +153,7 @@ h2.title { font-family: var(--display); font-weight: 800; font-size: clamp(27px,
 .optional { border-style: dashed; }
 
 /* the loop */
-.loop { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0; align-items: stretch; counter-reset: step; margin-top: 8px; }
+.loop { display: grid; grid-template-columns: repeat(8, 1fr); gap: 0; align-items: stretch; counter-reset: step; margin-top: 8px; }
 .step { position: relative; padding: 18px 14px; text-align: center; background: var(--card); border: 1px solid var(--line); }
 .step:first-child { border-radius: var(--radius) 0 0 var(--radius); }
 .step:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
@@ -171,7 +171,7 @@ h2.title { font-family: var(--display); font-weight: 800; font-size: clamp(27px,
 
 /* models */
 .models { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
-.model-card .kind { font: 12px var(--mono); color: var(--ink-3); }
+.model-card .kind, .card > .kind { font: 12px var(--mono); color: var(--ink-3); }
 
 /* dashboard gallery */
 .gallery-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -285,3 +285,6 @@ h2.title { font-family: var(--display); font-weight: 800; font-size: clamp(27px,
   .hero { padding: 44px 0 36px; }
   .docs { padding: 24px 16px 64px; gap: 24px; }
 }
+
+/* Behaviour checks: the code samples keep their colours inside cards */
+.code .c-ok { color: #7fd37f; } .code .c-err { color: #f08a7e; }

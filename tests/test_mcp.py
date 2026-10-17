@@ -178,7 +178,7 @@ class BehaviourTests(unittest.TestCase):
         self.assertIn("No timer running.", o.base.view)
         self.assertIn("Running: client-b", o.work.view)
         self.assertEqual(o.work.files, ["created tally.json"])
-        self.assertEqual(o.first_difference, 'screen line 2: before "No timer running.", now "Running: client-b"')
+        self.assertEqual(o.first_difference, "screen line 2: before “No timer running.”, now “Running: client-b”")
         for_lead = behaviour.report(outcomes)
         self.assertTrue(for_lead.startswith("<untrusted>"))
         self.assertIn("Screen now:", for_lead)

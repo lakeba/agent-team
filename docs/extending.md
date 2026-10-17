@@ -60,6 +60,55 @@ Every kind can be the devops member: Claude runs `ship` on the Anthropic tool ru
 OpenAI-compatible servers and remote nodes run it through the same tools with their own tool
 calling (`tool_loop.py`). Pick a model that is good at tool use.
 
+## Add a tool server (no code)
+
+Any local MCP server (stdio) can give the team tools: REA, a browser, a database, your own. Add it
+under `[mcp.<name>]` with the tools members may call, then list it on the members that use it:
+
+```toml
+[mcp.rea]
+command = "rea"
+args = ["--mcp"]
+tools = ["capture_process_scenario"]   # only these are offered; servers can have hundreds
+
+[[agents]]
+name = "Atlas"
+role = "lead"
+mcp = ["rea"]                          # in its reviews (and a devops member's shifts)
+```
+
+The server starts with a small environment (put tokens it needs in `env_from`, never in the file),
+results reach the models marked as untrusted and cut to `max_output`, and `agent-team doctor`
+checks that it starts and offers its tools. Each allowed tool's description is sent with every
+model call, so allow only what the member needs. Members who write code can't be given tools that
+look inside other software, and a scout only observation tools.
+
+## Add behaviour checks (no code)
+
+`agent-team rea setup` installs and configures REA; `agent-team behaviour suggest` has the lead
+write the first journeys into `team/behaviour.toml` from `VISION.md`. Edit them like any project
+file, or let `build` add the ones each task needs (the QA member writes them, or the lead). A
+journey is a command line (`run`, typed `input`), a web app (`serve`, `url`, `steps` such as
+`click button "Start"`) or a library's public API (`assembly` for .NET, `package` for JavaScript).
+`agent-team behaviour run` compares your working tree with HEAD right away. See
+[configuration.md](configuration.md#behaviour-and-behaviour-scenarios).
+
+## Add a scout (no code)
+
+```toml
+[research]
+sites = ["https://a-competitor.example/features"]
+
+[[agents]]
+name = "Scout"
+role = "scout"
+provider = "claude"
+model = "claude-sonnet-5-5"
+```
+
+Before each `discuss`, REA opens those pages in a browser and the scout briefs the team on what it
+saw, from the outside only. The brief goes to the discussion, never to the builders.
+
 ## Add a provider kind (code)
 
 ```python
