@@ -18,6 +18,7 @@ TOOLS = [
     {"name": "capture_process_scenario", "description": "Run a command.", "inputSchema": {"type": "object"}},
     {"name": "compare_process_captures", "description": "Compare two runs.", "inputSchema": {"type": "object"}},
     {"name": "capture_browser_scenario", "description": "Drive a browser.", "inputSchema": {"type": "object"}},
+    {"name": "capture_electron_scenario", "description": "Drive an Electron app.", "inputSchema": {"type": "object"}},
     {"name": "compare_web_screenshots", "description": "Compare two PNGs.", "inputSchema": {"type": "object"}},
     {"name": "inspect_managed_members", "description": "Read a .NET assembly.", "inputSchema": {"type": "object"}},
     {"name": "analyze_javascript_application", "description": "Read a JS package.", "inputSchema": {"type": "object"}},
@@ -29,10 +30,19 @@ def browse(args):
     import re
     import urllib.request
     html = urllib.request.urlopen(args["start_url"]["url"], timeout=5).read().decode()
-    text = re.sub(r"<[^>]+>", " ", html)
     steps = [{"step_id": "scenario_start", "status": "completed", "artifacts": {}}]
     for a in args["actions"]:
-        steps.append({"step_id": a["step_id"], "status": "completed", "artifacts": {}})
+        step = {"step_id": a["step_id"], "status": "completed", "artifacts": {}}
+        name = (a.get("locator") or {}).get("name")
+        if a["action"] == "click" and name is not None:
+            if name not in html:   # as REA does: the scenario stops there, with no final capture
+                step.update(status="failed", error=f"no element named {name}")
+                return {"normalized_result": {"steps": steps + [step], "events": {"items": []}}}
+            else:   # clicking inside a <dialog> closes it, as accepting a cookie banner does
+                html = re.sub(r"<dialog>.*?</dialog>", "", html, flags=re.S) if re.search(
+                    rf"<dialog>[^<]*(<[^>]+>[^<]*)*?{re.escape(name)}", html) else html
+        steps.append(step)
+    text = re.sub(r"<[^>]+>", " ", html)
     png = {"sha256": "a" * 64 if "v2" not in html else "b" * 64, "bytes": 4, "media_type": "image/png",
            "data_base64": "iVBORw=="}
     steps[-1]["artifacts"] = {"accessibility": {"state": "captured", "value": {"text": " ".join(text.split())}},
@@ -40,6 +50,26 @@ def browse(args):
                               "screenshot": {"state": "captured", "value": png}}
     errors = [{"kind": "page-error", "text": "boom"}] if "boom" in html else []
     return {"normalized_result": {"steps": steps, "events": {"items": errors}}}
+
+
+def electron(args):
+    """A pretend Electron app, described by electron.json in its folder, in the shape REA reports:
+    windows, blocked external effects, IPC channels, errors; a click needs a selector it lists."""
+    app = args["application_path"]
+    if not os.path.isfile(args["executable_path"]):
+        raise FileNotFoundError(args["executable_path"])
+    spec = json.load(open(os.path.join(app, "electron.json")))
+    actions = [{"step_id": a["step_id"], "kind": a["kind"], "error": None,
+                "status": "completed" if a["kind"] != "click" or a["selector"] in spec.get("selectors", []) else "failed"}
+               for a in args.get("actions") or []]
+    windows = [{"window_id": f"window:{i + 1}", "url": f"file://{app}/{w['page']}", "title": w["title"],
+                "visible": True, "destroyed": False} for i, w in enumerate(spec.get("windows", []))]
+    events = ([{"kind": k, "event": e, "phase": "blocked"} for k, e in spec.get("blocked", [])]
+              + [{"kind": "error", "event": "console-message", "phase": "observed"}] * spec.get("errors", 0))
+    ipc = [{"channel": c, "argument_shapes": shapes, "result_shape": result, "error": False}
+           for c, shapes, result in spec.get("ipc", [])]
+    return {"normalized_result": {"actions": actions, "windows": windows, "timeline": {"events": events},
+                                  "ipc": {"events": ipc}}}
 
 
 def javascript(args):
@@ -112,9 +142,9 @@ for line in sys.stdin:
             result(rid, {"content": [{"type": "text", "text": args["text"] + " | env: " + ",".join(sorted(os.environ))}]})
         elif name == "big":
             result(rid, {"content": [{"type": "text", "text": "y" * 50_000}]})
-        elif name in ("capture_process_scenario", "compare_process_captures", "capture_browser_scenario",
+        elif name in ("capture_process_scenario", "compare_process_captures", "capture_browser_scenario", "capture_electron_scenario",
                       "inspect_managed_members", "compare_web_screenshots", "analyze_javascript_application"):
-            value = {"capture_process_scenario": capture, "capture_browser_scenario": browse,
+            value = {"capture_process_scenario": capture, "capture_browser_scenario": browse, "capture_electron_scenario": electron,
                      "inspect_managed_members": assembly, "analyze_javascript_application": javascript,
                      "compare_web_screenshots": lambda a: {"normalized_result": {"changed_pixel_ratio": 0.05}},
                      "compare_process_captures": lambda a: {"normalized_result": compare(a)}}[name](args)

@@ -231,7 +231,9 @@ def clean(data: dict) -> dict:
     rf = {f.name for f in fields(ResearchConfig)}
     research = {k: v for k, v in (data.get("research") or {}).items() if k in rf and v not in (None, "", [])}
     if isinstance(research.get("sites"), list):
-        research["sites"] = [u.strip() for u in research["sites"] if isinstance(u, str) and u.strip()]
+        research["sites"] = [u.strip() if isinstance(u, str) else
+                             {k: v for k, v in u.items() if k == "url" or v not in (None, "", [])}
+                             for u in research["sites"] if (isinstance(u, str) and u.strip()) or isinstance(u, dict)]
     return {"project": project, "providers": providers, "pricing": pricing, "limits": limits, "routing": routing,
             "notify": notify, "sandbox": sandbox, "mcp": mcp, "behaviour": behaviour, "research": research,
             "agents": agents}

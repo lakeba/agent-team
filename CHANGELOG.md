@@ -6,6 +6,25 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- Behaviour checks for Electron desktop apps (`kind = "electron"`): REA starts the app (`app`,
+  with the project's `node_modules/electron` or `electron`), clicks through it (`click css "#save"`,
+  `wait 500`, `reload`) and agent-team compares what changed for its user: its windows (title, page,
+  visible), the external effects it attempted (blocked by REA), the IPC channels it used, the steps
+  and the errors. REA doesn't capture the window's text or pixels, so those aren't compared. Each
+  run gets its own REA process, so a click on something that never appears ends at the timeout.
+  Not run with `[sandbox] mode = "container"` (the app would start outside it).
+- Scout sites with steps: a `[research] sites` entry can be `{ url = "...", steps = [...] }`, with
+  the same plain-words steps as browser journeys (e.g. `click button "Accept all"` for a cookie
+  dialog). Each step gives up after 15 seconds; if one fails, the scout reads the page as it first
+  loads and says the step didn't work.
+
+### Fixed
+
+- The scout read the last 4000 characters of a page (often the footer and the cookie banner); it
+  now reads from the top, up to `[research] max_chars`.
+
 ## [0.8.0] - 2026-10-17
 
 ### Added

@@ -42,6 +42,15 @@ steps = ['fill textbox "New todo" with "buy milk"', 'press textbox "New todo" En
 #        wait 500. ROLE is how a screen reader sees it: button, link, textbox, checkbox, combobox,
 #        heading, ...; css "#id" and testid "x" work too.
 
+[[scenarios]]                 # an Electron desktop app
+name = "add one"
+kind = "electron"
+prepare = "npm ci"
+app = "."                     # its folder (package.json) or main script
+steps = ["wait 800", 'click css "#add"', "wait 300"]
+# electron steps: click css "#id", click testid "x", wait 500, reload. Compared: windows (title,
+# page), external effects it attempted, IPC channels, errors; not the window's text.
+
 [[scenarios]]                 # a .NET library's public API
 name = "public API"
 kind = "api"
@@ -71,6 +80,8 @@ def project_hints(team: Team) -> str:
         except ValueError:
             scripts = {}
         hints.append(f"package.json scripts: {', '.join(f'{k}: {v}' for k, v in list(scripts.items())[:8]) or 'none'}")
+        if "electron" in pkg.read_text(encoding="utf-8"):
+            hints.append("package.json mentions electron: a desktop app (kind = \"electron\")")
     if (root / "index.html").is_file() or (root / "public" / "index.html").is_file():
         hints.append("there's an index.html: a web app (kind = \"browser\")")
     if any((root / m).exists() for m in ("pyproject.toml", "setup.py")):

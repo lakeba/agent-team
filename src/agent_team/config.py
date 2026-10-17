@@ -122,7 +122,7 @@ class McpServerConfig:
     max_output: int = 20_000        # characters of one result a model sees
 
 
-SCENARIO_KINDS = ("terminal", "browser", "api")
+SCENARIO_KINDS = ("terminal", "browser", "electron", "api")
 SCENARIOS_FILE = "team/behaviour.toml"   # scenarios the team writes and keeps, besides those in .team.toml
 
 
@@ -130,7 +130,8 @@ SCENARIOS_FILE = "team/behaviour.toml"   # scenarios the team writes and keeps, 
 class BehaviourScenario:
     """A user journey (or an API surface) checked on the base version and on the team's work."""
     name: str
-    kind: str = "terminal"          # terminal: a command line; browser: a web page; api: a .NET assembly's public API
+    kind: str = "terminal"          # terminal: a command line; browser: a web page; electron: a desktop app;
+                                    # api: a library's public API
     prepare: str = ""               # run first in $PROJECT, not captured (e.g. a build), so the run itself is quick
     # terminal
     run: str = ""                   # shell commands; $PROJECT is the version under test; runs in an empty folder
@@ -142,6 +143,10 @@ class BehaviourScenario:
     serve: str = ""                 # starts the app in $PROJECT (e.g. "npm run preview -- --port 5173"); stopped after
     url: str = ""                   # where the browser starts, e.g. http://127.0.0.1:5173/
     steps: list[str] = field(default_factory=list)   # e.g. 'fill textbox "Project" with "client-a"', 'click button "Start"'
+    # electron (steps too: 'click css "#save"', 'wait 500')
+    app: str = ""                   # the Electron app, relative to $PROJECT: its folder (package.json) or main script
+    electron: str = ""              # the Electron executable; default: the project's node_modules/electron
+    electron_args: list[str] = field(default_factory=list)   # e.g. ["--no-sandbox"] on Linux without the SUID helper
     # api
     assembly: str = ""              # .NET: the built assembly, relative to $PROJECT, e.g. "out/Tally.dll"
     package: str = ""               # JavaScript: the package folder, relative to $PROJECT (its entry modules' exports)
@@ -158,8 +163,14 @@ class BehaviourConfig:
 
 @dataclass
 class ResearchConfig:
-    sites: list[str] = field(default_factory=list)   # public pages the scout observes before a discussion
+    # public pages the scout observes before a discussion: a URL, or {url, steps} where the steps
+    # (browser steps in plain words, e.g. 'click button "Accept all"') run before the page is read
+    sites: list = field(default_factory=list)
     max_chars: int = 6000           # page text per site the scout reads
+
+    def pages(self) -> list[tuple[str, list[str]]]:
+        """(url, steps) for each site."""
+        return [(s, []) if isinstance(s, str) else (s["url"], list(s.get("steps") or [])) for s in self.sites]
 
 
 @dataclass
@@ -225,11 +236,12 @@ def scenario(table: dict, where: str, source: str = ".team.toml") -> BehaviourSc
         raise ConfigError(f"{where}: needs a name")
     if sc.kind not in SCENARIO_KINDS:
         raise ConfigError(f"{label}: kind is {', '.join(SCENARIO_KINDS)}, not {sc.kind!r}")
-    texts = [sc.prepare, sc.run, sc.serve, sc.url, sc.assembly, sc.package]
-    lists = [sc.input, sc.watch, sc.steps]
+    texts = [sc.prepare, sc.run, sc.serve, sc.url, sc.assembly, sc.package, sc.app, sc.electron]
+    lists = [sc.input, sc.watch, sc.steps, sc.electron_args]
     if not all(isinstance(x, str) for x in texts) or not all(isinstance(l, list) and all(isinstance(x, str) for x in l)
                                                              for l in lists):
-        raise ConfigError(f"{label}: run, prepare, serve, url and assembly are text; input, watch and steps are lists of text")
+        raise ConfigError(f"{label}: run, prepare, serve, url, assembly, package, app and electron are text; input, "
+                          f"watch, steps and electron_args are lists of text")
     if not isinstance(sc.timeout, int) or sc.timeout < 1:
         raise ConfigError(f"{label}: timeout is seconds (1 or more)")
     if not all(isinstance(x, (int, float)) and x >= 0 for x in (sc.input_delay, sc.input_every)):
@@ -247,12 +259,46 @@ def scenario(table: dict, where: str, source: str = ".team.toml") -> BehaviourSc
             parse_steps(sc.steps)
         except StepError as e:
             raise ConfigError(f"{label}: {e}") from None
+    if sc.kind == "electron":
+        if sc.app.startswith("/") or ".." in sc.app.split("/"):
+            raise ConfigError(f"{label}: app is the Electron app inside the project (relative), e.g. \".\" or \"main.js\"")
+        from .steps import StepError, parse_electron_steps
+        try:
+            parse_electron_steps(sc.steps)
+        except StepError as e:
+            raise ConfigError(f"{label}: {e}") from None
     if sc.kind == "api":
         target = sc.assembly or sc.package
         if bool(sc.assembly) == bool(sc.package) or target.startswith("/") or ".." in target.split("/"):
             raise ConfigError(f"{label}: an api scenario names either assembly (a built .NET .dll, e.g. \"out/App.dll\") "
                               f"or package (a JavaScript package folder, e.g. \".\"), relative to the project")
     return sc
+
+
+def _check_sites(sites) -> None:
+    """[research].sites: web addresses, or tables with url and the steps to take before reading."""
+    if not isinstance(sites, list):
+        raise ConfigError("[research].sites is a list of web addresses (https://...)")
+    from .steps import StepError, parse_steps
+    for i, site in enumerate(sites):
+        where = f"[research].sites #{i + 1}"
+        if isinstance(site, dict):
+            unknown = set(site) - {"url", "steps"}
+            if unknown:
+                raise ConfigError(f"{where}: unknown keys {sorted(unknown)}; a site is {{ url = \"https://...\", "
+                                  f"steps = [...] }}")
+            url, steps = site.get("url"), site.get("steps", [])
+            if not isinstance(steps, list) or not all(isinstance(x, str) for x in steps):
+                raise ConfigError(f"{where}: steps are a list of text, e.g. ['click button \"Accept all\"']")
+            try:
+                parse_steps(steps)
+            except StepError as e:
+                raise ConfigError(f"{where}: {e}") from None
+        else:
+            url = site
+        if not isinstance(url, str) or not url.startswith(("https://", "http://")):
+            raise ConfigError(f"{where}: sites are web addresses (https://...), or {{ url = \"https://...\", "
+                              f"steps = [...] }}")
 
 
 def scenarios_file(root: Path) -> list[BehaviourScenario]:
@@ -392,8 +438,7 @@ def parse(data: dict, root: Path) -> Team:
             raise ConfigError(f"agent {a.name!r} is a scout: it observes from the outside, so {bad!r} isn't allowed "
                               f"(only {', '.join(sorted(SCOUT_TOOLS))})")
     research = _take(dict(data.get("research") or {}), ResearchConfig, "[research]")
-    if not all(isinstance(u, str) and u.startswith(("https://", "http://")) for u in research.sites):
-        raise ConfigError("[research].sites are web addresses (https://...)")
+    _check_sites(research.sites)
     btable = dict(data.get("behaviour") or {})
     scenarios = [scenario(dict(t), f"[[behaviour.scenarios]] #{i + 1}") for i, t in enumerate(btable.pop("scenarios", None) or [])]
     scenarios += scenarios_file(root)

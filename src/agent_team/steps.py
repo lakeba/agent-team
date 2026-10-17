@@ -12,6 +12,12 @@
 Elements are named the way people and screen readers see them: a role (button, link, textbox,
 checkbox, combobox, heading, ...) and its accessible name. `css "#start"` and `testid "start"`
 work too, where a page has no good names. Each line becomes one of REA's browser actions.
+
+Electron apps take fewer steps, because REA's Electron capture clicks CSS selectors and waits:
+
+    click css "#inc"                        (or: click testid "inc")
+    wait 500
+    reload                                  (reloads the window's page)
 """
 from __future__ import annotations
 
@@ -87,3 +93,24 @@ def parse_step(line: str, index: int) -> dict:
 
 def parse_steps(lines: list[str]) -> list[dict]:
     return [parse_step(line, i) for i, line in enumerate(lines)]
+
+
+def parse_electron_step(line: str, index: int) -> dict:
+    try:
+        words = shlex.split(line)
+    except ValueError as e:
+        raise StepError(f"{line!r}: {e}") from None
+    sid = f"step-{index + 1}"
+    if len(words) == 2 and words[0].lower() == "wait" and words[1].isdigit():
+        return {"step_id": sid, "kind": "wait", "duration_ms": int(words[1])}
+    if words == ["reload"]:
+        return {"step_id": sid, "kind": "renderer-reload"}
+    if len(words) == 3 and words[0].lower() == "click" and words[1] in ("css", "testid"):
+        selector = words[2] if words[1] == "css" else f'[data-testid="{words[2]}"]'
+        return {"step_id": sid, "kind": "click", "selector": selector}
+    raise StepError(f"{line!r}: Electron steps are click css \"#id\", click testid \"name\", wait 500 or reload "
+                    f"(REA's Electron capture clicks CSS selectors)")
+
+
+def parse_electron_steps(lines: list[str]) -> list[dict]:
+    return [parse_electron_step(line, i) for i, line in enumerate(lines)]

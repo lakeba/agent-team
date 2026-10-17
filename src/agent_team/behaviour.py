@@ -9,18 +9,23 @@ user would notice. Each scenario has a kind:
 - browser: the app is started (`serve`), a browser follows the steps (`click button "Start"`, ...),
   and the page as a user perceives it (its accessibility text) is compared, then the URL, console
   and page errors, and a screenshot.
+- electron: a desktop app is started with Electron and the steps click through it (`click css
+  "#save"`, ...). REA's Electron capture records the app's windows (title, page, visible), what it
+  asked of the main process (IPC channels, not their values), the external effects it attempted
+  (opening links, downloads; these are blocked) and errors, not the window's text or pixels, so
+  that's what is compared.
 - api: a .NET assembly is built (`prepare`) and its public API is compared: added, removed and
   changed types and members. Removing or changing a public member breaks callers.
 
 The runs are captured by an MCP server (`[behaviour].server`, REA by default): its terminal capture,
-its Playwright browser scenarios and its .NET metadata inspection. agent-team compares the results.
+its Playwright browser and Electron scenarios and its .NET metadata inspection. agent-team compares the results.
 Every check's evidence is kept under .team/evidence/ (summary, screens, screenshots), the dashboard
 shows it, the lead reviews with it, and the pull request lists the outcome.
 
 The program runs with your user's permissions on this machine, as the tests do when [sandbox] is
 off. With [sandbox] mode = "container", the scenario's prepare, run and serve commands run inside
 the container instead (the browser and the inspection stay on this machine: they don't run the
-team's code).
+team's code). Electron checks start the app on this machine, so they don't run in container mode.
 """
 from __future__ import annotations
 
@@ -54,6 +59,7 @@ MAC_BROWSERS = ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
                 "/Applications/Chromium.app/Contents/MacOS/Chromium",
                 "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge")
 TOOLS = {"terminal": ["capture_process_scenario"], "browser": ["capture_browser_scenario", "compare_web_screenshots"],
+         "electron": ["capture_electron_scenario"],
          "api": ["inspect_managed_members", "analyze_javascript_application"]}
 
 
@@ -256,17 +262,27 @@ def browser_input(team: Team, sc: BehaviourScenario) -> dict:
             "capture": {"at_end": ["screenshot", "accessibility", "url"], "events": ["console", "page-errors"]}}
 
 
+def _captured(evidence: dict, key: str):
+    """One artifact REA captured at the end of a browser scenario, if it was."""
+    steps = (evidence.get("normalized_result") or {}).get("steps") or []
+    a = ((steps[-1].get("artifacts") or {}) if steps else {}).get(key) or {}
+    return a.get("value") if a.get("state") == "captured" else None
+
+
+def page_text(evidence: dict) -> str:
+    """The whole page as a user (or a screen reader) perceives it, at the end of a browser scenario."""
+    return (_captured(evidence, "accessibility") or {}).get("text", "")
+
+
 def _browser(evidence: dict) -> Observation:
     r = evidence.get("normalized_result") or {}
     steps = r.get("steps") or []
     failed = next((s for s in steps if s.get("status") not in ("completed", None)), None)
-    art = (steps[-1].get("artifacts") or {}) if steps else {}
 
     def value(k):
-        a = art.get(k) or {}
-        return a.get("value") if a.get("state") == "captured" else None
+        return _captured(evidence, k)
 
-    page = (value("accessibility") or {}).get("text", "")
+    page = page_text(evidence)
     errors = [f"{e.get('kind')}: {e.get('text', '')[:200]}" for e in (r.get("events") or {}).get("items") or []
               if e.get("kind") == "page-error" or (e.get("kind") == "console" and e.get("level") == "error")]
     return Observation(view=page[-VIEW_CHARS:], url=(value("url") or {}).get("url", ""), errors=errors,
@@ -297,6 +313,95 @@ def run_browser(team: Team, client: mcp.Client, sc: BehaviourScenario, project: 
     if result.get("isError") or not isinstance(evidence, dict):
         return Observation(problem=mcp.text_of(result)[:1500])
     return _browser(evidence)
+
+
+# ---------------------------------------------------------------------------------------------
+# electron
+
+def electron_path(sc: BehaviourScenario, project: Path) -> Path | None:
+    """The Electron executable: the scenario's, or the one npm installed in the project."""
+    if sc.electron:
+        p = Path(sc.electron).expanduser()
+        return p if p.is_absolute() else project / p
+    package = project / "node_modules" / "electron"
+    try:   # the electron package names its binary, relative to dist/, in path.txt
+        return package / "dist" / (package / "path.txt").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+
+
+def electron_input(sc: BehaviourScenario, project: Path, executable: Path) -> dict:
+    from .steps import parse_electron_steps
+    return {"executable_path": str(executable), "application_path": str(project / (sc.app or ".")),
+            "args": list(sc.electron_args), "actions": parse_electron_steps(sc.steps)}
+
+
+def _electron(evidence: dict, project: Path) -> Observation:
+    """What a user of the app would notice, from REA's Electron capture: its windows, the external
+    effects it attempted, what it asked of the main process, the steps and the errors."""
+    r = evidence.get("normalized_result") or {}
+    roots = sorted({f"file://{project}/", f"file://{Path(project).resolve()}/"}, key=len, reverse=True)
+
+    def where(url) -> str:   # the project's own pages, without the folder this version is in
+        url = str(url or "")
+        return next((url[len(x):] for x in roots if url.startswith(x)), url)
+
+    lines = []
+    for w in r.get("windows") or []:
+        state = ("" if w.get("visible") else " (hidden)") + (" (closed)" if w.get("destroyed") else "")
+        lines.append(f"window {json.dumps(w.get('title') or '', ensure_ascii=False)} {where(w.get('url'))}{state}")
+    events = (r.get("timeline") or {}).get("events") or []
+    blocked: dict[str, int] = {}
+    for e in events:
+        if e.get("phase") == "blocked":
+            key = f"blocked: {e.get('kind')} {e.get('event') or ''}".rstrip()
+            blocked[key] = blocked.get(key, 0) + 1
+    lines += [k + (f" (x{n})" if n > 1 else "") for k, n in sorted(blocked.items())]
+    ipc = set()
+    for e in (r.get("ipc") or {}).get("events") or []:
+        if e.get("channel"):
+            ipc.add(f"ipc {e['channel']}({', '.join(e.get('argument_shapes') or [])})"
+                    + (f" -> {e['result_shape']}" if e.get("result_shape") else "") + (" failed" if e.get("error") else ""))
+    lines += sorted(ipc)
+    errors: dict[str, int] = {}
+    for e in events:
+        if e.get("kind") == "error":
+            errors[str(e.get("event"))] = errors.get(str(e.get("event")), 0) + 1
+    actions = r.get("actions") or []
+    failed = next((a for a in actions if a.get("status") != "completed"), None)
+    windows = r.get("windows") or []
+    return Observation(view="\n".join(lines)[-VIEW_CHARS:], url=where(windows[0].get("url")) if windows else "",
+                       errors=[f"{k}: {n}" for k, n in sorted(errors.items())],
+                       exit=(f"step {failed.get('step_id')} {failed.get('status')}: {failed.get('error')}"
+                             if failed else "all steps completed"), evidence=evidence)
+
+
+def run_electron(team: Team, sc: BehaviourScenario, project: Path, log: Path | None = None) -> Observation:
+    if _boxed(team):   # REA starts the app here, outside the container
+        return Observation(problem="electron checks start the app on this machine, so they don't run with "
+                                   "[sandbox] mode = \"container\"")
+    problem = prepare(team, sc, project)
+    if problem:
+        return Observation(problem=problem)
+    executable = electron_path(sc, project)
+    if not executable or not executable.exists():
+        return Observation(problem=f"no Electron executable at {executable or 'node_modules/electron'} (install "
+                                   f"electron in prepare, e.g. npm ci, or set electron)")
+    if not (project / (sc.app or ".")).exists():
+        return Observation(problem=f"{sc.app} wasn't found in the project")
+    # Its own server: a click on something that never appears waits until the timeout, and closing
+    # the server is what stops that run (and the app).
+    try:
+        with mcp.Client(team.mcp[team.behaviour.server], team.root, log) as client:
+            result = client.call("capture_electron_scenario", electron_input(sc, project, executable),
+                                 timeout=sc.timeout + 60)
+    except mcp.McpError as e:
+        hint = " (a click on something that never appears waits until the timeout)" if "took longer" in str(e) else ""
+        return Observation(problem=f"{e}{hint}")
+    evidence = result.get("structuredContent")
+    if result.get("isError") or not isinstance(evidence, dict):
+        return Observation(problem=mcp.text_of(result)[:1500])
+    return _electron(evidence, project)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -416,13 +521,13 @@ def compare(before: Observation, after: Observation, kind: str = "terminal") -> 
         parts = ([f"removed or changed: {', '.join(removed[:5])}"] if removed else []) + \
                 ([f"added: {', '.join(added[:5])}"] if added else [])
         return ("changed", "; ".join(parts)) if parts else ("same", "")
-    what = "page text" if kind == "browser" else "screen"
+    what = {"browser": "page text", "electron": "app"}.get(kind, "screen")
     if before.view != after.view:
         return "changed", _first_line_difference(before.view, after.view, what)
     if before.exit != after.exit:
         return "changed", f"before {before.exit}, now {after.exit}"
     if before.url != after.url:
-        return "changed", f"the page ended at {after.url} instead of {before.url}"
+        return "changed", f"the {'window' if kind == 'electron' else 'page'} ended at {after.url} instead of {before.url}"
     new_errors = [e for e in after.errors if e not in before.errors]
     if new_errors:
         return "changed", f"new error: {new_errors[0]}"
@@ -505,6 +610,8 @@ def run(team: Team, base: str | None, target: str | None = None, label: str = "c
                 for project in (base_dir, now):
                     if sc.kind == "browser":
                         runs.append(run_browser(team, client, sc, project))
+                    elif sc.kind == "electron":
+                        runs.append(run_electron(team, sc, project, log / f"mcp-{team.behaviour.server}.log"))
                     elif sc.kind == "api":
                         runs.append(run_api(team, client, sc, project))
                     else:
@@ -607,7 +714,7 @@ def report(outcomes: list[Outcome], for_pr: bool = False) -> str:
             elif o.kind != "api":
                 extra = [f"files: {', '.join(r.files)}" if r.files else "",
                          f"errors: {'; '.join(r.errors[:3])}" if r.errors else "",
-                         f"at {r.url}" if r.url and o.kind == "browser" else ""]
+                         f"at {r.url}" if r.url and o.kind in ("browser", "electron") else ""]
                 out.append(f"- {label}: {r.exit}" + "".join(f"; {x}" for x in extra if x))
         if o.kind == "api" and o.status == "changed":
             if o.breaking:
@@ -618,7 +725,7 @@ def report(outcomes: list[Outcome], for_pr: bool = False) -> str:
             out.append(f"- First difference: {o.first_difference}")
         out += [f"- Note: {n}" for n in o.notes]
         if not for_pr and o.kind != "api":
-            what = "Page" if o.kind == "browser" else "Screen"
+            what = {"browser": "Page", "electron": "App"}.get(o.kind, "Screen")
             for label, r in ((f"{what} before", o.base), (f"{what} now", o.work)):
                 if r.view:
                     out += ["", f"{label}:", "```", r.view, "```"]

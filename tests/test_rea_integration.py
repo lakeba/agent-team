@@ -15,8 +15,8 @@ from agent_team import behaviour, cli, config, rea, sandbox, steps
 from agent_team.workflows import init, journeys
 from test_mcp import MCP_TOML, git_project, project_with
 
-PAGE_V1 = "<html><body><h1>Tally</h1><p>No timer running.</p></body></html>"
-PAGE_V2 = "<html><body><h1>Tally</h1><p>Running: client-a</p><!-- v2 --></body></html>"
+PAGE_V1 = "<html><body><h1>Tally</h1><p>No timer running.</p><button>Start</button></body></html>"
+PAGE_V2 = "<html><body><h1>Tally</h1><p>Running: client-a</p><button>Start</button><!-- v2 --></body></html>"
 
 
 def web_project(before: str, after: str) -> tuple[Path, str]:
@@ -95,7 +95,7 @@ class KindsTests(unittest.TestCase):
             outcomes = behaviour.run(team, base, label="test")
         o = outcomes[0]
         self.assertEqual((o.kind, o.status), ("browser", "changed"))
-        self.assertIn('"Tally No timer running."', o.first_difference)
+        self.assertIn('"Tally No timer running. Start"', o.first_difference)
         self.assertIn("5.0% of the screenshot's pixels changed", o.notes)
         saved = behaviour.recent(team)
         self.assertEqual(saved[0]["outcomes"][0]["status"], "changed")
