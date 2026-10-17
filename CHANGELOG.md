@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-17
+
 ### Added
 
 - Everything ECC offers, mapped onto the team (pinned ECC v2.2.3, fetched once, MIT licence):
