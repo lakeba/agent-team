@@ -77,6 +77,17 @@ Tab completes commands, options, choices and your members' names: the installer 
 bash; for zsh, run `agent-team completion install` once (it asks before adding one line to
 `~/.zshrc`).
 
+## Try it first
+
+```bash
+agent-team try
+```
+
+A minute, in a throwaway folder: a two-member team (Atlas leads, Forge builds) adds a feature to a
+small sample CLI, runs its tests and reviews the result. It uses Claude when a key is set, else a
+local Ollama model, else a recorded run that calls no model at all, so it works on a fresh machine
+(`--with claude|ollama|replay` to choose, `--keep` to keep the folder).
+
 ## Quick start
 
 ```bash
@@ -172,6 +183,38 @@ tools can be given to members (`mcp = ["rea"]`). See [configuration](docs/config
 
 `build` takes `--parallel` (split the plan across every builder), `--skip qa,security,docs`,
 `--rounds`, `--builder` and `--lead`. Every command takes `-C <project>`; `--help` lists the rest.
+
+### Team templates with ECC's agents and skills
+
+[ECC](https://github.com/affaan-m/ECC) is a large, MIT-licensed library of agent prompts and skills
+for coding agents. A template gives each member the ECC piece that fits its role and your language:
+
+```bash
+agent-team templates               # python, react, typescript, dotnet, go, rust, kotlin, java, swift, general
+agent-team templates apply         # the one that fits this project (or name one); asks first
+```
+
+The lead gets ECC's reviewer for the language, the builders its patterns skill, QA its testing
+skill, and the security, docs and marketing members ECC's agents for those jobs. The files are
+copied from a pinned ECC release into `team/skills/ecc/` with ECC's licence (`NOTICE.md`), and each
+member's `skills` names them, so you review and commit them like any other file. `apply` shows how
+many characters each member's prompt gains first, since skills go with every call.
+
+### Use it from any coding agent (MCP)
+
+`agent-team mcp` serves the team over the Model Context Protocol, so Claude Code, Codex, Cursor and
+other agents can see the team and start its runs ("have the team build the export command as a
+PR"):
+
+```bash
+agent-team mcp install --client claude     # or codex, cursor; asks first
+agent-team mcp config                      # the snippets, to add by hand
+```
+
+The tools: `team_status`, `team_ready`, `team_start_run` (build, fix, discuss, ship, autopilot,
+market, doctor, in the background), `team_run_output`, `team_runs`, `team_stop_run` and
+`team_behaviour`. Runs keep the same spend limits and guardrails. Approving pull requests and
+releases isn't offered: that stays with you.
 
 ### Use it from Claude Code
 

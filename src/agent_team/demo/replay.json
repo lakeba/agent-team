@@ -1,0 +1,31 @@
+{
+ "task": "Add a --round STEP option that rounds each person's share up to the next multiple of STEP, so people paying cash are never short (e.g. --round 0.05: 34.51 becomes 34.55).",
+ "script": {
+  "lead": [
+   {
+    "when": "Write PLAN.md",
+    "reply": "# Plan: round each share up for cash\n\nAdd a `--round STEP` option so each person's share is rounded **up** to the next multiple of STEP\n(e.g. `--round 0.05`: 34.51 becomes 34.55), because people pay in cash and nobody should be short.\n\n1. `src/tipsplit/cli.py`: add `round_up(amount, step)` using `math.ceil`, with a small tolerance so\n   34.50 stays 34.50 despite floating point; `split()` takes an optional `step`.\n2. Wire `--round` into `main()` (default: no rounding, so existing output is unchanged).\n3. `tests/test_cli.py`: round_up cases (exact, just above, the 0.1 + 0.2 trap) and split with a step.\n\n<file path=\"PLAN.md\">\n# Plan: round each share up for cash\n\n- cli.py: round_up(amount, step) with math.ceil and a 1e-9 tolerance; split(..., step=None)\n- main(): --round STEP, default off\n- tests: round_up exact / above / float trap; split with step\n</file>"
+   },
+   {
+    "when": "team/behaviour.toml",
+    "reply": "NO CHANGE"
+   },
+   {
+    "when": "",
+    "reply": "I read cli.py and the tests. `round_up` uses `math.ceil` with a 1e-9 tolerance, so exact\nmultiples (34.50) stay put and 0.1 + 0.2 doesn't round up to 0.4; that's the case most\nimplementations get wrong, and the test covers it. Default output is unchanged without\n`--round`, and the tests pass.\n\nNon-blocking: a negative or zero STEP would divide by zero; worth a check later.\n\nLESSON: money rounding needs a tolerance before ceil/floor, and a test for the float trap.\n\nVERDICT: APPROVED"
+   }
+  ],
+  "builder": [
+   {
+    "when": "",
+    "reply": "Implementing the plan: `round_up` with a tolerance, `--round` in `main()`, and tests.\n\n<edit path=\"src/tipsplit/cli.py\">\n<<<<<<< SEARCH\nimport argparse\n\n\ndef split(total: float, people: int, tip: float = 0.0) -> float:\n    \"\"\"Each person's share of the bill, with the tip, in currency units.\"\"\"\n    return round(total * (1 + tip / 100) / people, 2)\n=======\nimport argparse\nimport math\n\n\ndef round_up(amount: float, step: float) -> float:\n    \"\"\"`amount` rounded up to the next multiple of `step` (34.51 with 0.05 gives 34.55).\"\"\"\n    units = amount / step\n    return round(math.ceil(units - 1e-9) * step, 2)\n\n\ndef split(total: float, people: int, tip: float = 0.0, step: float | None = None) -> float:\n    \"\"\"Each person's share of the bill, with the tip, in currency units; rounded up to `step` if given.\"\"\"\n    share = round(total * (1 + tip / 100) / people, 2)\n    return round_up(share, step) if step else share\n>>>>>>> REPLACE\n<<<<<<< SEARCH\n    p.add_argument(\"--tip\", type=float, default=0.0)\n    a = p.parse_args(argv)\n    print(f\"{split(a.total, a.people, a.tip):.2f} each\")\n=======\n    p.add_argument(\"--tip\", type=float, default=0.0)\n    p.add_argument(\"--round\", type=float, default=None, metavar=\"STEP\",\n                   help=\"round each share up to a multiple of STEP, e.g. 0.05\")\n    a = p.parse_args(argv)\n    print(f\"{split(a.total, a.people, a.tip, a.round):.2f} each\")\n>>>>>>> REPLACE\n</edit>\n\n<edit path=\"tests/test_cli.py\">\n<<<<<<< SEARCH\nfrom tipsplit.cli import split  # noqa: E402\n=======\nfrom tipsplit.cli import round_up, split  # noqa: E402\n>>>>>>> REPLACE\n<<<<<<< SEARCH\n    def test_no_tip(self):\n        self.assertEqual(split(90, 3), 30.0)\n=======\n    def test_no_tip(self):\n        self.assertEqual(split(90, 3), 30.0)\n\n    def test_round_up_to_a_step(self):\n        self.assertEqual(round_up(34.51, 0.05), 34.55)\n        self.assertEqual(round_up(34.50, 0.05), 34.5)      # already a multiple: unchanged\n        self.assertEqual(round_up(0.1 + 0.2, 0.1), 0.3)     # floating point doesn't push it up\n\n    def test_split_with_rounding(self):\n        self.assertEqual(split(100, 3, 0, 0.05), 33.35)\n>>>>>>> REPLACE\n</edit>"
+   }
+  ],
+  "default": [
+   {
+    "when": "",
+    "reply": "Nothing to add.\nSIGN-OFF: YES\nSTATUS: AGREE"
+   }
+  ]
+ }
+}

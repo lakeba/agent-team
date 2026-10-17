@@ -27,6 +27,15 @@ Markdown files (or skill folders with a `SKILL.md`) to its prompt, on top of its
 checklists, conventions and domain knowledge one member needs; see
 [configuration.md](configuration.md#skills).
 
+### Start from a template
+
+`agent-team templates apply` gives each member the [ECC](https://github.com/affaan-m/ECC) agent or
+skill that fits its role and the project's language (the lead a reviewer, builders a patterns
+skill, QA a testing skill, and security, docs and marketing ECC's agents for those jobs). The files
+are copied into `team/skills/ecc/` with ECC's MIT licence and listed under each member's `skills`;
+edit or drop them like any other skill. `--ecc PATH` uses an ECC checkout you already have instead
+of fetching the pinned release.
+
 ## Add a role (no code)
 
 Use any role name and give the member a prompt file:

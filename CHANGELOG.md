@@ -6,6 +6,20 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- `agent-team mcp`: the team as an MCP server for any coding agent (Claude Code, Codex, Cursor and
+  others), with tools to see the team, start runs in the background, follow and stop them, and read
+  the behaviour checks. Approvals aren't offered. `agent-team mcp install --client claude|codex|cursor`
+  registers it (asking first); `agent-team mcp config` prints the snippets.
+- `agent-team try`: a one-minute demo in a throwaway folder: a two-member team adds a feature to a
+  sample CLI, tests and reviews it. Uses Claude, else Ollama, else a recorded run (the new `replay`
+  provider kind) that needs no model or key.
+- `agent-team templates [list|show|apply]`: team templates for ten languages that give each member
+  the matching agent or skill from [ECC](https://github.com/affaan-m/ECC) (MIT), copied from a
+  pinned release into `team/skills/ecc/` with ECC's licence and named in members' `skills`.
+- `python -m agent_team` runs the CLI.
+
 ## [0.8.0] - 2026-10-17
 
 ### Added

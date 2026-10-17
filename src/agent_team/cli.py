@@ -708,6 +708,22 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--base", default="", help="for run: the commit to compare against (default: HEAD)")
     s.add_argument("--target", default="", help="for run: a commit to check instead of the working tree")
     s.add_argument("--only", default="", help="for run: comma-separated journey names")
+    s = add("templates", cmd_templates, "team templates with ECC's agents and skills for your language: list, show, apply")
+    s.add_argument("action", nargs="?", default="list", choices=["list", "show", "apply"])
+    s.add_argument("name", nargs="?", default="", help="the template (default: the one that fits the project)")
+    s.add_argument("--ecc", default="", help="use this ECC checkout instead of fetching the pinned release")
+    s.add_argument("--yes", action="store_true", help="for apply: don't ask first")
+    s = sub.add_parser("try", help="see the team build a feature in a sample project, in about a minute (no setup)")
+    s.add_argument("--with", dest="with_", default="auto", choices=["auto", "claude", "ollama", "replay"],
+                   help="the models: auto (Claude if your key is saved, else Ollama, else a replay)")
+    s.add_argument("--keep", action="store_true", help="keep the sample project afterwards")
+    s.add_argument("--folder", default="", help="put the sample here instead of a temporary folder")
+    s.set_defaults(fn=cmd_try)
+    s = add("mcp", cmd_mcp, "the team as an MCP server for any coding agent: serve, install it, or print its config")
+    s.add_argument("action", nargs="?", default="serve", choices=["serve", "install", "config"])
+    s.add_argument("--client", default="claude", choices=["claude", "codex", "cursor"], help="for install")
+    s.add_argument("--scope", default="user", choices=["user", "project", "local"], help="for install with Claude Code")
+    s.add_argument("--yes", action="store_true", help="for install: don't ask first")
     s = sub.add_parser("completion", help="Tab completion for bash and zsh: print the script, or install it")
     s.add_argument("action", nargs="?", default="install", choices=["install", "bash", "zsh"],
                    help="install (for your shell), or print the bash or zsh script")
@@ -783,6 +799,42 @@ def cmd_behaviour(args) -> int:
         return 1
     ui.say(behaviour.report(outcomes, for_pr=True))
     return 2 if any(o.status == "failed" for o in outcomes) else 0
+
+
+def cmd_mcp(args) -> int:
+    if args.action == "serve":
+        from . import mcp_server
+        return mcp_server.serve(Path(args.project))
+    from . import mcp_install
+    if args.action == "config":
+        ui.say(mcp_install.snippets())
+        return 0
+    return mcp_install.install(args.client, args.yes, args.scope)
+
+
+def cmd_templates(args) -> int:
+    from . import packs
+    root = Path(args.project).resolve()
+    fit = packs.detect(root)
+    if args.action == "list":
+        for p in packs.PACKS:
+            ui.say(f"  {p.name:<11} {p.about}{'   <- fits this project' if p is fit else ''}")
+        ui.say(f"\nApply one: agent-team templates apply {fit.name}   (ECC's pieces, MIT licence, copied into team/skills/ecc/)")
+        return 0
+    name = args.name or fit.name
+    if name not in packs.BY_NAME:
+        raise SystemExit(f"no template {name!r}; there are {', '.join(packs.BY_NAME)}")
+    pack = packs.BY_NAME[name]
+    if args.action == "show":
+        for role, ref in pack.pieces().items():
+            ui.say(f"  {role:<10} ECC {ref}")
+        return 0
+    return packs.apply(_team(args), pack, args.ecc, args.yes)
+
+
+def cmd_try(args) -> int:
+    from .workflows import try_demo
+    return try_demo.run(args.with_, args.keep, Path(args.folder) if args.folder else None)
 
 
 def cmd_completion(args) -> int:
