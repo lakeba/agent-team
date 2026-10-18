@@ -1,6 +1,6 @@
 # Configuration: `.team.toml`
 
-`agent-team init` writes a starter file from a few questions (or flags: `--models`, `--members`, `--builders`, `--per-run`, `--per-day`, `--yes`). The full set of settings:
+agent-team, the engine of Lakeba OS, reads its team from `.team.toml`. `agent-team init` writes a starter file from a few questions (or flags: `--models`, `--members`, `--builders`, `--per-run`, `--per-day`, `--yes`). The full set of settings:
 
 ## `[project]`
 

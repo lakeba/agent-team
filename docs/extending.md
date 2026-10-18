@@ -1,5 +1,8 @@
 # Extending the team
 
+How to grow the team that agent-team, the engine of Lakeba OS, runs: new members, roles, machines,
+tools and providers.
+
 ## Add a team member (no code)
 
 Add an `[[agents]]` entry to `.team.toml`:

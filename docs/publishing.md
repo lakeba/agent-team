@@ -1,6 +1,6 @@
 # Publishing agent-team
 
-How a version of agent-team reaches people. Each step that publishes something is done by a
+How a version of agent-team, the engine of Lakeba OS, reaches people. Each step that publishes something is done by a
 maintainer on purpose; nothing here runs on its own.
 
 ## Release a version

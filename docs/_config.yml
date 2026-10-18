@@ -1,6 +1,6 @@
 # GitHub Pages (Settings → Pages → Deploy from a branch → main, /docs) renders these pages.
-title: agent-team
-description: A configurable team of AI agents that plans, builds, reviews, markets and ships software through GitHub.
+title: Lakeba OS
+description: Have an idea? Describe it to Lakeba OS, an AI team builds the MVP, then apply to co-found your company with Lakeba. agent-team, the engine, is open source.
 plugins:
   - jekyll-relative-links
   - jekyll-optional-front-matter

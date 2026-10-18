@@ -1,6 +1,6 @@
 # Architecture
 
-agent-team has four layers. Each one can grow without changes to the others.
+agent-team, the engine of Lakeba OS, has four layers. Each one can grow without changes to the others.
 
 ```
  coding agents ──► mcp_server (agent-team mcp) ──► jobs ──┐
