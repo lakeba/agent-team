@@ -1,9 +1,54 @@
 <p align="center"><a href="https://lakeba.com"><img src="https://raw.githubusercontent.com/lakeba/agent-team/main/docs/assets/brand/lakeba-mark.svg" alt="Lakeba" width="72"></a></p>
 
-<h1 align="center">agent-team</h1>
+<h1 align="center">Lakeba OS</h1>
 
-<p align="center"><b>by <a href="https://lakeba.com">Lakeba</a></b> · Conceive · Create · Commercialise<br>
-<a href="https://lakeba.github.io/agent-team/">Website</a> · <a href="https://pypi.org/project/agent-team/">PyPI</a> · <a href="CHANGELOG.md">Changelog</a></p>
+<p align="center"><b>Have an idea? Build it with an AI team, then apply to co-found your company with Lakeba.</b><br>
+Conceive · Create · Commercialise<br>
+<a href="https://lakeba.github.io/agent-team/">Website</a> · <a href="https://lakeba.com/os/apply">Apply</a> · <a href="https://pypi.org/project/agent-team/">PyPI</a> · <a href="CHANGELOG.md">Changelog</a></p>
+
+Describe your vision to Lakeba OS, and an AI team plans it, builds it, tests it and ships it as a
+working MVP. Then apply to Lakeba to co-found your company, with Lakeba as investor and venture
+studio behind you. agent-team is the engine: an open-source AI dev team that plans, builds,
+reviews, merges and releases through GitHub, on Claude or local models.
+
+## The program
+
+From idea to founder, in four steps:
+
+1. **Describe.** Tell Lakeba OS what you want to build, in plain language. No code needed.
+2. **Build.** The AI team writes the plan, the code, the tests and the reviews, and gives you a
+   working MVP, hosted and free.
+3. **Apply.** Submit your MVP and a short pitch to Lakeba. Lakeba OS produces the positioning brief
+   and pitch deck for you.
+4. **Found.** If approved, you become founder and CEO of your own company. You hold 51%, Lakeba
+   holds 49% as co-founder, investor and venture studio, and your first 12 months of salary are
+   funded.
+
+Not approved this time? Keep your MVP, keep building, apply again.
+**[Apply with your MVP](https://lakeba.com/os/apply)**
+
+If Lakeba co-founds your company, you get co-founding capital, your first 12 months of salary as
+CEO funded, the Lakeba OS AI dev team for your product, Lakeba’s shared services (finance, legal,
+people, marketing), and the Lakeba Group ecosystem, portfolio and network.
+
+### Questions
+
+**Do I need to know how to code?** No. You describe what you want and approve each step. The AI
+team writes the code.
+
+**Is it really free?** Yes. agent-team is open source under MIT. The hosted Lakeba OS build service
+is free, with a fair-use build allowance per idea.
+
+**Who owns my MVP?** You do. If Lakeba co-founds your company, the MVP is transferred into that
+company, which you and Lakeba own together.
+
+**Is funding guaranteed?** No. Lakeba reviews every application and funds a limited number of
+ventures. Every applicant keeps their MVP whatever the outcome.
+
+**Can I use agent-team without applying?** Yes. It is open source and runs on your machine with the
+models you already have.
+
+## agent-team, the engine
 
 A configurable team of AI agents that works on a software project the way a small team would:
 it plans a roadmap, builds features, reviews them, writes marketing material, and ships through
@@ -17,7 +62,7 @@ member, a machine or a project is a configuration change.
 It grew out of todo-py, a small command-line app this team planned, built, marketed and released
 (v1.0.0 and v1.0.1); its team is in [examples/todo-py.team.toml](examples/todo-py.team.toml).
 
-## How the team works
+### How the team works
 
 | Workflow | Command | What happens |
 |---|---|---|
@@ -49,7 +94,7 @@ exact commit. Weaker models hand work to a stronger member after rejected rounds
 and `[notify]` posts to Slack or any webhook when PRs open or merge, approvals or releases wait
 for you, or autopilot stops.
 
-## Install
+### Install
 
 Requirements: macOS or Linux, Python 3.11+ (on Ubuntu/Debian also `python3-venv`) and git. Members
 can run on Claude (an Anthropic API key), on [Ollama](https://ollama.com/) models on this machine or
@@ -77,7 +122,7 @@ Tab completes commands, options, choices and your members' names: the installer 
 bash; for zsh, run `agent-team completion install` once (it asks before adding one line to
 `~/.zshrc`).
 
-## Try it first
+### Try it first
 
 ```bash
 agent-team try
@@ -88,7 +133,7 @@ small sample CLI, runs its tests and reviews the result. It uses Claude when a k
 local Ollama model, else a recorded run that calls no model at all, so it works on a fresh machine
 (`--with claude|ollama|replay` to choose, `--keep` to keep the folder).
 
-## Quick start
+### Quick start
 
 ```bash
 cd ~/code/my-project
@@ -128,7 +173,7 @@ agent-team build "add an export command" --branch team/export --pr
 agent-team ship                                          # one devops shift on GitHub
 ```
 
-### The product vision
+#### The product vision
 
 Tell the team what the product should be in `VISION.md`: who it's for, what problem it solves,
 what makes it worth using. `init` asks for it (or `init --vision "..."`), and every workflow
@@ -139,7 +184,7 @@ from a vision you've written elsewhere:
 agent-team discuss --vision ~/notes/tipsplit-pitch.md    # saved as VISION.md if there's none yet
 ```
 
-### Behaviour checks with REA
+#### Behaviour checks with REA
 
 Tests check what their authors thought of. A behaviour check uses the program the way a user
 would, before and after the team's change, and shows the lead what changed: "after `stop`,
@@ -161,7 +206,7 @@ what the build ships, and an optional scout looks at other products from the out
 team plans (a site can have steps first, such as accepting a cookie dialog). REA is one of the tool servers the team can use over MCP: any `[mcp.*]` server's allowed
 tools can be given to members (`mcp = ["rea"]`). See [configuration](docs/configuration.md#behaviour-and-behaviour-scenarios).
 
-### Other commands
+#### Other commands
 
 | Command | What it does |
 |---|---|
@@ -193,7 +238,7 @@ tools can be given to members (`mcp = ["rea"]`). See [configuration](docs/config
 `build` takes `--parallel` (split the plan across every builder), `--skip qa,security,docs`,
 `--rounds`, `--builder` and `--lead`. Every command takes `-C <project>`; `--help` lists the rest.
 
-### The built-in library
+#### The built-in library
 
 agent-team ships with its own library, so a team can start with know-how instead of a blank page:
 
@@ -230,7 +275,7 @@ secrets, deployment) waits until the member writes a `WHY path: ...` line with t
 on. A held-back change keeps the build open. `[project].protect_config` and `gate_sensitive` turn
 them off.
 
-### Use it from any coding agent (MCP)
+#### Use it from any coding agent (MCP)
 
 `agent-team mcp` serves the team over the Model Context Protocol, so Claude Code, Codex, Cursor and
 other agents can see the team and start its runs ("have the team build the export command as a
@@ -246,7 +291,7 @@ market, doctor, in the background), `team_run_output`, `team_runs`, `team_stop_r
 `team_behaviour`. Runs keep the same spend limits and guardrails. Approving pull requests and
 releases isn't offered: that stays with you.
 
-### Use it from Claude Code
+#### Use it from Claude Code
 
 The installer adds the plugin. To add it by hand, at the prompt of a Claude Code session:
 
@@ -262,7 +307,7 @@ refresh, check health, start a devops shift and start the dashboard, plus backgr
 stop. `/team-run build <task>` (or `fix <PR>`, `discuss <topic>`, `ship`, `market`, `doctor`) starts a run in
 the background and the panel follows it. The commands need the `agent-team` CLI on your `PATH`.
 
-## Documentation
+### Documentation
 
 - [Architecture](docs/architecture.md): providers, agents, workflows and how they fit.
 - [Configuration](docs/configuration.md): every `.team.toml` setting.
@@ -272,11 +317,13 @@ the background and the panel follows it. The commands need the `agent-team` CLI 
   QA and docs members, parallel builders and spend limits.
 - [Changelog](CHANGELOG.md) and [roadmap](ROADMAP.md).
 
-## Licence
+### Licence
 
 MIT, see [LICENSE](LICENSE).
 
-## Status
+Lakeba OS is a program of Lakeba Group. agent-team is MIT licensed.
+
+### Status
 
 Released on [PyPI](https://pypi.org/project/agent-team/) and [GitHub](https://github.com/lakeba/agent-team/releases);
 see the [CHANGELOG](CHANGELOG.md) for what each version changed, [ROADMAP.md](ROADMAP.md) for what's

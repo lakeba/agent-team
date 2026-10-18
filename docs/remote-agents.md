@@ -1,6 +1,6 @@
 # Remote agents: letting another machine join the team
 
-Any machine with Python 3.11 and agent-team installed can serve a team member. The model, its
+Any machine with Python 3.11 and agent-team (the engine of Lakeba OS) installed can serve a team member. The model, its
 credentials and its hardware stay on that machine; the team only needs a URL and a token.
 
 ## On the machine that joins
