@@ -6,8 +6,8 @@
 Conceive · Create · Commercialise<br>
 <a href="https://lakeba.github.io/agent-team/">Website</a> · <a href="https://lakeba.com/os/apply">Apply</a> · <a href="https://pypi.org/project/agent-team/">PyPI</a> · <a href="CHANGELOG.md">Changelog</a></p>
 
-Describe your vision to Lakeba OS, and an AI team plans it, builds it, tests it and ships it as a
-working MVP. Then apply to Lakeba to co-found your company, with Lakeba as investor and venture
+Describe your vision to Lakeba OS, and an AI team plans it, builds it, tests it and releases it as
+a working MVP. Then apply to Lakeba to co-found your company, with Lakeba as investor and venture
 studio behind you. agent-team is the engine: an open-source AI dev team that plans, builds,
 reviews, merges and releases through GitHub, on Claude or local models.
 
@@ -17,7 +17,7 @@ From idea to founder, in four steps:
 
 1. **Describe.** Tell Lakeba OS what you want to build, in plain language. No code needed.
 2. **Build.** The AI team writes the plan, the code, the tests and the reviews, and gives you a
-   working MVP, hosted and free.
+   working MVP. Hosted and free, coming soon.
 3. **Apply.** Submit your MVP and a short pitch to Lakeba. Lakeba OS produces the positioning brief
    and pitch deck for you.
 4. **Found.** If approved, you become founder and CEO of your own company. You hold 51%, Lakeba
@@ -34,10 +34,11 @@ people, marketing), and the Lakeba Group ecosystem, portfolio and network.
 ### Questions
 
 **Do I need to know how to code?** No. You describe what you want and approve each step. The AI
-team writes the code.
+team writes the code. Until the hosted service opens, running it yourself takes a terminal and a
+few commands.
 
-**Is it really free?** Yes. agent-team is open source under MIT. The hosted Lakeba OS build service
-is free, with a fair-use build allowance per idea.
+**Is it really free?** Yes. agent-team is open source under MIT. The hosted Lakeba OS build service,
+coming soon, will be free, with a fair-use build allowance per idea.
 
 **Who owns my MVP?** You do. If Lakeba co-founds your company, the MVP is transferred into that
 company, which you and Lakeba own together.

@@ -8,7 +8,7 @@ import type { Health, Job, Snapshot } from '../types'
 
 // Keep equal to plugin.json's version and the CLI's (a test checks): a mismatch means one of
 // them wasn't updated, and the panel says so.
-const PLUGIN_VERSION = '0.12.0'
+const PLUGIN_VERSION = '0.12.1'
 const PANE = 'agent-team'
 const TITLE = 'agent-team'
 const snapshot = atom({ plugin: 'agent-team', key: 'snapshot' } as const, null)

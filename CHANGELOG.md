@@ -6,6 +6,14 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-10-19
+
+### Changed
+
+- The README, the website and the package description present Lakeba OS, the program agent-team is
+  the engine of: describe an idea, an AI team builds the MVP, then apply to co-found a company with
+  Lakeba. The tool, the CLI, the package and every command keep the name agent-team.
+
 ## [0.12.0] - 2026-10-17
 
 ### Added

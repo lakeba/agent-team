@@ -1,6 +1,6 @@
 # GitHub Pages (Settings → Pages → Deploy from a branch → main, /docs) renders these pages.
 title: Lakeba OS
-description: Have an idea? Describe it to Lakeba OS, an AI team builds the MVP, then apply to co-found your company with Lakeba. agent-team, the engine, is open source.
+description: Have an idea? Describe it to Lakeba OS, an AI team builds the MVP, then apply to co-found your company with Lakeba. agent-team, its engine, is open source.
 plugins:
   - jekyll-relative-links
   - jekyll-optional-front-matter
