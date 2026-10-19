@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-10-19
+
 ### Changed
 
 - `agent-team ui` in a folder without a team no longer opens another project: the setup offers to
