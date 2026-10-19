@@ -185,6 +185,29 @@ class DashboardClientModeTests(unittest.TestCase):
         status, _ = self.call("POST", "/api/jobs/stop", {"Authorization": f"Bearer {self.TOKEN}", "Host": "evil.test"}, stop)
         self.assertEqual(status, 421)                         # the Host check still applies
 
+    def test_a_release_is_approved_only_through_its_own_route(self):
+        from agent_team import files
+        from agent_team.workflows import ship
+        auth = {"Authorization": f"Bearer {self.TOKEN}"}
+        status, body = self.call("POST", "/api/jobs/start", auth, {"workflow": "ship", "params": {"release": "1.2.0"}})
+        self.assertEqual(status, 422)
+        self.assertIn("/api/release/approve", body["error"])
+        status, body = self.call("POST", "/api/release/approve", auth, {"version": "1.2.0"})
+        self.assertEqual((status, body["error"]), (409, "no release is waiting for your approval"))
+        proposal = self.root / files.LOG_DIR / ship.PROPOSAL
+        proposal.parent.mkdir(parents=True, exist_ok=True)
+        proposal.write_text(json.dumps({"version": "1.2.0", "by": "Harbor", "notes": "- export"}))
+        try:
+            self.assertEqual(self.call("POST", "/api/release/approve", auth, {"version": "1.3.0"})[0], 409)
+            self.assertEqual(self.call("POST", "/api/release/approve", auth, {"version": "1.2"})[0], 422)
+            with mock.patch.object(dash.jobs, "start", return_value={"id": "ship-1", "status": "running"}) as start:
+                status, body = self.call("POST", "/api/release/approve", auth, {"version": "1.2.0"})
+            self.assertEqual((status, body["id"]), (200, "ship-1"))
+            start.assert_called_once_with(self.root, "ship", {"release": "1.2.0"})
+        finally:
+            proposal.unlink()
+        self.assertIn("release.approve", self.call("GET", "/api/meta")[1]["features"])
+
     def test_without_client_mode_a_bearer_token_is_no_way_in(self):
         httpd = ThreadingHTTPServer(("127.0.0.1", 0), None)
         port = httpd.server_address[1]

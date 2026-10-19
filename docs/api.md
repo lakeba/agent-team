@@ -55,11 +55,13 @@ GET routes need no token. POST routes take a JSON body. Errors come back as `{"e
 | `POST /api/jobs/start` | `{"workflow", "params"}`: starts a run. Spend limits and guardrails apply here. |
 | `POST /api/jobs/stop` | `{"id"}`: stops a run at its next step |
 | `GET /api/estimate?workflow=&cycles=` | What a run would cost |
-| `GET /api/usage`, `GET /api/metrics` | Spend and the team's numbers |
+| `GET /api/usage` | Spend: `total`, `today`, `limits` (`per_run`, `per_day`), `by_day`, `by_agent`, `by_model`, `by_run`, `unpriced_models` |
+| `GET /api/metrics` | The team's numbers |
 | `GET /api/config` | The team file's data and its `sha` |
 | `POST /api/config/preview` | `{"data"}`: the diff a save would make |
 | `POST /api/config/save` | `{"data", "sha"}`: saves it, keeping `.team.toml.bak`; refused if the file changed since `sha` |
 | `POST /api/approve` | `{"number"}`: approves a pull request's current commit. The owner's action: a program must only send it after the person confirms. |
+| `POST /api/release/approve` | `{"version"}`: approves the release the devops shift proposed (`release_proposal` in `/api/team`), and only that version; starts the shift that publishes it and returns the run. The owner's action, as above. Feature `release.approve`. `POST /api/jobs/start` refuses a `release` parameter. |
 | `GET /api/github` | Open PRs, issues and releases (cached for 60 s) |
 | `GET /api/projects` | Every known project, summarised |
 

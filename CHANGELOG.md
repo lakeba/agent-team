@@ -6,6 +6,12 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- `POST /api/release/approve {version}`: the dashboard's "Approve and release" now has its own route,
+  which accepts only the version the devops shift proposed. `POST /api/jobs/start` no longer takes a
+  `release` parameter, so approving a release can't be folded into an ordinary run from any client.
+
 ## [0.13.9] - 2026-10-19
 
 ### Added

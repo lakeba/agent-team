@@ -44,7 +44,7 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
 # The contract for programs using this API (the LakebaOS desktop client): `api` goes up only when a
 # route changes in a way that breaks them; `features` names what this version offers.
 API_VERSION = 1
-FEATURES = ["meta", "client-token", "jobs.offset", "config.sha", "approve", "estimate", "story", "setup"]
+FEATURES = ["meta", "client-token", "jobs.offset", "config.sha", "approve", "release.approve", "estimate", "story", "setup"]
 HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
     "X-Content-Type-Options": "nosniff",
@@ -442,7 +442,24 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
                     return self._json({"nodes": discovery.discover(1.5)})
                 if path == "/api/jobs/start":
                     config.load(root)   # refuse to start anything on a broken config
-                    return self._json(jobs.start(root, str(body.get("workflow", "")), body.get("params") or {}))
+                    params = body.get("params") or {}
+                    if isinstance(params, dict) and "release" in params:
+                        return self._json({"error": "approving a release has its own route: POST /api/release/approve"}, 422)
+                    return self._json(jobs.start(root, str(body.get("workflow", "")), params))
+                if path == "/api/release/approve":
+                    # The owner approves the release the devops shift proposed, and only that one: a shift
+                    # starts that publishes it. Never offered over MCP.
+                    from ..workflows import ship
+                    version = body.get("version")
+                    if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+                        return self._json({"error": "version must look like 1.2.3"}, 422)
+                    proposal = ship.release_proposal(root)
+                    if not proposal:
+                        return self._json({"error": "no release is waiting for your approval"}, 409)
+                    if proposal.get("version") != version:
+                        return self._json({"error": f"the release waiting is v{proposal.get('version')}, not v{version}"}, 409)
+                    config.load(root)
+                    return self._json(jobs.start(root, "ship", {"release": version}))
                 if path == "/api/composition":
                     from .. import composition as comp
                     current = comp.from_data(body.get("data") or {})

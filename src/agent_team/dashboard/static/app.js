@@ -157,7 +157,7 @@ function renderOverview() {
       h("pre", { class: "diff" }, t.release_proposal.notes || ""),
       h("div", { class: "actions" }, h("button", { type: "button", class: "primary", onclick: async () => {
         if (!confirm(`Start a devops shift that publishes v${v} on GitHub?`)) return;
-        try { await postJSON("/api/jobs/start", { workflow: "ship", params: { release: v } }); toast(`Started a shift to release v${v}; follow it under Runs.`); }
+        try { await postJSON("/api/release/approve", { version: v }); toast(`Started a shift to release v${v}; follow it under Runs.`); }
         catch (e) { toast(e.message); }
       } }, `Approve and release v${v}`))));
   }
