@@ -313,9 +313,17 @@ def setup_rea(root: Path, use_rea: bool | None, interactive: bool) -> str:
         return ""
     from .. import rea
     command, args, where = rea.find()
+    if not command and interactive and use_rea is not False and rea.node_ok()[0] and \
+            ask_yes(f"Install REA {rea.VERSION}? Behaviour checks and Inspire use it (a minute or two)"):
+        try:
+            rea.install(yes=True)
+            command, args, where = rea.find()
+            use_rea = True
+        except SystemExit as e:
+            ui.say(str(e))
     if not command:
-        return ("Behaviour checks (the team uses the program like a user, before and after each change) need REA: "
-                "agent-team rea setup")
+        return ("Behaviour checks (the team uses the program like a user, before and after each change) and Inspire "
+                "need REA: agent-team rea setup")
     if interactive and use_rea is None and not ask_yes(f"REA is installed ({where}). Use it for behaviour checks?"):
         return ""
     rea.configure(root, command, args)

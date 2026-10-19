@@ -63,10 +63,17 @@ def supported(v: tuple[int, int] | None) -> bool:
     return bool(v) and ((v[0] == 22 and v[1] >= 19) or (v[0] == 24 and v[1] >= 11) or v[0] >= 26)
 
 
+def launcher() -> Path:
+    """agent-team's REA command: a small script that runs its REA copy with the pinned Node.js. Projects
+    name this path, which never changes, so a new Node.js only rewrites the script."""
+    return home() / "bin" / "rea"
+
+
 def pin_node(node: str | None = None) -> str:
     """Remember the Node.js agent-team's REA copy was installed with, so it keeps running with it when
-    the PATH's node changes (nvm, Homebrew). Returns the pinned node, or "" if it isn't supported."""
-    node = node or shutil.which("node") or ""
+    the PATH's node changes (nvm, Homebrew), and write the launcher. Returns the pinned node, or "" if
+    it isn't supported. Without `node`: the one already pinned, else the PATH's."""
+    node = node or pinned_node() or shutil.which("node") or ""
     if not node:
         return ""
     node = os.path.realpath(node)
@@ -74,6 +81,13 @@ def pin_node(node: str | None = None) -> str:
     if not supported(v):
         return ""
     node_file().write_text(json.dumps({"node": node, "version": "%d.%d" % v}) + "\n", encoding="utf-8")
+    if own_command().exists():
+        script = os.path.realpath(own_command())
+        launcher().parent.mkdir(parents=True, exist_ok=True)
+        q = lambda x: "'" + x.replace("'", "'\\''") + "'"
+        launcher().write_text(f"#!/bin/sh\n# agent-team's REA, with the Node.js it was installed with\nexec {q(node)} {q(script)} \"$@\"\n",
+                              encoding="utf-8")
+        launcher().chmod(0o755)
     return node
 
 
@@ -90,9 +104,8 @@ def find() -> tuple[str, list[str], str]:
     """(command, args, where it came from) for a usable REA, or ("", [], "") if there's none.
     agent-team's own copy runs with the Node.js it was installed with, while that one is there."""
     if own_command().exists():
-        node = pinned_node()
-        if node:
-            return node, [os.path.realpath(own_command()), "--mcp"], "agent-team's copy"
+        if launcher().exists() and pinned_node():
+            return str(launcher()), ["--mcp"], "agent-team's copy"
         return str(own_command()), ["--mcp"], "agent-team's copy"
     on_path = shutil.which("rea")
     if on_path:
@@ -132,9 +145,20 @@ def node_ok() -> tuple[bool, str]:
     return ok, f"Node.js {r.stdout.strip()}" + ("" if ok else " is too old: REA needs 22.19+, 24.11+ or 26+")
 
 
+def _node_for_install() -> tuple[str, str]:
+    """(node, npm) to install with: the pinned Node.js when it's still there, else the PATH's."""
+    node = pinned_node() or shutil.which("node") or ""
+    npm = str(Path(node).parent / "npm") if node and (Path(node).parent / "npm").exists() else (shutil.which("npm") or "")
+    return node, npm
+
+
 def install(yes: bool = False) -> str:
     """Install the pinned REA into agent-team's folder; returns its command. Asks first unless yes."""
-    ok, detail = node_ok()
+    node, npm = _node_for_install()
+    if pinned_node():
+        ok, detail = bool(npm), "npm isn't next to the pinned Node.js"
+    else:
+        ok, detail = node_ok()
     if not ok:
         raise SystemExit(f"Can't install REA: {detail}. See https://rea.tools/get-started/")
     target = home()
@@ -149,12 +173,41 @@ def install(yes: bool = False) -> str:
     if not (target / "package.json").exists():
         (target / "package.json").write_text('{"name": "agent-team-rea", "private": true}\n', encoding="utf-8")
     ui.action(f"installing {PACKAGE}@{VERSION} into {target} (a minute or two)")
-    r = subprocess.run(["npm", "install", "--no-fund", "--no-audit", f"{PACKAGE}@{VERSION}"], cwd=target,
-                       capture_output=True, text=True)
+    env = {**os.environ, "PATH": f"{Path(node).parent}{os.pathsep}{os.environ.get('PATH', '')}"}   # npm runs with that node
+    r = subprocess.run([npm, "install", "--no-fund", "--no-audit", f"{PACKAGE}@{VERSION}"], cwd=target,
+                       capture_output=True, text=True, env=env)
     if r.returncode != 0 or not own_command().exists():
         raise SystemExit(f"npm couldn't install REA:\n{(r.stdout + r.stderr)[-2000:]}")
-    pin_node()
-    return str(own_command())
+    pin_node(node)
+    return str(launcher() if launcher().exists() else own_command())
+
+
+def own_version() -> str:
+    """The version of agent-team's own REA copy, from its package.json ("" when it isn't installed)."""
+    try:
+        return json.loads((home() / "node_modules" / PACKAGE / "package.json").read_text(encoding="utf-8")).get("version", "")
+    except (OSError, ValueError):
+        return ""
+
+
+def ensure(install_missing: bool = False) -> str:
+    """Keep agent-team's REA copy at the pinned version: update it when it's older or newer, re-pin a
+    Node.js that went away, and install it when it's missing and `install_missing`. Never touches a
+    REA you installed yourself. Returns what it did, or ""."""
+    if os.environ.get("AGENT_TEAM_NO_REA_UPDATE"):
+        return ""
+    have = own_version()
+    if not have and not install_missing:
+        return ""
+    if have and not pinned_node():
+        pin_node()   # the Node.js it was installed with is gone: the PATH's, if supported
+    if have == VERSION:
+        return ""
+    try:
+        install(yes=True)
+    except SystemExit as e:
+        return f"REA {VERSION} couldn't be installed: {e}"
+    return f"REA updated from {have} to {VERSION}" if have else f"REA {VERSION} installed"
 
 
 SECTION = '''
@@ -171,8 +224,9 @@ server = "rea"
 
 
 def _ours(command: str, args: list) -> bool:
-    """Whether an [mcp.rea] entry runs agent-team's own REA copy (its shim, or a node with its script)."""
-    own = {str(own_command()), os.path.realpath(own_command())}
+    """Whether an [mcp.rea] entry runs agent-team's own REA copy (its launcher, its shim, or a node
+    with its script)."""
+    own = {str(launcher()), str(own_command()), os.path.realpath(own_command())}
     return command in own or any(str(a) in own for a in args)
 
 

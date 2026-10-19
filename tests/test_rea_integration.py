@@ -253,21 +253,35 @@ class ReaTests(unittest.TestCase):
         team = config.load(root)
         self.assertEqual((team.mcp["rea"].command, team.behaviour.server), ("/opt/rea", "rea"))
 
+    def _own_copy(self, data, version="6.5.0"):
+        pkg = data / "agent-team" / "rea" / "node_modules" / "rea-agents"
+        (pkg / "scripts").mkdir(parents=True, exist_ok=True)
+        (pkg / "package.json").write_text(json.dumps({"name": "rea-agents", "version": version}))
+        (pkg / "scripts" / "rea.mjs").write_text("// rea")
+        shim = rea.own_command()
+        shim.parent.mkdir(parents=True, exist_ok=True)
+        if not shim.exists():
+            shim.symlink_to(pkg / "scripts" / "rea.mjs")
+        return shim
+
+    def _node(self, folder, name, version):
+        path = folder / name
+        path.write_text(f"#!/bin/sh\necho {version}\n")
+        path.chmod(0o755)
+        return path
+
     def test_the_own_copy_runs_with_the_node_it_was_installed_with(self):
         data = Path(tempfile.mkdtemp())
         with mock.patch.dict(os.environ, {"XDG_DATA_HOME": str(data)}):
-            shim = rea.own_command()
-            shim.parent.mkdir(parents=True)
-            shim.write_text("#!/usr/bin/env node\n")
-            node, old = data / "node24", data / "node25"
-            for path, v in ((node, "v24.22.0"), (old, "v25.9.0")):
-                path.write_text(f"#!/bin/sh\necho {v}\n")
-                path.chmod(0o755)
+            shim = self._own_copy(data)
+            node, old = self._node(data, "node24", "v24.22.0"), self._node(data, "node25", "v25.9.0")
             self.assertEqual(rea.pin_node(str(old)), "")                      # Node 25 isn't one REA supports
             self.assertEqual(rea.find(), (str(shim), ["--mcp"], "agent-team's copy"))
             self.assertEqual(rea.pin_node(str(node)), str(node.resolve()))
             command, args, _ = rea.find()
-            self.assertEqual((command, args), (str(node.resolve()), [os.path.realpath(shim), "--mcp"]))
+            self.assertEqual((command, args), (str(rea.launcher()), ["--mcp"]))   # a path that never changes
+            launcher = rea.launcher().read_text()
+            self.assertIn(f"exec '{node.resolve()}' '{os.path.realpath(shim)}' \"$@\"", launcher)
             root = helpers.project()                                            # a project set up before: brought up to date
             rea.configure(root, str(shim), ["--mcp"])
             (root / ".team.toml").write_text((root / ".team.toml").read_text() + "\n# kept\n")
@@ -280,8 +294,53 @@ class ReaTests(unittest.TestCase):
             rea.configure(other, "/opt/rea", ["--mcp"])
             self.assertFalse(rea.configure(other, command, args))
             self.assertEqual(config.load(other).mcp["rea"].command, "/opt/rea")
+            rea.launcher().unlink()                                             # from before the launcher: re-pinned with
+            with mock.patch("shutil.which", return_value=str(old)):              # the pinned Node, not the PATH's Node 25
+                self.assertEqual(rea.pin_node(), str(node.resolve()))
+            self.assertEqual(rea.find()[0], str(rea.launcher()))
             node.unlink()                                                       # that Node was removed: the shim again
             self.assertEqual(rea.find()[0], str(shim))
+
+    def test_the_own_copy_is_kept_at_the_pinned_version(self):
+        data = Path(tempfile.mkdtemp())
+        with mock.patch.dict(os.environ, {"XDG_DATA_HOME": str(data)}):
+            os.environ.pop("AGENT_TEAM_NO_REA_UPDATE", None)
+            with mock.patch.object(rea, "install") as install:
+                self.assertEqual(rea.ensure(), "")                              # not installed: only the installer installs
+                install.assert_not_called()
+                self._own_copy(data, version=rea.VERSION)
+                self.assertEqual(rea.ensure(), "")                              # already at the pinned version
+                install.assert_not_called()
+                self._own_copy(data, version="6.4.0")
+                self.assertEqual(rea.ensure(), f"REA updated from 6.4.0 to {rea.VERSION}")
+                install.assert_called_once_with(yes=True)
+                with mock.patch.dict(os.environ, {"AGENT_TEAM_NO_REA_UPDATE": "1"}):
+                    self.assertEqual(rea.ensure(), "")
+            with mock.patch.object(rea, "install", side_effect=SystemExit("Node.js is too old")):
+                self.assertIn("couldn't be installed: Node.js is too old", rea.ensure())
+
+    def test_an_update_uses_the_pinned_node_and_its_npm(self):
+        data = Path(tempfile.mkdtemp())
+        with mock.patch.dict(os.environ, {"XDG_DATA_HOME": str(data)}):
+            self._own_copy(data, version="6.4.0")
+            bin_dir = data / "node24" / "bin"
+            bin_dir.mkdir(parents=True)
+            node = self._node(bin_dir, "node", "v24.22.0")
+            npm = self._node(bin_dir, "npm", "10.0.0")
+            rea.pin_node(str(node))
+            runs = []
+
+            def fake_run(argv, **kw):
+                if os.path.realpath(argv[0]) == os.path.realpath(npm):
+                    runs.append((argv, kw["env"]["PATH"].split(os.pathsep)[0]))
+                    return subprocess.CompletedProcess(argv, 0, "", "")
+                return subprocess.CompletedProcess(argv, 0, "v24.22.0", "")
+
+            with mock.patch.object(rea.subprocess, "run", fake_run), mock.patch("shutil.which", return_value="/usr/bin/node25"), quiet():
+                rea.install(yes=True)
+            (argv, first_on_path), = runs
+            self.assertEqual(argv[-1], f"rea-agents@{rea.VERSION}")
+            self.assertEqual(first_on_path, str(bin_dir.resolve()))
 
     def test_node_versions(self):
         for out, ok in [("v22.19.0", True), ("v22.18.1", False), ("v24.10.0", False), ("v24.11.0", True),

@@ -8,6 +8,7 @@
 # Options:
 #   --ref <branch|tag>   version to install (default: main)
 #   --no-plugin          don't install the Claude Code plugin
+#   --no-rea             don't install REA (behaviour checks and Inspire use it)
 #   --no-ui              don't open the dashboard at the end of a first install
 #   --no-shortcut        don't add the Lakeba OS app/launcher (macOS: ~/Applications; Linux: the app menu)
 #   --force              replace an `agent-team` command this script didn't create
@@ -30,6 +31,7 @@ SRC="$HOME_DIR/src"
 VENV="$HOME_DIR/venv"
 REF="main"
 PLUGIN=1
+REA=1
 UI=1
 SHORTCUT=1
 FORCE=0
@@ -43,6 +45,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --ref) REF="${2:?--ref needs a value}"; shift 2 ;;
     --no-plugin) PLUGIN=0; shift ;;
+    --no-rea) REA=0; shift ;;
     --no-ui) UI=0; shift ;;
     --no-shortcut) SHORTCUT=0; shift ;;
     --force) FORCE=1; shift ;;
@@ -194,6 +197,35 @@ fi
 case "${SHELL:-}" in
   *zsh) say "Tab completion for zsh: run  agent-team completion install  (it adds one line to ~/.zshrc)" ;;
 esac
+
+# 4b. REA, which behaviour checks and Inspire use: agent-team's own copy, at the version agent-team was
+#     tried with (brought up to date each time this script runs). It needs Node.js 22.19+, 24.11+ or 26+;
+#     on a Mac with Homebrew, Node.js 24 is offered when there's none of those.
+node_ok() {
+  "$1" -e 'const [a, b] = process.versions.node.split(".").map(Number); process.exit((a === 22 && b >= 19) || (a === 24 && b >= 11) || a >= 26 ? 0 : 1)' 2>/dev/null
+}
+if [ "$REA" = 1 ]; then
+  NODE_BIN=""
+  if command -v node >/dev/null 2>&1 && node_ok "$(command -v node)"; then
+    NODE_BIN="$(dirname "$(command -v node)")"
+  elif [ "$(uname -s)" = Darwin ] && command -v brew >/dev/null 2>&1; then
+    if [ -x "$(brew --prefix node@24 2>/dev/null)/bin/node" ]; then
+      NODE_BIN="$(brew --prefix node@24)/bin"
+    elif confirm "REA needs Node.js 22.19+, 24.11+ or 26+. Install Node.js 24 with Homebrew?"; then
+      brew install node@24 >/dev/null 2>&1 && NODE_BIN="$(brew --prefix node@24)/bin"
+    fi
+  fi
+  if [ -n "$NODE_BIN" ]; then
+    say "installing REA for behaviour checks and Inspire (a minute or two)"
+    if (cd "$HOME" && PATH="$NODE_BIN:$PATH" "$VENV/bin/agent-team" rea setup --yes >/dev/null 2>&1); then
+      say "REA ready (agent-team keeps it up to date)"
+    else
+      warn "REA couldn't be installed now; later: agent-team rea setup"
+    fi
+  else
+    warn "REA needs Node.js 22.19+, 24.11+ or 26+ (https://nodejs.org); then run: agent-team rea setup"
+  fi
+fi
 
 # 5. The Claude Code plugin, read from the local copy so updates arrive with the next run.
 if [ "$PLUGIN" = 1 ] && command -v claude >/dev/null 2>&1; then

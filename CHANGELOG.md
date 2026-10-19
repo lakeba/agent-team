@@ -6,6 +6,20 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- REA is installed with agent-team: `scripts/install.sh` (and so the Lakeba OS app) runs
+  `agent-team rea setup --yes`, offering Node.js 24 through Homebrew on a Mac without a supported
+  Node.js (`--no-rea` skips it). `agent-team init` offers to install it too.
+- agent-team keeps its own REA copy at the version it was tried with: the dashboard (in the
+  background), `doctor` and `rea setup` update it when it's older or newer, using the Node.js it was
+  installed with and that Node.js's own npm.
+
+### Changed
+
+- Projects run agent-team's REA copy through a launcher in its folder (`~/.local/share/agent-team/rea/bin/rea`),
+  a path that doesn't change when Node.js does; `rea setup` moves projects set up earlier to it.
+
 ## [0.13.13] - 2026-10-20
 
 ### Added

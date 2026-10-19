@@ -729,6 +729,9 @@ def serve(project: Path, port: int = 8790, open_browser: bool = True, from_app: 
             except config.ConfigError:
                 team = None
     httpd = ThreadingHTTPServer(("127.0.0.1", port), None)
+    # agent-team's REA copy is kept at the version agent-team was tried with, in the background.
+    from .. import rea
+    threading.Thread(target=rea.ensure, daemon=True).start()
     # The port it's actually on (port 0 picks a free one): requests are checked against that Host.
     httpd.RequestHandlerClass = make_handler(team.root if team else None, httpd.server_address[1],
                                              folder=None if from_app else project, client_token=client_token)

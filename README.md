@@ -268,6 +268,11 @@ agent-team rea setup          # installs REA (https://rea.tools) if needed and s
 agent-team behaviour suggest  # the lead writes the first journeys from VISION.md
 ```
 
+The installer (and the Lakeba OS app) installs REA along with agent-team, offering Node.js 24 through
+Homebrew on a Mac that has no supported Node.js; `--no-rea` skips it. agent-team keeps its own REA
+copy at the version it was tried with: the dashboard, `doctor` and `rea setup` update it when it's
+older, and it runs with the Node.js it was installed with, so a newer default `node` doesn't break it.
+
 From then on, `build` has the QA member (or the lead) add the journeys each task needs and runs them
 every round; the dashboard's **Behaviour** tab shows before and after side by side. Releases follow
 the evidence (removing a public member needs a major version), the security member also reviews

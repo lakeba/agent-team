@@ -45,6 +45,10 @@ def cmd_ready(args) -> int:
 
 def cmd_doctor(args) -> int:
     from . import readiness
+    from . import rea
+    note = rea.ensure()   # agent-team's REA copy, at the version it was tried with
+    if note:
+        ui.action(note)
     ui.heading("Readiness")
     print_checklist([c for c in readiness.check(Path(args.project).resolve())
                      if not c.name.startswith(("Ollama at", "model "))])   # members are checked below
@@ -905,11 +909,14 @@ def cmd_rea(args) -> int:
         ok, detail = rea.doctor(st["command"], st["args"])
         ui.say(f"  rea doctor: {'ok' if ok else 'needs attention'}: {detail}")
         return 0 if ok else 1
+    note = rea.ensure()   # agent-team's copy at the pinned version, with a Node.js that's still there
+    if note:
+        ui.action(note)
     command, cargs, where = rea.find()
     if not command:
         rea.install(args.yes)
         command, cargs, where = rea.find()
-    elif where == "agent-team's copy" and not rea.pinned_node() and rea.pin_node():   # installed before agent-team pinned it
+    elif where == "agent-team's copy" and not rea.launcher().exists() and rea.pin_node():   # from before the launcher
         command, cargs, where = rea.find()
     ui.action(f"REA: {command} ({where})")
     from .config import CONFIG_NAME
