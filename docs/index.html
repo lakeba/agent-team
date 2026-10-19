@@ -300,7 +300,49 @@ agent-team playbook run code-review "src/export"</div>
   </div>
 </section>
 
-<section class="alt" id="claude-code">
+<section class="alt" id="desktop">
+  <div class="wrap">
+    <p class="eyebrow">The desktop app</p>
+    <h2 class="title">Your team and Claude, in one app.</h2>
+    <p class="intro">LakebaOS for macOS and Linux puts every project’s team, runs, spend and approvals in native windows,
+      next to a chat with Claude that knows your project. Looking around costs nothing: the screens talk to agent-team on
+      your machine, and only the chat uses Claude. Approvals stay yours, each one confirmed.</p>
+    <div class="grid g3">
+      <div class="card"><h3>Your team at a glance</h3><p>Members and their models, a readiness checklist with fixes,
+        what’s running, spend today against your limit, changes not kept yet, and the schedule for the devops shift.</p></div>
+      <div class="card"><h3>Runs in plain words</h3><p>Start a run with its cost estimate first. While it works, a plan box
+        tells what the team is doing; when it ends, a recap with next steps. A run refused at the spend limit can wait
+        for the limit to reset.</p></div>
+      <div class="card"><h3>Approve and review</h3><p>Pull requests and releases that wait for you, each approved after a
+        confirmation. Read a pull request’s changes, comment on lines, and have the team fix them.</p></div>
+      <div class="card"><h3>Chat about a project</h3><p>A chat can belong to a project: Claude follows its instructions,
+        reads its files (read-only) and starts runs with your approval. It can’t merge, release or approve.</p></div>
+      <div class="card"><h3>Projects on other machines</h3><p>Add a computer you reach with SSH, like a Linux box or a VM,
+        and its projects open in the same windows. Your keys stay in SSH; nothing to install on this side.</p></div>
+      <div class="card"><h3>Made for the desktop</h3><p>A menu-bar status, notifications when a run ends or something waits
+        for you, links that open a project on a tab, memory you can edit, and charts in Claude’s answers.</p></div>
+    </div>
+    <div class="card" id="desktop-download" style="margin-top:22px"><h3>Download</h3>
+      <div class="ctas" style="margin-top:10px">
+        <a class="btn primary" href="https://github.com/lakeba/agent-team/releases/download/desktop/LakebaOS-Client-mac-arm64.dmg">macOS, Apple silicon</a>
+        <a class="btn" href="https://github.com/lakeba/agent-team/releases/download/desktop/LakebaOS-Client-mac-x64.dmg">macOS, Intel</a>
+        <a class="btn" href="https://github.com/lakeba/agent-team/releases/download/desktop/lakebaos-client_amd64.deb">Ubuntu / Debian (x64)</a>
+        <a class="btn" href="https://github.com/lakeba/agent-team/releases/download/desktop/lakebaos-client_arm64.deb">Ubuntu / Debian (ARM)</a>
+      </div>
+      <p class="muted" style="margin-top:12px;font-size:14px">Needs agent-team 0.13.11 or newer
+        (<code>pipx install agent-team</code>), and your own Anthropic API key for the chat. Other Linux:
+        the AppImage for <a href="https://github.com/lakeba/agent-team/releases/download/desktop/LakebaOS-Client-linux-x86_64.AppImage">x64</a> or
+        <a href="https://github.com/lakeba/agent-team/releases/download/desktop/LakebaOS-Client-linux-arm64.AppImage">ARM</a>. On Linux, install the .deb with
+        <code>sudo apt install ./lakebaos-client_amd64.deb</code>; the app updates itself.</p>
+      <p class="muted" style="font-size:14px"><strong>macOS: this first version isn’t signed yet.</strong> The first time you
+        open it, macOS says it can’t check it: open System Settings › Privacy &amp; Security, find the message about
+        LakebaOS Client and choose <em>Open Anyway</em>. Until it’s signed, update it by downloading it again.
+        <a href="https://github.com/lakeba/agent-team/releases/tag/desktop">Release notes</a>.</p>
+    </div>
+  </div>
+</section>
+
+<section id="claude-code">
   <div class="wrap">
     <p class="eyebrow">Claude Code, Codex, Cursor</p>
     <h2 class="title">Drive the team from your coding agent.</h2>
@@ -324,7 +366,7 @@ agent-team playbook run code-review "src/export"</div>
   </div>
 </section>
 
-<section id="start">
+<section class="alt" id="start">
   <div class="wrap">
     <p class="eyebrow">Get started</p>
     <h2 class="title">Start your MVP.</h2>
@@ -360,7 +402,7 @@ agent-team ui</div></div>
   </div>
 </section>
 
-<section class="alt" id="faq">
+<section id="faq">
   <div class="wrap">
     <p class="eyebrow">Questions</p>
     <h2 class="title">Frequently asked</h2>
@@ -379,7 +421,7 @@ agent-team ui</div></div>
   </div>
 </section>
 
-<section id="lakeba">
+<section class="alt" id="lakeba">
   <div class="wrap about">
     <img class="mark" src="{{ '/assets/brand/lakeba-mark.svg' | relative_url }}" alt="Lakeba" width="160" height="160">
     <div>

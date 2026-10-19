@@ -247,7 +247,7 @@ tools can be given to members (`mcp = ["rea"]`). See [configuration](docs/config
 | Command | What it does |
 |---|---|
 | `agent-team status [--json] [--health]` | The team, spend per member and today, recent and background runs, the schedule. |
-| `agent-team ui` | The dashboard: see and edit the team, start runs, follow costs. |
+| `agent-team ui` | The dashboard: see and edit the team, start runs, follow costs. `--client` runs it for a program such as the desktop app (see the [Dashboard API](docs/api.md)). |
 | `agent-team jobs [start <workflow> \| stop <id> \| log <id>]` | Runs in the background, as the dashboard and the Claude panel start them. |
 | `agent-team schedule --every 6h` | Run devops shifts on a schedule (launchd on macOS, cron elsewhere); `--remove` to stop. |
 | `agent-team serve ...` | Serve a model on this machine as a team member for a team elsewhere. |
@@ -259,7 +259,7 @@ tools can be given to members (`mcp = ["rea"]`). See [configuration](docs/config
 | `agent-team notify` | Send a test message to the `[notify]` webhook. |
 | `agent-team eval [--only feature,bug]` | Runs fixed scenarios with your real models in a throwaway project (no GitHub): pass/fail, rounds and cost. Asks before spending. |
 | `agent-team estimate build` | Predicts a run's cost from this project's past runs. |
-| `agent-team projects` | Every project you use agent-team in: spend, runs, what waits for you. |
+| `agent-team projects [--json]` | Every project you use agent-team in: spend, runs, what waits for you. |
 | `agent-team scoreboard` | Each builder's approval and first-round rate, average rounds and cost; each reviewer's pushback; cost per merged PR. |
 | `agent-team memory [add TEXT \| forget N \| promote N \| export \| import FILE]` | The lessons the team learned from its reviews, each with a confidence; every member sees them in later work, and one the team keeps relearning can become a project rule. |
 | `agent-team sessions [show N]` | What each build and fix did: task, outcome, rounds, files and cost. The lead's next plan starts from the latest ones. |
@@ -311,6 +311,24 @@ secrets, deployment) waits until the member writes a `WHY path: ...` line with t
 on. A held-back change keeps the build open. `[project].protect_config` and `gate_sensitive` turn
 them off.
 
+#### The desktop app
+
+LakebaOS for macOS and Linux puts each project's team, runs (told in plain words, with a recap),
+spend, approvals and pull request review in native windows, next to a chat with Claude that can
+belong to a project. The screens talk to agent-team on your machine, or on another one over SSH,
+and cost no tokens; the chat uses your own Anthropic key and gets the project's tools from
+`agent-team mcp --no-merge`, so it can't merge, release or approve. Approvals are confirmed in the
+app, never by Claude. It needs agent-team 0.13.11 or newer.
+
+Download: [macOS, Apple silicon](https://github.com/lakeba/agent-team/releases/download/desktop/LakebaOS-Client-mac-arm64.dmg) ·
+[macOS, Intel](https://github.com/lakeba/agent-team/releases/download/desktop/LakebaOS-Client-mac-x64.dmg) ·
+[Ubuntu/Debian x64](https://github.com/lakeba/agent-team/releases/download/desktop/lakebaos-client_amd64.deb) ·
+[Ubuntu/Debian ARM](https://github.com/lakeba/agent-team/releases/download/desktop/lakebaos-client_arm64.deb) ·
+[AppImage x64](https://github.com/lakeba/agent-team/releases/download/desktop/LakebaOS-Client-linux-x86_64.AppImage) ·
+[AppImage ARM](https://github.com/lakeba/agent-team/releases/download/desktop/LakebaOS-Client-linux-arm64.AppImage)
+([release notes](https://github.com/lakeba/agent-team/releases/tag/desktop)). The macOS build isn't
+signed yet: the first time, allow it under System Settings › Privacy & Security › Open Anyway.
+
 #### Use it from any coding agent (MCP)
 
 `agent-team mcp` serves the team over the Model Context Protocol, so Claude Code, Codex, Cursor and
@@ -351,6 +369,7 @@ the background and the panel follows it. The commands need the `agent-team` CLI 
 - [Configuration](docs/configuration.md): every `.team.toml` setting.
 - [Extending](docs/extending.md): add a team member, a role, a provider or a workflow.
 - [Remote agents](docs/remote-agents.md): let another machine join the team.
+- [Dashboard API](docs/api.md): the local API programs such as the desktop app use (`ui --client`).
 - [Examples](examples/): the todo-py team, and a larger team across four machines with security,
   QA and docs members, parallel builders and spend limits.
 - [Changelog](CHANGELOG.md) and [roadmap](ROADMAP.md).
