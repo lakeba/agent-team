@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-19
+
 ### Added
 
 - A guided setup in the dashboard for people who've never used a terminal. `agent-team ui` outside a
