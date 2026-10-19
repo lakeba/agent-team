@@ -175,7 +175,9 @@ def probe(url: str, timeout: float = 1.5) -> dict | None:
             return None
     models, server = openai_models(url, timeout=timeout)
     if models is not None:
-        return {"url": url, "kind": "openai", "label": server_label(url, models, server), "models": models}
+        # mlx_lm also lists models by their cache folder; people pick by name, so leave the paths out
+        named = [m for m in models if not m.startswith(("/", "~", "./")) and "\\" not in m]
+        return {"url": url, "kind": "openai", "label": server_label(url, models, server), "models": named}
     return None
 
 
@@ -194,6 +196,25 @@ def local_candidates() -> list[str]:
 
 SCAN_PORTS = (11434, *OPENAI_PORTS)
 SCAN_NETWORKS = 3          # at most this many of this machine's networks are scanned
+# In a VM, the computers of the home network aren't on the VM's own network: try the usual ones.
+HOME_NETWORKS = ("192.168.0", "192.168.1", "10.0.0")
+VM_VENDORS = ("parallels", "vmware", "virtualbox", "innotek", "qemu", "kvm", "xen", "microsoft corporation",
+              "bochs", "utm", "apple virtualization")
+
+
+def in_vm() -> bool:
+    """Whether this machine is a virtual machine (or a container on one), as far as it can tell."""
+    for f in ("/sys/class/dmi/id/sys_vendor", "/sys/class/dmi/id/product_name"):
+        try:
+            text = Path(f).read_text(errors="replace").lower()
+        except OSError:
+            continue
+        if any(v in text for v in VM_VENDORS):
+            return True
+    if sys.platform == "darwin":
+        code, out = _run(["sysctl", "-n", "kern.hv_vmm_present"], Path.cwd(), timeout=3)
+        return code == 0 and out.strip() == "1"
+    return any(ip.startswith(("10.211.55.", "10.37.129.", "10.0.2.", "192.168.64.")) for ip in _own_addresses())
 
 
 def _private(ip: str) -> bool:
@@ -203,7 +224,8 @@ def _private(ip: str) -> bool:
 
 def lan_candidates() -> list[str]:
     """Every address on this machine's local networks (the /24 around each of its private IPv4
-    addresses, not its own) on the model servers' ports: other computers on the network."""
+    addresses, not its own) on the model servers' ports: other computers on the network. (In a VM,
+    home_networks() adds the host's.)"""
     mine = _own_addresses()
     nets = list(dict.fromkeys(ip.rsplit(".", 1)[0] for ip in sorted(mine) if _private(ip)))[:SCAN_NETWORKS]
     return [f"http://{net}.{n}:{port}" for net in nets for n in range(1, 255)
@@ -218,6 +240,47 @@ def _port_open(url: str, timeout: float = 0.4) -> bool:
             return True
     except OSError:
         return False
+
+
+def _connect(host: str, port: int, timeout: float) -> str:
+    """open, refused (something is there) or none (nothing answered in time)."""
+    import socket
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return "open"
+    except ConnectionRefusedError:
+        return "refused"
+    except OSError:
+        return "none"
+
+
+def home_networks() -> list[str]:
+    """In a VM: the usual home networks (192.168.0, 192.168.1, 10.0.0) whose router answers, the ones
+    the host is probably on. Empty when this isn't a VM."""
+    if not in_vm():
+        return []
+    mine = {ip.rsplit(".", 1)[0] for ip in _own_addresses()}
+    from concurrent.futures import ThreadPoolExecutor
+    def alive(net: str) -> bool:
+        return any(_connect(f"{net}.1", port, 0.6) != "none" for port in (53, 80, 443, 8080))
+    nets = [n for n in HOME_NETWORKS if n not in mine]
+    with ThreadPoolExecutor(max_workers=len(nets) or 1) as pool:
+        return [n for n, ok in zip(nets, pool.map(alive, nets)) if ok]
+
+
+def _gentle_scan(nets: list[str], timeout: float) -> list[dict]:
+    """Scan networks seen through a VM's address translation, which refuses every connection for a
+    while after a burst: a few addresses at a time."""
+    from concurrent.futures import ThreadPoolExecutor
+    def host(ip: str) -> list[dict]:
+        # the ports at once (a firewall may drop some silently), then probe the open ones
+        with ThreadPoolExecutor(max_workers=len(SCAN_PORTS)) as ports:
+            states = list(ports.map(lambda p: _connect(ip, p, 0.5), SCAN_PORTS))
+        return [f for port, state in zip(SCAN_PORTS, states)
+                if state == "open" and (f := probe(f"http://{ip}:{port}", timeout))]
+    ips = [f"{net}.{n}" for net in nets for n in range(1, 255)]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        return [f for found in pool.map(host, ips) for f in found]
 
 
 def _scan(urls: list[str], timeout: float) -> list[dict]:
@@ -247,6 +310,8 @@ def find_local(timeout: float = 1.5, candidates: list[str] | None = None, scan: 
             near_jobs = [inner.submit(probe, u, timeout) for u in other]
             found_other = [f for j in near_jobs if (f := j.result())]
         found_lan = _scan(lan, timeout)
+        if scan and candidates is None:
+            found_lan += _gentle_scan(home_networks(), timeout)
         ollama = [{"url": u.rstrip("/"), "kind": "ollama", "label": "Ollama", "models": m} for u, m in ollama_job.result()]
     seen, out = set(), []
     for f in ollama + found_other + found_lan:

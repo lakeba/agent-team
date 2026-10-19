@@ -20,6 +20,8 @@ REAL_OLLAMA_CANDIDATES = readiness.ollama_candidates
 readiness.ollama_candidates = lambda: []
 REAL_LAN_CANDIDATES = readiness.lan_candidates
 readiness.lan_candidates = lambda: []      # nor scan the local network
+REAL_HOME_NETWORKS = readiness.home_networks
+readiness.home_networks = lambda: []       # nor, in a VM, the home networks
 from agent_team.providers.base import Provider, Reply, register
 
 # label substring (the agent's name) -> queue of replies

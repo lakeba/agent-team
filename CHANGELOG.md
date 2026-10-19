@@ -6,6 +6,18 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- In a VM, finding model servers also covers the host's home network: the usual ones (192.168.0.x,
+  192.168.1.x, 10.0.0.x) whose router answers are scanned, a few addresses at a time, because the
+  VM's address translation (Parallels at least) refuses every connection for a while after a burst.
+  It takes about 20 seconds more; the guided setup does it in the background.
+
+### Changed
+
+- Model servers list only models people can pick: mlx_lm's entries that are file paths (its cache
+  folders) are left out.
+
 ## [0.13.3] - 2026-10-19
 
 ### Added

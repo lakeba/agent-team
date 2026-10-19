@@ -87,6 +87,29 @@ class LocalServerTests(unittest.TestCase):
             self.assertEqual([f["url"] for f in found], [self.url])
             self.assertEqual(readiness.find_local(), [])               # without scan: only the nearby addresses
 
+    def test_paths_are_not_offered_as_models(self):
+        FakeMlx.models = ["mlx-community/Qwen2.5-Coder-7B-Instruct-4bit",
+                          "/Users/x/.cache/huggingface/hub/models--mlx-community--Q/snapshots/019cc"]
+        try:
+            self.assertEqual(readiness.probe(self.url)["models"], ["mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"])
+        finally:
+            FakeMlx.models = ["mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"]
+
+    def test_a_vm_scans_the_home_networks_whose_router_answers(self):
+        with mock.patch.object(readiness, "in_vm", return_value=True), \
+                mock.patch.object(readiness, "_own_addresses", return_value={"10.211.55.4"}), \
+                mock.patch.object(readiness, "_connect", side_effect=lambda h, p, t: "refused" if h == "192.168.1.1" else "none"):
+            self.assertEqual(helpers.REAL_HOME_NETWORKS(), ["192.168.1"])
+        with mock.patch.object(readiness, "in_vm", return_value=False):
+            self.assertEqual(helpers.REAL_HOME_NETWORKS(), [])
+
+    def test_gentle_scan_finds_a_server_behind_a_silent_port(self):
+        port = int(self.url.rsplit(":", 1)[1])
+        with mock.patch.object(readiness, "SCAN_PORTS", (11434, port)), \
+                mock.patch.object(readiness, "_connect", side_effect=lambda h, p, t: "open" if p == port and h == "127.0.0.1" else "none"):
+            found = readiness._gentle_scan(["127.0.0"], 2)
+        self.assertEqual([f["url"] for f in found], [self.url])
+
     def test_init_on_an_mlx_server(self):
         root = Path(tempfile.mkdtemp())
         with quiet():
