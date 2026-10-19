@@ -194,6 +194,16 @@ the page's session token and a same-origin request, and are refused if the file 
 - `outside_in.py`: after approval, the security member also gets what the build ships (secrets,
   internal addresses and source maps in build output, and strings REA reads from .NET assemblies).
 - `workflows/scout.py`: the scout observes `[research] sites` through REA's browser before `discuss`.
+- `inspire.py`: `agent-team inspire <url>`. It explores an app the founder likes from the outside:
+  - `robots.txt` first (RFC 9309);
+  - same-site pages, two links deep, found from `<a href>` only;
+  - each journey replayed step by step for a screen per step;
+  - REA is asked for exactly `CAPTURE` (screenshot, accessibility text, address), checked by
+    `check_input`.
+
+  Captures go to `.team/inspiration/<app>/`, and the scout (else the lead) writes `brief.md` from
+  them, wrapped as untrusted. `for_member` refuses members who write code; `discuss` gives the
+  briefs to the other members only.
 - The dashboard's Behaviour tab reads `.team/evidence/` (`/api/behaviour`, screenshots through
   `/api/evidence/<check>/<n>-base|work.png`).
 

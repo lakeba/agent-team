@@ -6,6 +6,22 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- `agent-team inspire <url>`: name an app that inspires you. The scout (or the lead) explores it
+  from the outside, the way a visitor does, and writes an inspiration brief in its own words:
+  - features and key journeys;
+  - business model, strengths, gaps;
+  - three ways to be different, and what not to copy.
+
+  It reads up to 20 same-site pages, two links deep, after `robots.txt`, with each page's text,
+  address and a screenshot, plus a screen per step of the journeys you give
+  (`--journey 'click link "Pricing"; ...'`). It never signs in, never asks REA for scripts or
+  network traffic, and never uses REA's tools that look inside software. You confirm once per app.
+
+  The lead plans from the brief in `discuss`. Members who write code never get it or the captures
+  (`.team/inspiration/`); `--list` and `--forget` manage them.
+
 ## [0.13.11] - 2026-10-19
 
 ### Added

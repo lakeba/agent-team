@@ -129,6 +129,38 @@ def cmd_discuss(args) -> int:
     return 0 if discuss.run(team, args.topic, members, args.turns, vision=vision) else 2
 
 
+def cmd_inspire(args) -> int:
+    from . import inspire
+    root = _team(args).root if not args.list and not args.forget else Path(args.project).resolve()
+    if args.list:
+        found = inspire.apps(root)
+        if not found:
+            ui.say("No app explored yet. Start with: agent-team inspire https://an-app-you-like.com")
+        for a in found:
+            ui.say(f"  {a['app']:<24} {a['url']}  ({a['pages']} pages, {a['journeys']} journeys"
+                   f"{', brief written' if a['brief'] else ', no brief'})")
+        return 0
+    if args.forget:
+        ui.say("Deleted its captures and brief." if inspire.forget(root, args.forget) else "No such app here.")
+        return 0
+    if not args.url:
+        raise SystemExit("Name the app's address: agent-team inspire https://an-app-you-like.com")
+    team = _team(args)
+    journeys = [[s.strip() for s in j.split(";") if s.strip()] for j in args.journey]
+    if not inspire.confirmed(team.root, args.url):
+        ui.say(inspire.CONFIRMATION)
+        if not args.yes and (not sys.stdin.isatty() or input("Is that right? [y/N] ").strip().lower() != "y"):
+            raise SystemExit("Not explored: the confirmation is needed first (or --yes).")
+        inspire.confirm(team.root, args.url)
+    try:
+        brief = inspire.run(team, args.url, journeys, args.max_pages)
+    except inspire.InspireError as e:
+        raise SystemExit(str(e))
+    ui.action(f"inspiration brief: {brief.relative_to(team.root)}")
+    ui.say("The lead reads it in the next `agent-team discuss`; builders never see it or the captures.")
+    return 0
+
+
 def cmd_build(args) -> int:
     from .workflows import build
     skip = tuple(s.strip() for s in args.skip.split(",") if s.strip())
@@ -675,6 +707,14 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--json", action="store_true")
     s.add_argument("--strict", action="store_true", help="exit 1 if anything is missing")
     add("agents", cmd_agents, "list the team")
+    s = add("inspire", cmd_inspire, "explore an app that inspires you, from the outside, and write a brief to plan from")
+    s.add_argument("url", nargs="?", default="", help="the app's web address")
+    s.add_argument("--journey", action="append", default=[], metavar="STEPS",
+                   help='steps a user takes, separated by ";", e.g. \'click link "Pricing"; click button "Start"\' (repeatable, up to 5)')
+    s.add_argument("--max-pages", type=int, default=20, help="pages of the site to look at (default 20, at most 50)")
+    s.add_argument("--list", action="store_true", help="the apps explored here")
+    s.add_argument("--forget", default="", metavar="APP", help="delete an app's captures and brief")
+    s.add_argument("--yes", action="store_true", help="confirm you use the app and may look at it this way")
     s = add("discuss", cmd_discuss, "members discuss and agree a roadmap (writes ROADMAP.md)")
     s.add_argument("topic", nargs="?", default="next milestones",
                    help='what to plan (default: "next milestones")')

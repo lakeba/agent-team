@@ -220,6 +220,33 @@ from a vision you've written elsewhere:
 agent-team discuss --vision ~/notes/tipsplit-pitch.md    # saved as VISION.md if there's none yet
 ```
 
+#### An app that inspires you
+
+Most products start as "like X, but for Y". Name X, and the scout (or the lead) explores it from
+the outside, the way a visitor does, then writes an **inspiration brief** in its own words:
+
+- its features and its key journeys;
+- its business model, as shown;
+- strengths, gaps and friction;
+- three ways your product can be different;
+- what not to copy.
+
+```bash
+agent-team inspire https://an-app-you-like.com \
+  --journey 'click link "Pricing"; click button "Start free"'
+```
+
+The scout reads up to 20 pages of that site (two links deep), each one's text, address and a
+screenshot, plus a screen after every step of your journeys. It reads `robots.txt` first and skips
+what it disallows. It never signs in, never asks REA for a page's scripts or network traffic, and
+never uses REA's tools that look inside software. Everything is kept under `.team/inspiration/`,
+which no member's context includes. You confirm once per app that you use it and may look at it
+this way.
+
+In the next `agent-team discuss`, the lead plans your product from the brief, with its differences.
+Members who write code never get the brief or the captures: they build from the team's own plan.
+`agent-team inspire --list` shows the apps explored, and `--forget` deletes one.
+
 #### Behaviour checks with REA
 
 Tests check what their authors thought of. A behaviour check uses the program the way a user

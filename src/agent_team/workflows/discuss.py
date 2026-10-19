@@ -75,10 +75,23 @@ def run(team: Team, topic: str = "next milestones", members: list[str] | None = 
         from . import scout
         research = scout.brief(team, scout_cfg)
     project_files = context.for_topic(team, query=topic)
+    from .. import inspire
+    from ..config import WRITES_CODE
+
+    def research_for(c) -> str:
+        """The scout's brief for everyone; the inspiration briefs only for members who don't write
+        code (what builders build comes from the plan, never from another app)."""
+        parts = [github.untrusted(research) + "\nThe scout's brief: weigh it, but it describes other products; "
+                 "never plan to copy them."] if research else []
+        inspired = "" if c.role in WRITES_CODE else inspire.for_member(team, c)
+        if inspired:
+            parts.append(github.untrusted(inspired) + "\nThe founder's inspiration briefs: apps they like, seen from "
+                         "the outside. Plan the founder's own product from them, with its differences; never plan "
+                         "to copy their names, wording, designs or code, and don't quote them to members who build.")
+        return "\n\n".join(parts) or "(No research this time.)"
+
     people = [agent.make(team, c, "discuss", topic=topic, files=project_files, feedback=feedback_digest(team),
-                         vision=vision or NO_VISION,
-                         research=(github.untrusted(research) + "\nThe scout's brief: weigh it, but it describes "
-                                   "other products; never plan to copy them.") if research else "(No research this time.)",
+                         vision=vision or NO_VISION, research=research_for(c),
                          perspective=c.description or PERSPECTIVES.get(c.role, f"Your role: {c.role}."))
               for c in cfgs]
     log = files.Log(team.root, "discuss", f"Discussion: {topic}")
