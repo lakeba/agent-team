@@ -63,13 +63,21 @@ async function getJSON(path) {
 }
 async function load() {
   document.getElementById("refreshed").textContent = "Loading…";
-  const results = await Promise.allSettled([getJSON("/api/team"), getJSON("/api/runs"), getJSON("/api/usage"), getJSON("/api/scoreboard")]);
+  let team;
+  try { team = await getJSON("/api/team"); } catch (e) { team = { error: e.message }; }
+  if (team.setup) {                     // no project yet: the first-run wizard instead of the dashboard
+    document.getElementById("refreshed").textContent = "";
+    if (typeof startSetup === "function") startSetup(false);
+    return;
+  }
+  const results = await Promise.allSettled([Promise.resolve(team), getJSON("/api/runs"), getJSON("/api/usage"), getJSON("/api/scoreboard")]);
   [state.team, state.runs, state.usage, state.scoreboard] = results.map(r => r.status === "fulfilled" ? r.value : { error: r.reason.message });
   render();
   // Slow sources fill in when they arrive.
   getJSON("/api/health").then(v => { state.health = v; render(); }).catch(e => { state.health = { error: e.message }; render(); });
   if (typeof loadJobs === "function") loadJobs();
   getJSON("/api/github").then(v => { state.github = v; render(); }).catch(e => { state.github = { available: false, reason: e.message }; render(); });
+  if (typeof loadMvp === "function") loadMvp();
   document.getElementById("refreshed").textContent = "Updated " + new Date().toLocaleTimeString();
 }
 
@@ -355,4 +363,5 @@ document.getElementById("refresh").addEventListener("click", () => {
   if (typeof edit !== "undefined") { edit.on = false; edit.draft = null; }
   load();
 });
-load();
+// Every script on the page is loaded by then (the wizard lives in setup.js).
+document.addEventListener("DOMContentLoaded", load);

@@ -79,6 +79,7 @@ class ProjectConfig:
     review: str = "tools"           # tools: reviewers read files and run tests themselves; snapshot: all files up front
     require_approval: list[str] = field(default_factory=list)   # paths whose changes need the owners' approval
     checks: list[str] = field(default_factory=list)     # linters and type checkers run every round, e.g. "ruff check ."
+    run_command: str = ""           # how to start the app for "Run my app" (default: worked out from the project)
     rules: list[str] = field(default_factory=list)      # standards every member follows: Markdown files or folders
     library: list[str] = field(default_factory=list)    # skills members read on demand: "builtin" or skill folders
     protect_config: bool = True     # members can't weaken linter/formatter configs to make checks pass

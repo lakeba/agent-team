@@ -8,6 +8,8 @@
 # Options:
 #   --ref <branch|tag>   version to install (default: main)
 #   --no-plugin          don't install the Claude Code plugin
+#   --no-ui              don't open the dashboard at the end of a first install
+#   --no-shortcut        don't add the Lakeba OS app/launcher (macOS: ~/Applications; Linux: the app menu)
 #   --force              replace an `agent-team` command this script didn't create
 #   --uninstall          remove the CLI, its environment, its source copy and the plugin
 #                        (your saved keys and project list are kept)
@@ -28,6 +30,8 @@ SRC="$HOME_DIR/src"
 VENV="$HOME_DIR/venv"
 REF="main"
 PLUGIN=1
+UI=1
+SHORTCUT=1
 FORCE=0
 UNINSTALL=0
 PURGE=0
@@ -39,11 +43,13 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --ref) REF="${2:?--ref needs a value}"; shift 2 ;;
     --no-plugin) PLUGIN=0; shift ;;
+    --no-ui) UI=0; shift ;;
+    --no-shortcut) SHORTCUT=0; shift ;;
     --force) FORCE=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
     --purge) PURGE=1; shift ;;
     --yes|-y) YES=1; shift ;;
-    -h|--help) sed -n '2,23p' "$0" 2>/dev/null || true; exit 0 ;;
+    -h|--help) sed -n '2,25p' "$0" 2>/dev/null || true; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -78,6 +84,9 @@ if [ "$UNINSTALL" = 1 ]; then
   if ours; then rm "$BIN_DIR/agent-team"; say "removed $BIN_DIR/agent-team"; fi
   rm -rf "$VENV" "$SRC"
   rmdir "$HOME_DIR" 2>/dev/null || true
+  if [ -d "$HOME/Applications/Lakeba OS.app" ]; then rm -rf "$HOME/Applications/Lakeba OS.app"; say "removed the Lakeba OS app"; fi
+  LAUNCHER="${XDG_DATA_HOME:-$HOME/.local/share}/applications/lakeba-os.desktop"
+  if [ -f "$LAUNCHER" ]; then rm -f "$LAUNCHER"; say "removed the Lakeba OS menu entry"; fi
   if [ -f "$COMPLETIONS" ] && grep -q "agent-team" "$COMPLETIONS" 2>/dev/null; then rm -f "$COMPLETIONS"; say "removed the bash completion"; fi
   say "agent-team uninstalled (project .team.toml files and .team/ logs are left alone)"
   if command -v pipx >/dev/null 2>&1 && pipx list --short 2>/dev/null | grep -q '^agent-team '; then
@@ -107,9 +116,28 @@ for c in python3.13 python3.12 python3.11 /opt/homebrew/bin/python3.13 /opt/home
     PY="$(command -v "$c")"; break
   fi
 done
+# macOS: git comes with Apple's command-line developer tools; ask macOS to install them if missing.
+if [ "$(uname)" = "Darwin" ] && ! xcode-select -p >/dev/null 2>&1; then
+  xcode-select --install >/dev/null 2>&1 || true
+  die "macOS is installing its developer tools (git is part of them): click Install in the window that opened, wait for it to finish, then run this again."
+fi
+command -v git >/dev/null 2>&1 || die "git is required (Ubuntu/Debian: sudo apt install git)."
+# No Python 3.11+? Use uv (https://docs.astral.sh/uv/) to get a private one, without touching the system's.
+if [ -z "$PY" ] && [ "${AGENT_TEAM_NO_UV:-0}" != 1 ]; then
+  UV="$(command -v uv || true)"
+  [ -n "$UV" ] || [ ! -x "$HOME/.local/bin/uv" ] || UV="$HOME/.local/bin/uv"
+  if [ -z "$UV" ]; then
+    say "no Python 3.11+ here: getting uv to install a private Python for agent-team"
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh >/dev/null 2>&1 || true
+    [ -x "$HOME/.local/bin/uv" ] && UV="$HOME/.local/bin/uv"
+  fi
+  if [ -n "$UV" ]; then
+    "$UV" python install 3.12 >/dev/null 2>&1 || true
+    PY="$("$UV" python find 3.12 2>/dev/null || true)"
+  fi
+fi
 [ -n "$PY" ] || die "agent-team needs Python 3.11 or newer (macOS: brew install python@3.12; Ubuntu/Debian: sudo apt install python3 python3-venv)."
 say "using $("$PY" --version) at $PY"
-command -v git >/dev/null 2>&1 || die "git is required."
 
 # 2. The source: clone once, then update. gh is used when signed in (it also reaches private forks).
 mkdir -p "$HOME_DIR"
@@ -133,6 +161,8 @@ fi
 
 # 3. Its own environment, so it never touches the system Python or your projects' packages.
 say "installing into $VENV"
+FIRST_INSTALL=0
+[ -x "$VENV/bin/agent-team" ] || FIRST_INSTALL=1
 if [ ! -x "$VENV/bin/python" ]; then
   "$PY" -m venv "$VENV" 2>/dev/null || {
     rm -rf "$VENV"
@@ -182,9 +212,42 @@ elif [ "$PLUGIN" = 1 ]; then
   say "Claude Code not found; skipped the plugin."
 fi
 
+# 6. A way back in without a terminal: an app (macOS) or a menu entry (Linux) that opens the dashboard.
+APP="$HOME/Applications/Lakeba OS.app"
+DESKTOP_ENTRY="${XDG_DATA_HOME:-$HOME/.local/share}/applications/lakeba-os.desktop"
+if [ "$SHORTCUT" = 1 ]; then
+  if [ "$(uname)" = "Darwin" ] && command -v osacompile >/dev/null 2>&1; then
+    mkdir -p "$HOME/Applications"
+    rm -rf "$APP"
+    if osacompile -o "$APP" -e "do shell script \"cd ~ && nohup '$VENV/bin/agent-team' ui >/dev/null 2>&1 &\"" >/dev/null 2>&1; then
+      say "Lakeba OS is in your Applications folder: open it any time to get back to the dashboard"
+    fi
+  elif [ "$(uname)" = "Linux" ]; then
+    mkdir -p "$(dirname "$DESKTOP_ENTRY")"
+    cat > "$DESKTOP_ENTRY" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Lakeba OS
+Comment=Open the agent-team dashboard
+Exec=sh -c 'cd ~ && "$VENV/bin/agent-team" ui'
+Terminal=false
+Categories=Development;
+DESKTOP
+    say "Lakeba OS is in your applications menu: open it any time to get back to the dashboard"
+  fi
+fi
+
+# 7. The first time: open the dashboard, where a short guided setup starts.
+if [ "$UI" = 1 ] && [ "$FIRST_INSTALL" = 1 ] && { [ "$(uname)" = "Darwin" ] || [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; }; then
+  (cd "$HOME" && nohup "$VENV/bin/agent-team" ui >/dev/null 2>&1 &)
+  say "Opening Lakeba OS in your browser: a short guided setup takes you from your idea to a team at work."
+fi
+
 cat <<EOF
 
 Next:
+  Without a terminal: open Lakeba OS (or run  agent-team ui) for the guided setup in your browser.
+  In a terminal:
   1. In a project:  agent-team ready  &&  agent-team init  (or /team-init in Claude Code)
      init asks where the models run (Claude, Ollama or both), which members and how many builders.
   2. Members on Claude need your Anthropic key, saved once:  agent-team keys set ANTHROPIC_API_KEY

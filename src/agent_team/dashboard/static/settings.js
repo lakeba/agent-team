@@ -49,6 +49,9 @@ function renderSettings() {
     return;
   }
   const d = settings.draft, pr = d.project, sb = d.sandbox;
+  el.append(h("div", { class: "card" }, h("h2", {}, "Setup"),
+    h("p", { class: "secondary small" }, "The guided setup: start another idea as a new project, or open one you started before."),
+    h("div", { class: "actions" }, h("button", { type: "button", onclick: () => startSetup(true) }, "Run setup again"))));
 
   const ccard = compositionCard();
 

@@ -34,8 +34,8 @@ people, marketing), and the Lakeba Group ecosystem, portfolio and network.
 ### Questions
 
 **Do I need to know how to code?** No. You describe what you want and approve each step. The AI
-team writes the code. Until the hosted service opens, running it yourself takes a terminal and a
-few commands.
+team writes the code. Until the hosted service opens, you install it on your computer: on a Mac,
+download it and double-click, and a guided setup does the rest.
 
 **Is it really free?** Yes. agent-team is open source under MIT. The hosted Lakeba OS build service,
 coming soon, will be free, with a fair-use build allowance per idea.
@@ -95,6 +95,35 @@ exact commit. Weaker models hand work to a stronger member after rejected rounds
 and `[notify]` posts to Slack or any webhook when PRs open or merge, approvals or releases wait
 for you, or autopilot stops.
 
+### Without a terminal: the guided setup
+
+On a Mac, download [Lakeba OS](https://lakeba.github.io/agent-team/downloads/Lakeba-OS-mac.zip), unzip
+it and double-click **Lakeba OS** (the first time, right-click it and choose **Open**). It installs
+agent-team and opens the dashboard in your browser, where a guided setup walks through seven short
+steps:
+
+1. **Your idea**: a name and a few sentences; it becomes the project's `VISION.md`.
+2. **Where the AI runs**: free on this computer (Ollama, found for you, with a one-click model
+   download), Claude (paste your key: it's saved only on this computer and checked at once), or both.
+3. **Your team**: the members and what each does, optional QA, security and docs members, the
+   number of builders and a daily spend limit.
+4. The project is created for you in `~/LakebaOS/<name>`: git, `VISION.md`, `README.md`,
+   `.team.toml`, the library template and a first save.
+5. **GitHub** (optional): sign in on GitHub's own page and create a private repository.
+6. **Ready check**: every requirement with a button to fix it where it can be fixed from the page.
+7. **First version**: the lead reads the idea and suggests the first tasks; tick them and press Build.
+
+The dashboard then opens on **My MVP**: what the team is doing right now in plain words ("Forge
+is writing the code", "Tests: 12 passed", "Atlas approved it"), **Run my app** (a web app opens in
+the browser; a command-line tool runs with what you type), **Keep this version** (a commit, pushed
+when there's a GitHub repository), the next feature to build, and **Prepare my application** (the
+marketing member's brief and pitch deck) with the link to apply to Lakeba. Every step writes exactly
+what the command line would, so a project set up here works the same in a terminal.
+
+The installer also adds **Lakeba OS** to your Applications folder (on Linux, the app menu) to come
+back to the dashboard later. `agent-team ui` outside a project opens the same setup, or the project
+you've already started.
+
 ### Install
 
 Requirements: macOS or Linux, Python 3.11+ (on Ubuntu/Debian also `python3-venv`) and git. Members
@@ -105,7 +134,11 @@ for local models, on this machine or another. The workflows that work on GitHub 
 signed in (`gh auth login`).
 
 One command installs the CLI into its own environment under `~/.agent-team`, puts `agent-team` on
-your `PATH` (`~/.local/bin`), and installs the Claude Code plugin if Claude Code is present:
+your `PATH` (`~/.local/bin`), and installs the Claude Code plugin if Claude Code is present. It gets
+what's missing: on a Mac it asks macOS to install its developer tools (for git), and without Python
+3.11+ it installs a private Python with [uv](https://docs.astral.sh/uv/). A first install ends by
+opening the dashboard's guided setup (`--no-ui` to skip it) and adds the Lakeba OS app
+(`--no-shortcut` to skip it):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/lakeba/agent-team/main/scripts/install.sh | bash

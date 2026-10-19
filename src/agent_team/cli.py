@@ -558,6 +558,19 @@ def cmd_ui(args) -> int:
     except config.ConfigError as e:
         raise SystemExit(f"Config error: {e}")
     except OSError as e:
+        # Already running (e.g. opened again from the Lakeba OS app): show that one instead.
+        import urllib.request
+        import webbrowser
+        url = f"http://127.0.0.1:{args.port}/"
+        try:
+            with urllib.request.urlopen(url + "api/session", timeout=3) as r:
+                if r.headers.get("Server", "").startswith("agent-team-ui/"):
+                    ui.say(f"The dashboard is already running: {url}")
+                    if not args.no_open:
+                        webbrowser.open(url)
+                    return 0
+        except OSError:
+            pass
         raise SystemExit(f"Could not start the dashboard on port {args.port}: {e}. Try --port.")
     return 0
 

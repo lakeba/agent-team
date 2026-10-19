@@ -42,6 +42,9 @@ class Part:
 
 def run_tests(team: Team) -> str:
     cmd = team.project.test_command
+    if not cmd:   # a project that started empty: its tests exist once the team writes them
+        from .init import detect
+        cmd = detect(team.root)[0]
     if not cmd:
         return ""
     from .. import sandbox

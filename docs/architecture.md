@@ -231,3 +231,25 @@ the page's session token and a same-origin request, and are refused if the file 
   most confident first, and can promote a lesson to `team/rules/learned.md`.
 - `audit.py`: the team's setup as an attack surface (the team file, instruction files, Claude Code
   settings, `.mcp.json`, tracked secrets), scored and graded.
+
+## Without a terminal (0.13)
+
+- `setup_wizard.py` is the first-run wizard's backend: what the machine has (`status`), creating a
+  project for an idea (git, `VISION.md`, `README.md`, `.team.toml` through `init.run`, the library
+  template, a first commit), saving and checking the Anthropic key, pulling an Ollama model in the
+  background, `gh auth login --web` with its one-time code, a private repository, the readiness
+  checklist with the fixes the page can do, and the lead's first tasks from the vision.
+- The dashboard starts without a project (`agent-team ui` outside one): `/api/team` answers
+  `{"setup": true}` and the page shows `setup.js`; creating or opening a project switches the
+  running dashboard to it. With one known project it opens that one.
+- `progress.py` turns a run's output into plain-language steps (`/api/story/<job>`), shown on
+  **My MVP** and next to each run's full output.
+- `apprun.py` (**Run my app**) works out how to start the project, runs a web app in the
+  background and finds its address, or runs a command-line tool once with the given arguments.
+- `mvp.py` (**My MVP**): the vision, what's been built (session summaries), what's changed, keeping
+  a version (a commit with the secret check, pushed when there's a remote), the roadmap and the
+  application (brief, deck, apply link).
+- `scripts/install.sh` gets git (macOS developer tools) and Python (uv) when missing, opens the
+  dashboard after a first install, and adds a Lakeba OS app (macOS, via `osacompile`) or menu entry
+  (Linux). `scripts/starter/Lakeba OS.command` (zipped in `docs/downloads/`) is the double-click
+  starter for a Mac.

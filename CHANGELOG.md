@@ -6,6 +6,33 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- A guided setup in the dashboard for people who've never used a terminal. `agent-team ui` outside a
+  project (and a first install) opens it: your idea (saved as VISION.md), where the AI runs (Ollama
+  found for you with a one-click model download, or your Anthropic key pasted, saved only on this
+  computer and checked), your team (members, optional QA/security/docs, builders, a daily limit),
+  the project created in ~/LakebaOS/<name> with git, the template and a first save, GitHub sign-in
+  on GitHub's own page and a private repository (optional), a ready check with fixes, and the lead's
+  suggested first tasks to build. Settings → Run setup again starts another idea.
+- My MVP, the dashboard's new first tab: what the team is doing right now in plain language, Run my
+  app (web apps in the browser, command-line tools with the arguments you type), Keep this version
+  (a commit, with the secret check, pushed to GitHub when there's a repository), the next feature,
+  and Prepare my application (brief and pitch deck) with the link to apply to Lakeba.
+- Plain-language progress for every run on the Runs tab, above the full output.
+- `[project].run_command`: how Run my app starts the project (worked out when empty).
+- The installer gets git (macOS developer tools) and Python 3.11+ (a private one through uv) when
+  missing, opens the guided setup after a first install (`--no-ui`), and adds a Lakeba OS app to
+  Applications on macOS or the app menu on Linux (`--no-shortcut`). A double-click Mac starter is on
+  the website.
+- A running dashboard is reused: `agent-team ui` (or the Lakeba OS app) opens it instead of failing
+  on the busy port.
+
+### Changed
+
+- Builds find the test command themselves when `[project].test_command` is empty (a project that
+  started empty has tests once the team writes them).
+
 ## [0.12.1] - 2026-10-19
 
 ### Changed

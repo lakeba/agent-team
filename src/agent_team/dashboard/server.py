@@ -38,7 +38,9 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/activity.js": ("activity.js", "text/javascript; charset=utf-8"),
           "/projects.js": ("projects.js", "text/javascript; charset=utf-8"),
           "/lakeba-mark.svg": ("lakeba-mark.svg", "image/svg+xml"),
-          "/behaviour.js": ("behaviour.js", "text/javascript; charset=utf-8")}
+          "/behaviour.js": ("behaviour.js", "text/javascript; charset=utf-8"),
+          "/setup.js": ("setup.js", "text/javascript; charset=utf-8"),
+          "/mvp.js": ("mvp.js", "text/javascript; charset=utf-8")}
 HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
     "X-Content-Type-Options": "nosniff",
@@ -192,7 +194,10 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def make_handler(root: Path, port: int, token: str | None = None):
+def make_handler(root: Path | None, port: int, token: str | None = None):
+    """`root` is the project (None: no project yet, so the page shows the setup wizard; creating
+    or opening a project there switches this dashboard to it)."""
+    here = {"root": root}
     allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
     allowed_origins = {f"http://{h}" for h in allowed_hosts}
     session_token = token or secrets.token_urlsafe(32)
@@ -223,6 +228,28 @@ def make_handler(root: Path, port: int, token: str | None = None):
                 return self._send(200, body, ctype)
             if not path.startswith("/api/"):
                 return self._json({"error": "not found"}, 404)
+            query = dict(urllib.parse.parse_qsl(self.path.partition("?")[2]))
+            if path == "/api/session":
+                # Readable only by pages from this origin: no CORS headers are ever sent.
+                return self._json({"token": session_token})
+            try:
+                if path == "/api/setup/status":
+                    from .. import setup_wizard
+                    return self._json({**setup_wizard.status(),
+                                       "project": str(here["root"]) if here["root"] else ""})
+                if path == "/api/setup/pull":
+                    from .. import setup_wizard
+                    return self._json(setup_wizard.pull_status(query.get("url", ""), query.get("model", "")))
+                if path == "/api/setup/github":
+                    from .. import setup_wizard
+                    return self._json({**setup_wizard.github_status(), "login": dict(setup_wizard.LOGIN)})
+            except Exception as e:
+                return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
+            root = here["root"]
+            if root is None:
+                if path == "/api/team":
+                    return self._json({"setup": True})
+                return self._json({"error": "no project yet: finish the setup first", "setup": True}, 409)
             try:
                 team = config.load(root)
             except config.ConfigError as e:
@@ -285,9 +312,21 @@ def make_handler(root: Path, port: int, token: str | None = None):
                         offset = 0
                     job_id = path.removeprefix("/api/jobs/")
                     return self._json({**jobs.get(team.root, job_id), **jobs.output(team.root, job_id, offset)})
-                if path == "/api/session":
-                    # Readable only by pages from this origin: no CORS headers are ever sent.
-                    return self._json({"token": session_token})
+                if path == "/api/setup/ready":
+                    from .. import setup_wizard
+                    return self._json({"checks": setup_wizard.ready(team.root)})
+                if path == "/api/mvp":
+                    from .. import mvp
+                    return self._json(mvp.summary(team))
+                if path == "/api/app":
+                    from .. import apprun
+                    return self._json({**apprun.status(team.root),
+                                       "how": apprun.detect(team.root, team.project.run_command)})
+                if path.startswith("/api/story/"):
+                    from .. import progress
+                    job_id = path.removeprefix("/api/story/")
+                    out = jobs.output(team.root, job_id, 0)
+                    return self._json({"status": out["status"], "story": progress.story(out["text"])})
                 if path == "/api/config":
                     text = (team.root / config.CONFIG_NAME).read_text(encoding="utf-8")
                     return self._json({"data": config_io.to_data(team), "sha": _sha(text),
@@ -316,7 +355,57 @@ def make_handler(root: Path, port: int, token: str | None = None):
             except ValueError:
                 return self._json({"error": "invalid JSON"}, 400)
             path = self.path.split("?", 1)[0]
+            from .. import setup_wizard
             try:
+                if path.startswith("/api/setup/"):
+                    if path == "/api/setup/project":
+                        made = setup_wizard.create_project(body)
+                        here["root"] = Path(made["root"])
+                        return self._json(made)
+                    if path == "/api/setup/open":
+                        from .. import projects
+                        target = str(body.get("root", ""))
+                        if target not in projects.registered():
+                            return self._json({"error": "unknown project"}, 404)
+                        config.load(Path(target))
+                        here["root"] = Path(target)
+                        return self._json({"root": target})
+                    if path == "/api/setup/key":
+                        return self._json(setup_wizard.save_key(str(body.get("value", ""))))
+                    if path == "/api/setup/pull":
+                        return self._json(setup_wizard.pull_model(str(body.get("url", "")), str(body.get("model", ""))))
+                    if path == "/api/setup/github/login":
+                        return self._json(dict(setup_wizard.github_login()))
+                    if here["root"] is None:
+                        return self._json({"error": "create the project first"}, 409)
+                    if path == "/api/setup/github/repo":
+                        return self._json(setup_wizard.create_repo(here["root"], bool(body.get("private", True))))
+                    if path == "/api/setup/identity":
+                        name = str(body.get("name", "")).strip()[:80]
+                        email = str(body.get("email", "")).strip()[:120]
+                        if not name or not re.fullmatch(r"[^@\s]+@[^@\s]+", email or "x@y"):
+                            return self._json({"error": "give a name (and an email address if you like)"}, 422)
+                        setup_wizard._run(["git", "config", "user.name", name], here["root"])
+                        setup_wizard._run(["git", "config", "user.email", email or "builder@lakeba-os.local"], here["root"])
+                        return self._json({"ok": True})
+                    if path == "/api/setup/tasks":
+                        return self._json({"tasks": setup_wizard.suggest_tasks(here["root"])})
+                    return self._json({"error": "not found"}, 404)
+                root = here["root"]
+                if root is None:
+                    return self._json({"error": "no project yet: finish the setup first", "setup": True}, 409)
+                if path.startswith("/api/app/"):
+                    from .. import apprun
+                    team = config.load(root)
+                    if path == "/api/app/start":
+                        return self._json(apprun.start(team.root, team.project.run_command))
+                    if path == "/api/app/stop":
+                        return self._json(apprun.stop(team.root))
+                    if path == "/api/app/cli":
+                        return self._json(apprun.run_cli(team.root, str(body.get("args", "")), team.project.run_command))
+                if path == "/api/mvp/keep":
+                    from .. import mvp
+                    return self._json(mvp.keep_version(config.load(root), str(body.get("message", ""))))
                 if path == "/api/config/preview":
                     return self._json(config_io.plan_change(root, body.get("data")))
                 if path == "/api/config/save":
@@ -380,9 +469,12 @@ def make_handler(root: Path, port: int, token: str | None = None):
                     return self._json({"approved": number, "sha": info["headRefOid"]})
                 if path == "/api/jobs/stop":
                     return self._json(jobs.stop(root, str(body.get("id", ""))))
-            except (config.ConfigError, jobs.JobError) as e:
+            except (config.ConfigError, jobs.JobError, setup_wizard.SetupError) as e:
                 return self._json({"error": str(e)}, 422)
             except Exception as e:
+                from .. import apprun
+                if isinstance(e, apprun.RunError):
+                    return self._json({"error": str(e)}, 422)
                 return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
             return self._json({"error": "not found"}, 404)
 
@@ -433,10 +525,24 @@ def _test_provider(body: dict) -> dict:
 
 
 def serve(project: Path, port: int = 8790, open_browser: bool = True) -> None:
-    team = config.load(project)   # fail early with a clear config error
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(team.root, port))
+    """The dashboard for `project`; without a .team.toml there (or above it), the setup wizard."""
+    try:
+        team = config.load(project)
+    except config.ConfigError as e:
+        if "no .team.toml found" not in str(e):
+            raise   # a broken team file: say so, don't hide it behind the wizard
+        team = None
+        from .. import projects
+        known = [p for p in projects.registered() if (Path(p) / config.CONFIG_NAME).is_file()]
+        if len(known) == 1:   # one project so far (the usual case when opened from the app): that one
+            try:
+                team = config.load(Path(known[0]))
+            except config.ConfigError:
+                team = None
+    httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(team.root if team else None, port))
     url = f"http://127.0.0.1:{httpd.server_address[1]}/"
-    print(f"agent-team dashboard for {team.project.name}: {url}  (Ctrl-C to stop; runs started here keep going)", flush=True)
+    what = f"for {team.project.name}" if team else "(no project here yet: the setup wizard opens)"
+    print(f"agent-team dashboard {what}: {url}  (Ctrl-C to stop; runs started here keep going)", flush=True)
     if open_browser:
         threading.Timer(0.5, webbrowser.open, args=(url,)).start()
     try:

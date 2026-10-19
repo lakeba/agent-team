@@ -32,6 +32,7 @@ async function pollOutput(id) {
     launch.output[id] = (launch.output[id] || "") + r.text;
     launch.offsets[id] = r.offset;
   } catch (e) { launch.output[id] = (launch.output[id] || "") + `\n[couldn't read the output: ${e.message}]`; }
+  try { launch.story = launch.story || {}; launch.story[id] = (await getJSON(`/api/story/${encodeURIComponent(id)}`)).story; } catch (_) {}
 }
 
 function renderLauncher() {
@@ -113,7 +114,10 @@ function jobList() {
         h("span", { class: "spacer" }), status(JOB_STATUS[j.status] || "pending", j.status), h("span", { class: "muted small" }, fmtWhen(j.started)),
         h("button", { type: "button", onclick: async () => { launch.open = isOpen ? null : j.id; if (!isOpen && launch.output[j.id] === undefined) await pollOutput(j.id); refreshJobList(); } }, isOpen ? "Hide output" : "Output"),
         j.status === "running" ? h("button", { type: "button", class: "danger", onclick: () => stopRun(j.id) }, "Stop") : null),
-      isOpen ? h("pre", { class: "job-output" }, launch.output[j.id] || "(no output yet)") : null));
+      isOpen && launch.story && launch.story[j.id] && launch.story[j.id].length
+        ? h("ol", { class: "story" }, launch.story[j.id].map(s => h("li", { class: `story-${s.kind}` }, s.text))) : null,
+      isOpen ? h("details", { open: launch.raw ? true : null, ontoggle: e => { launch.raw = e.target.open; } },
+        h("summary", { class: "muted small" }, "Full output"), h("pre", { class: "job-output" }, launch.output[j.id] || "(no output yet)")) : null));
   });
   requestAnimationFrame(() => { const out = list.querySelector(".job-output"); if (out) out.scrollTop = out.scrollHeight; });
   return list;
