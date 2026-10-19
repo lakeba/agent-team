@@ -1,0 +1,210 @@
+# Inspire in the app, and a website for people who don't code
+
+Status: draft for approval. No code has been written.
+
+Checked against agent-team 0.13.12 (`main` at f839d12) and lakebaos-client `main` at a2850c0, on 20 October 2026.
+
+Two tracks, which can run in parallel:
+
+- **A. Inspire without a terminal.** It becomes part of the guided setup and of the desktop app.
+- **B. A website for founders who don't code.** It leads with the app, uses real screenshots and short looping
+  videos, and moves the command line to a "For developers" section.
+
+## 1. Where things stand
+
+| Area | Today (checked in the code) |
+|---|---|
+| Inspire | CLI only: `agent-team inspire <url>` (`inspire.py`). |
+| Background runs | `jobs.argv_for` accepts `doctor`, `ship`, `market`, `discuss`, `autopilot`, `fix` and `build`, not `inspire`. |
+| API | `/api/*` has no inspiration endpoints. `FEATURES` in `dashboard/server.py` lists what a client can rely on. |
+| Guided setup | `dashboard/static/setup.js` has 7 steps: Welcome, Your idea, Where the AI runs, Your team, GitHub, Ready check, First version (`setup_wizard.py` does the work). It never sets up REA, which Inspire needs. |
+| Desktop app | It shows that same guided setup for a folder without a team. The project window has five tabs (Team, Runs, Spend, Approvals, Edit team) and a side rail. Nothing about Inspire. |
+| MCP | `mcp_server.WORKFLOWS` is an explicit list; `inspire` isn't in it. |
+| Website | The hero is an animated terminal running `agent-team build ... --pr`. The only images are six dashboard screenshots (`docs/assets/img`). There's no video, and ffmpeg isn't installed here. |
+
+## 2. Track A: Inspire without a terminal
+
+### What stays fixed
+
+The boundary from `plans/inspire-plan.md` is unchanged, whoever starts the run:
+
+- outside only;
+- `robots.txt` first;
+- the fixed capture set;
+- untrusted wrapping;
+- members who write code never get the brief or the captures.
+
+On top of that:
+
+- **Only a person confirms.** The "I use this app and may look at it this way" confirmation is the owner's action, like
+  approving a pull request. Its endpoint is documented as such:
+  - in the desktop app, the main process shows a native dialog before sending it;
+  - in the dashboard, it's a checkbox the owner ticks.
+
+  Neither MCP nor the chat can confirm, and MCP never offers `inspire`. A test pins that.
+- **Spend limits and guardrails apply.** Inspire becomes a background run, started through `POST /api/jobs/start`
+  like every other one.
+
+### A1. agent-team: Inspire as a background run, with an API
+
+- **`jobs.argv_for("inspire")`** checks every field:
+  - `url`: http(s), at most 2,000 characters;
+  - `journeys`: up to 5, each of up to 8 steps, every step parsed with `steps.parse_step` so a typo is refused
+    before anything starts;
+  - `max_pages`: 1–50.
+
+  It isn't one of the `WRITERS`: it only writes under `.team/inspiration/`.
+- **`jobs.start` refuses an unconfirmed app**, with a message that says how to confirm.
+- **Endpoints** (owner only, behind the same client token as everything else):
+
+| Endpoint | What |
+|---|---|
+| `GET /api/inspiration` | The apps explored: address, pages, journeys, whether a brief exists, when |
+| `GET /api/inspiration/<app>` | The brief (Markdown), the pages and journey steps with their addresses and problems, and the notes |
+| `GET /api/inspiration/<app>/shot/<name>` | One screenshot (PNG). The name is checked against `index.json`, so no other file can be read |
+| `POST /api/inspiration/confirm` | `{"url"}`: the owner's confirmation. Returns the statement that was confirmed |
+| `POST /api/inspiration/forget` | `{"app"}`: deletes the captures and the brief |
+
+  The feature is called `inspiration` in `/api/meta`, so the desktop app shows its card only when agent-team has it.
+  `docs/api.md` documents all of this.
+- **A dashboard Inspiration tab**:
+  - each app's brief;
+  - the screenshots gallery;
+  - Run again and Forget;
+  - an "Add an app" form (address, journeys, the confirmation checkbox).
+
+### A2. agent-team: a step in the guided setup
+
+- **A new optional step, "An app you like", after "Your idea"** (8 steps in all):
+  - the address;
+  - up to 3 journeys in plain words, with examples (`click link "Pricing"`);
+  - the confirmation statement, with a checkbox that starts unticked;
+  - "Skip": most founders will.
+- **The Ready check offers REA** when an app was named.
+  - "Install REA (needed for Inspire and behaviour checks)" is a fix the page can do itself (`rea.install` and
+    `rea.configure`).
+  - Without a supported Node.js, the step says which version to install and how, and Inspire is skipped with a note.
+    The rest of the setup carries on.
+- **First version** runs Inspire before the lead proposes the first tasks, showing its progress.
+  - The lead reads the brief (`inspire.for_member`) when it suggests tasks.
+  - The lead drafts an "Inspired by, and different from" section for `VISION.md`, which the founder accepts or edits
+    in the page.
+- **`agent-team init`** asks the same optional question in a terminal, so both ways of setting up give the same project.
+
+### A3. Desktop app (lakebaos-client)
+
+- **An Inspiration card on the project's side rail**, shown when `/api/meta` lists `inspiration`:
+  - the apps explored, each with whether its brief is ready;
+  - "Add an app".
+- **Add an app**: a form for the address and journeys. Then, in the main process:
+  1. the first time for that app, a native dialog shows the confirmation statement, with "I confirm" and "Cancel";
+  2. on "I confirm", `POST /api/inspiration/confirm`;
+  3. then `POST /api/jobs/start` with `inspire`.
+
+  The run appears in the Runs tab like any other, and spend limits answer in agent-team's words.
+  The renderer can only ask for "add an app"; it has no direct path to the confirm endpoint (the preload exposes
+  no such call).
+- **The brief view**: the Markdown is rendered with DOMPurify, as in the chat. The screenshots are fetched by the
+  main process and shown as images, and stay in the window (no saving, no sharing). Forget asks first.
+- **Remote projects** work the same way through the SSH tunnel.
+- **Not in the chat.** The chat's MCP server (`--no-merge`) doesn't offer `inspire`, and Claude can't read
+  the captures.
+- **The smoke test** gets a fake agent-team with the new endpoints. It checks:
+  - the confirmation dialog is required, and Cancel sends nothing;
+  - the run starts with checked parameters;
+  - the card is hidden without the feature.
+
+## 3. Track B: a website for founders who don't code
+
+### B1. Screens and loops made from the real app, by a script
+
+- **`scripts/capture.js` in lakebaos-client** starts the real app with a throwaway profile and the real agent-team.
+  It uses a demo project made by `agent-team try --with replay --keep`, which needs no key, no model and no
+  network, and gives real runs and real numbers.
+  - It walks the app the way a person would: the Projects window, the guided setup, Team, Runs during a build,
+    Spend, Approvals, and the Inspiration card.
+  - It saves PNG screenshots (`webContents.capturePage`) in light and dark, at 2× for sharp screens.
+- **Short loops, 5–10 seconds each.** The plan is to record them with Electron's own recorder (MediaRecorder on the
+  window's stream), so no ffmpeg is needed. B1 starts by checking that Electron 44 records MP4 (H.264, which every
+  browser plays) as well as WebM. If it only records WebM, the fallback is ffmpeg on the machine that makes the
+  captures. Planned scenes:
+  1. describing the idea;
+  2. a build running;
+  3. approving a change;
+  4. the inspiration brief.
+- **Nothing private on screen.**
+  - The demo lives under a neutral folder (`~/LakebaOS/Tally`, in a temporary home).
+  - No keys, account names or real addresses.
+  - The Inspire scene explores a **made-up app** served locally by the script, never a real company's site, so the
+    website never shows someone else's brand.
+- **One command remakes everything after each release**: `npm run capture`, with output to
+  `docs/assets/app/` in agent-team.
+
+### B2. The page
+
+- **Hero:**
+  - a real app screen (a loop of a build running) instead of the terminal;
+  - "Download for Mac" and "Download for Linux" next to "Start your MVP";
+  - plain words, with no "PR", "CLI" or "MCP" above the fold.
+- **How it works, in four steps, each with its loop:**
+  1. describe your idea (or name an app you like);
+  2. the team builds;
+  3. you approve;
+  4. you ship.
+- **Inspire** keeps its section, with a screenshot of a brief from the made-up app.
+- **For developers.** The terminal animation, the Claude Code plugin, MCP, behaviour checks and the library move
+  into one section lower down. The README keeps covering the command line in full.
+- **Loops:** `<video muted autoplay loop playsinline>`, each with a still poster and a text description.
+  - With "reduce motion" set, only the poster shows.
+  - Loops below the fold load when they scroll into view.
+- **Budget:** at most about 1.5 MB per loop and 6 MB for the whole page, checked by a small script before each push (the site has no build step today).
+- **Checked** in light and dark mode, at phone width (no sideways scroll), and on a slow connection (posters first).
+
+### B3. Later
+
+A 60–90 second narrated walkthrough, from idea to a running MVP, once the app's screens have settled.
+
+## 4. Phases (each ships on its own)
+
+| Phase | Repository | What ships | Size |
+|---|---|---|---|
+| A1 | agent-team | Inspire as a background run, its endpoints and confirmation, the dashboard Inspiration tab, docs | M |
+| A2 | agent-team | The guided setup step, REA in the Ready check, the lead's first tasks and `VISION.md` section from the brief, `init` | M |
+| A3 | lakebaos-client | The Inspiration card, the native confirmation, the brief view and gallery, smoke tests | M |
+| B1 | lakebaos-client | `npm run capture`: screenshots and loops from the real app and a demo project | M |
+| B2 | agent-team | The new page: hero, the four steps with loops, Inspire, For developers | M |
+| B3 | either | The narrated walkthrough (later) | S |
+
+- A1, then A2 and A3. B1, then B2.
+- B can start now with the screens the app already has; the Inspire scene is added once A3 ships.
+- Each agent-team phase is a patch release (0.13.13 and up), as before.
+
+## 5. Testing
+
+- **agent-team:**
+  - `argv_for("inspire")` refuses bad addresses, too many journeys and mistyped steps;
+  - a job for an unconfirmed app is refused;
+  - the confirm endpoint needs the client token;
+  - a screenshot name outside `index.json` (`../`, absolute paths) is refused;
+  - MCP never lists or starts `inspire`;
+  - the setup step writes the same files as the CLI;
+  - "Skip" leaves nothing behind;
+  - without Node.js, setup still finishes.
+- **lakebaos-client:**
+  - Cancel in the dialog sends nothing;
+  - the renderer has no path to the confirm endpoint;
+  - the card is hidden without the feature;
+  - remote projects work;
+  - all existing checks still pass.
+- **Website:** media sizes within budget; reduced motion shows posters; no sideways scroll at 375 px; dark mode.
+
+## 6. Open questions
+
+1. **Where the walkthrough video lives** (B3): on YouTube, embedded (smaller site, its tracking unless
+   `youtube-nocookie`), or in the repository (no third party, but a larger download).
+2. **The hero's main button:** "Start your MVP" (the program) or "Download the app".
+3. **Legal review** of the confirmation statement and of the website's description of Inspire. This is still open
+   from the first Inspire plan.
+4. **The made-up app** for the Inspire scene: a name and a one-page site, say "Tally, a time tracker". Or would you
+   rather we use one of Lakeba's own products?
+5. **Linux screenshots too, or macOS only** for the website. The app looks nearly the same on both.
