@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from .. import agent, behaviour, context, files, github, guards, memory, quality, review_tools, routing, sessions, ui
 from ..config import AgentConfig, Team
 
-TEST_PREFIXES = ("tests/", "test/", "spec/", "__tests__/", "test_")
+TEST_PREFIXES = ("tests/", "test/", "spec/", "__tests__/", "test_", "Tests/", "Test/")
 DOC_PREFIXES = ("README", "docs/", "CHANGELOG.md", "CONTRIBUTING.md")
 PART_RE = re.compile(r"^PART:\s*([^|\n]+?)\s*\|\s*([^|\n]*?)\s*\|\s*(.+?)\s*$", re.M)
 OPTIONAL = ("qa", "security", "docs", "journeys")   # journeys: the behaviour checks the task needs

@@ -450,6 +450,21 @@ def check(root: Path, ollama_url: str = "") -> list[Check]:
         out.append(Check("test sandbox", ok, detail,
                          "" if ok else "install or start Docker (or Podman), or set [sandbox].mode = \"off\""))
 
+    # Paths members own, spelled differently from the folder (tests/ for Tests/): their writes there
+    # would be refused on a case-sensitive disk, and sign-offs wouldn't match.
+    if team:
+        for a in team.agents.values():
+            for owned in a.owns:
+                top = owned.split("/")[0]
+                names = {p.name for p in Path(team.root).iterdir()}
+                if not top or top == "*" or top in names:
+                    continue
+                real = next((n for n in sorted(names) if n.lower() == top.lower()), "")
+                if real:
+                    fixed = real + owned[len(top):]
+                    out.append(Check(f"{a.name} owns {owned}", False, f"the folder is {real}/, so {owned} matches nothing",
+                                     f'in .team.toml, {a.name}\'s owns: "{fixed}" (or the dashboard: Team → Edit team)'))
+
     # Ollama: every server a member uses, and whether its models are pulled.
     servers: dict[str, list[str]] = {}
     if team:

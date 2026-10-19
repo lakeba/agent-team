@@ -135,6 +135,22 @@ class LocalServerTests(unittest.TestCase):
         status = build(config.ProviderConfig(name="m", kind="openai", url=self.url), "").check("Qwen2.5-Coder-7B-Instruct-4bit")
         self.assertIn("did you mean 'mlx-community/Qwen2.5-Coder-7B-Instruct-4bit'", status)
 
+    def test_test_folder_keeps_its_real_name(self):
+        for names, expected in ((["Tests"], "Tests/"), (["tests"], "tests/"), (["App", "App.Tests"], "App.Tests/"), (["src"], "tests/")):
+            root = Path(tempfile.mkdtemp())
+            for n in names:
+                (root / n).mkdir()
+            self.assertEqual(init.test_dir(root), expected, names)
+
+    def test_an_owned_path_with_the_wrong_case_is_reported(self):
+        from helpers import project
+        root = project(files={"Tests/test_a.py": ""})
+        text = (root / ".team.toml").read_text().replace('name = "Forge"\nrole = "builder"', 'name = "Forge"\nrole = "builder"\nowns = ["tests/"]')
+        (root / ".team.toml").write_text(text)
+        check = {c.name: c for c in readiness.check(root)}["Forge owns tests/"]
+        self.assertFalse(check.ok)
+        self.assertIn('"Tests/"', check.fix)
+
     def test_init_on_an_mlx_server(self):
         root = Path(tempfile.mkdtemp())
         with quiet():

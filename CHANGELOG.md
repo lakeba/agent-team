@@ -6,6 +6,14 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Fixed
+
+- `init` and the guided setup gave the QA member `tests/` in a project whose folder is `Tests/` (common
+  in .NET), so on Linux, where paths are case-sensitive, its tests were refused. The test folder is now
+  used as it's spelled on disk, a build's default QA folders include `Tests/` and `Test/`, and the
+  readiness checklist (`ready`, `doctor`) points out an owned path whose case doesn't match its folder,
+  with the fix.
+
 ## [0.13.6] - 2026-10-19
 
 ### Fixed

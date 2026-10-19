@@ -130,10 +130,14 @@ def detect(root: Path) -> tuple[str, str]:
 
 
 def test_dir(root: Path) -> str:
-    """The folder the project keeps its tests in (what a QA member may write to)."""
-    found = next((d for d in TEST_DIRS if (root / d.rstrip("/")).is_dir()), "")
+    """The folder the project keeps its tests in (what a QA member may write to), spelled as it is on
+    disk: `Tests/` stays `Tests/` (paths are case-sensitive on Linux and in git, even where the disk
+    isn't)."""
+    folders = sorted(p.name for p in root.iterdir() if p.is_dir()) if root.is_dir() else []
+    by_lower = {name.lower(): name for name in folders}
+    found = next((f"{by_lower[d.rstrip('/')]}/" for d in TEST_DIRS if d.rstrip("/") in by_lower), "")
     if not found:   # .NET keeps each test project in its own folder: App.Tests/, App.UnitTests/
-        found = next((f"{p.name}/" for p in sorted(root.iterdir()) if p.is_dir() and p.name.endswith((".Tests", ".UnitTests"))), "")
+        found = next((f"{n}/" for n in folders if n.lower().endswith((".tests", ".unittests"))), "")
     return found or "tests/"
 
 
