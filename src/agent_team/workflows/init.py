@@ -245,33 +245,40 @@ def ask_yes(question: str, default: bool = True) -> bool:
             return a.startswith("y")
 
 
-def find_server(given: str, interactive: bool) -> tuple[str, list[str] | None, str]:
-    """(url, its models or None, note): the address given, else the first Ollama that answers on
-    this machine, its host (in a VM or container) or the gateway; in a terminal, the user picks."""
-    from ..readiness import find_ollama, ollama_models
+def find_server(given: str, interactive: bool) -> tuple[str, list[str] | None, str, str]:
+    """(url, its models or None, note, kind): the address given, else the first local model server
+    that answers (Ollama, or an OpenAI-compatible one such as mlx_lm) on this machine, its host (in a
+    VM or container) or the gateway; in a terminal, the user picks. kind is ollama or openai."""
+    from ..readiness import find_local, probe
     if given:
         url = given.rstrip("/")
-        return url, ollama_models(url), ""
-    found = find_ollama()
+        found = probe(url, timeout=5)
+        return url, (found or {}).get("models"), "", (found or {}).get("kind", "ollama")
+    found = find_local()
     if not interactive:
         if found:
-            url, models = found[0]
-            return url, models, ("" if url == DEFAULT_OLLAMA else f"found Ollama at {url}")
+            f = found[0]
+            note = "" if f["url"] == DEFAULT_OLLAMA else f"found {f['label']} at {f['url']}"
+            return f["url"], f["models"], note, f["kind"]
+        from ..readiness import ollama_models
         models = ollama_models(DEFAULT_OLLAMA)
-        return DEFAULT_OLLAMA, models, ("" if models is not None else "no Ollama answered here or on the host; set its "
-                                        "address later with agent-team init --ollama-url http://HOST:11434")
-    options = [(u, f"{u}  ({len(m)} models)") for u, m in found] + [("other", "Another address")]
+        return DEFAULT_OLLAMA, models, ("" if models is not None else
+                                        "no local model server answered here or on the host (Ollama, mlx_lm...); set "
+                                        "its address later with agent-team init --ollama-url http://HOST:PORT"), "ollama"
+    options = [(f["url"], f"{f['url']}  ({f['label']}, {len(f['models'])} models)") for f in found] + [("other", "Another address")]
     if not found:
-        ui.say("No Ollama server answered on this machine, its host or the gateway.")
-    choice = ask_choice("Which Ollama server should the team use?", options, options[0][0]) if found else "other"
+        ui.say("No local model server (Ollama, mlx_lm, LM Studio...) answered on this machine, its host or the gateway.")
+    choice = ask_choice("Which local model server should the team use?", options, options[0][0]) if found else "other"
     if choice != "other":
-        return choice, dict(found)[choice], ""
+        f = next(x for x in found if x["url"] == choice)
+        return f["url"], f["models"], "", f["kind"]
     while True:
         from ..readiness import _ollama_url
-        url = _ollama_url(_ask("Ollama address (e.g. http://192.168.1.20:11434)", DEFAULT_OLLAMA))
-        models = ollama_models(url)
-        if models is not None or ask_yes(f"{url} doesn't answer. Use it anyway?", default=False):
-            return url, models, ""
+        raw = _ask("Server address (e.g. http://192.168.1.20:11434 for Ollama, http://HOST:8080 for mlx_lm)", DEFAULT_OLLAMA)
+        url = raw.rstrip("/") if re.search(r":\d+$", raw.rstrip("/").split("//")[-1]) else _ollama_url(raw)
+        f = probe(url, timeout=5)
+        if f or ask_yes(f"{url} doesn't answer. Use it anyway?", default=False):
+            return url, (f or {}).get("models"), "", (f or {}).get("kind", "ollama")
 
 
 def write_vision(root: Path, text: str) -> str:
@@ -384,7 +391,7 @@ def run(root: Path, builder_provider: str = "local", builder_model: str = "", fo
         raise SystemExit(str(e))
     note = ""
     if c.uses_ollama:
-        c.ollama_url, server_models, found_note = find_server(ollama_url, interactive)
+        c.ollama_url, server_models, found_note, c.local_kind = find_server(ollama_url, interactive)
         c.ollama_model, note = choose_model(server_models, builder_model)
         note = "; ".join(n for n in (found_note, note) if n)
     if builder_model and c.provider("builder") == "claude":

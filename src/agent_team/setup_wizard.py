@@ -83,8 +83,8 @@ def _project_name(root: str) -> str:
 def status() -> dict:
     """What the wizard needs to know about this machine, in one call."""
     from . import composition, projects
-    from .readiness import find_ollama
-    servers = [{"url": u, "models": m} for u, m in find_ollama()]
+    from .readiness import find_local
+    servers = find_local()
     name, email = git_identity()
     return {
         "first_run": not projects.registered(),

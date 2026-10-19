@@ -144,14 +144,15 @@ function models() {
     h("div", {}, h("h3", {}, title), h("p", { class: "secondary small" }, cost), h("p", { class: "muted small" }, needs)));
   const out = [h("h2", { class: "wiz-title" }, "Where should the AI run?"),
     h("div", { class: "wiz-choices" },
-      choice("ollama", "Free, on this computer", "No per-use cost: models run on your own machine with Ollama.", "Needs Ollama and a model download (a few GB). Slower on small laptops."),
+      choice("ollama", "Free, on this computer", "No per-use cost: models run on your own machine with Ollama (or mlx_lm on a Mac).", "Needs Ollama (or mlx_lm) and a model download (a few GB). Slower on small laptops."),
       choice("claude", "Claude, best quality", "Pay per use with your own Anthropic account; a small first version usually costs a few dollars.", "Needs an Anthropic API key."),
       choice("mixed", "Both (recommended)", "Claude plans and reviews; the builders run free on this computer.", "Needs both: an Anthropic key and Ollama."))];
   if (f.models !== "ollama") out.push(keyBox());
   if (f.models !== "claude") out.push(ollamaBox(found));
   out.push(nav("Next", () => {
     if (f.models !== "ollama" && !s.claude_key) return fail("Add your Anthropic key first, or choose “Free, on this computer”.");
-    if (f.models !== "claude" && !f.ollama_url) return fail("Ollama wasn’t found. Install it and press “Check again”, or choose Claude.");
+    if (f.models !== "claude" && !f.ollama_url) return fail("No local model server was found. Install Ollama and press “Check again”, or choose Claude.");
+    if (f.models !== "claude" && !f.ollama_model) return fail("Say which model the local server runs.");
     go(3);
   }));
   return out;
@@ -180,25 +181,41 @@ function keyBox() {
 
 function ollamaBox(found) {
   const f = wizard.form, s = wizard.status || {};
-  const box = h("div", { class: "card wiz-box" }, h("h3", {}, "Ollama, for free local models"));
+  const box = h("div", { class: "card wiz-box" }, h("h3", {}, "Free local models"));
   if (!found.length) {
-    box.append(status("bad", "Ollama isn’t running on this computer"),
-      h("p", { class: "secondary small" }, "Download it from ", h("a", { href: "https://ollama.com/download", target: "_blank", rel: "noopener noreferrer" }, "ollama.com/download"),
-        ", install it, open it once, then come back here."),
+    box.append(status("bad", "No local model server is running on this computer"),
+      h("p", { class: "secondary small" }, "Download Ollama from ", h("a", { href: "https://ollama.com/download", target: "_blank", rel: "noopener noreferrer" }, "ollama.com/download"),
+        ", install it, open it once, then come back here. (Already running mlx_lm or LM Studio? Start its server, then check again.)"),
       h("div", { class: "actions" }, h("button", { type: "button", onclick: recheck }, "Check again")));
     return box;
   }
   const server = found.find(x => x.url === f.ollama_url) || found[0];
-  f.ollama_url = server.url;
+  if (f.ollama_url !== server.url) f.ollama_model = "";
+  f.ollama_url = server.url; f.local_kind = server.kind;
+  if (found.length > 1) box.append(h("div", { class: "choices" }, found.map(x => {
+    const r = h("input", { type: "radio", name: "local-server", checked: x.url === server.url ? true : null });
+    r.addEventListener("change", () => { f.ollama_url = x.url; f.local_kind = x.kind; f.ollama_model = ""; renderSetup(); });
+    return h("label", { class: "choice" }, r, ` ${x.label} at ${x.url} (${x.models.length} models)`);
+  })));
+  else box.append(status("good", `Found ${server.label} at ${server.url}`));
   const have = server.models || [];
-  const model = f.ollama_model || pickModel(have, s.recommended_model);
+  const isOllama = server.kind === "ollama";
+  const model = f.ollama_model || (isOllama ? pickModel(have, s.recommended_model) : (have.length ? pickModel(have, have[0]) : ""));
   f.ollama_model = model;
   const pulled = have.includes(model) || have.includes(`${model}:latest`);
-  box.append(status("good", `Found at ${server.url}`));
-  const sel = h("select", {}, [...new Set([...have, s.recommended_model])].filter(m => !/embed|ocr/.test(m)).map(m => h("option", { value: m, selected: m === model ? true : null }, m + (have.includes(m) ? "" : " (download)") + (m === s.recommended_model ? " · recommended" : ""))));
+  const options = isOllama ? [...new Set([...have, s.recommended_model])] : have;
+  const sel = h("select", {}, options.filter(m => !/embed|ocr/.test(m)).map(m => h("option", { value: m, selected: m === model ? true : null },
+    m + (have.includes(m) ? "" : " (download)") + (isOllama && m === s.recommended_model ? " · recommended" : ""))));
   sel.addEventListener("change", () => { f.ollama_model = sel.value; renderSetup(); });
-  box.append(field("Model the builders use", sel, pulled ? "Already on this computer." : "Not downloaded yet."));
-  if (!pulled) box.append(pullControl(server.url, model));
+  if (!isOllama && !have.length) {   // mlx_lm lists only the models it has downloaded
+    if (f.ollama_model === undefined || f.ollama_model === "undefined") f.ollama_model = "";
+    box.append(field("Model the builders use", input(f, "ollama_model", { placeholder: "e.g. mlx-community/Qwen2.5-Coder-7B-Instruct-4bit" }),
+      "The model the server runs (the name you gave mlx_lm.server --model)."));
+    return box;
+  }
+  box.append(field("Model the builders use", sel, pulled ? "Already on this computer." :
+    isOllama ? "Not downloaded yet." : "Start the server with a model first (mlx_lm.server --model …)."));
+  if (!pulled && isOllama) box.append(pullControl(server.url, model));
   return box;
 }
 
@@ -234,7 +251,7 @@ async function recheck() {
   wizard.busy = "Looking for Ollama…"; renderSetup();
   try { wizard.status = await getJSON("/api/setup/status"); } catch (e) { wizard.error = e.message; }
   const found = wizard.status.ollama || [];
-  if (found.length && !wizard.form.ollama_url) wizard.form.ollama_url = found[0].url;
+  if (found.length && !wizard.form.ollama_url) { wizard.form.ollama_url = found[0].url; wizard.form.local_kind = found[0].kind; }
   wizard.busy = ""; renderSetup();
 }
 

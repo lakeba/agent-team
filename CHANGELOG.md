@@ -6,6 +6,17 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- Local model servers besides Ollama are found and can run the local members: mlx_lm (port 8080),
+  LM Studio (1234) and llama.cpp, on this machine, a VM's host or the gateway, recognised and
+  labelled (`readiness.find_local`). `agent-team discover --local` lists them; `init` picks one when
+  there's no Ollama, and `--ollama-url http://HOST:8080` sets up an `openai`-kind connection for an
+  mlx_lm server; the guided setup and Settings → Team composition list every server with its type;
+  the readiness checklist checks the server and that it serves the members' model.
+- A model that tries a tool call the server can't read (mlx_lm logs "Failed to parse tool call")
+  now gets a clear error suggesting a larger model or `review = "snapshot"`, instead of an empty reply.
+
 ## [0.13.1] - 2026-10-19
 
 ### Changed

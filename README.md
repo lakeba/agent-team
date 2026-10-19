@@ -251,7 +251,7 @@ tools can be given to members (`mcp = ["rea"]`). See [configuration](docs/config
 | `agent-team jobs [start <workflow> \| stop <id> \| log <id>]` | Runs in the background, as the dashboard and the Claude panel start them. |
 | `agent-team schedule --every 6h` | Run devops shifts on a schedule (launchd on macOS, cron elsewhere); `--remove` to stop. |
 | `agent-team serve ...` | Serve a model on this machine as a team member for a team elsewhere. |
-| `agent-team discover` | Find agent-team nodes on the local network. |
+| `agent-team discover [--local]` | Find agent-team nodes on the local network; `--local` finds local model servers instead: Ollama, mlx_lm, LM Studio and llama.cpp, here, on a VM's host or on the gateway. |
 | `agent-team ready [--json]` | What this machine and project still need (git, GitHub, keys, Ollama, models), each with its fix. |
 | `agent-team keys [set NAME \| remove NAME]` | API keys and tokens in agent-team's own keys file; values are never shown. |
 | `agent-team issues [sync --milestone M2 --yes]` | The team's to-do list: `team:build` issues, created from the roadmap by the lead (shown first, created with `--yes`). Autopilot builds them and its PRs close them. |

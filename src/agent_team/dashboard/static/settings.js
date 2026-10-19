@@ -135,7 +135,7 @@ function compositionCard() {
   const choose = (key, value) => { c[key] = value; renderSettings(); };
   const models = h("div", { class: "segmented", role: "radiogroup" }, Object.entries(info.models).map(([v, about]) =>
     h("button", { type: "button", role: "radio", "aria-checked": String(c.models === v), title: about,
-      onclick: () => choose("models", v) }, { mixed: "Claude + Ollama builders", ollama: "Only Ollama", claude: "Only Claude" }[v] || v)));
+      onclick: () => choose("models", v) }, { mixed: "Claude + local builders", ollama: "Only local models", claude: "Only Claude" }[v] || v)));
   card.append(setting("Models", info.models[c.models], models));
 
   if (c.models !== "claude") {
@@ -146,20 +146,21 @@ function compositionCard() {
       try { settings.servers = (await postJSON("/api/ollama/find", {})).servers; }
       catch (e) { toast(e.message); }
       settings.finding = false;
-      if (settings.servers && settings.servers.length && !settings.servers.some(s => s.url === c.ollama_url)) c.ollama_url = settings.servers[0].url;
+      if (settings.servers && settings.servers.length && !settings.servers.some(s => s.url === c.ollama_url)) {
+        c.ollama_url = settings.servers[0].url; c.local_kind = settings.servers[0].kind; }
       renderSettings();
-    } }, settings.finding ? "Looking…" : "Find Ollama");
+    } }, settings.finding ? "Looking…" : "Find servers");
     const found = settings.servers;
     const server = found ? found.find(s => s.url === c.ollama_url) : null;
     const pick = found && found.length ? h("div", { class: "inline" }, found.map(s =>
       h("label", { class: "choice" }, (() => { const r = h("input", { type: "radio", name: "ollama-server", checked: s.url === c.ollama_url ? true : null });
-        r.addEventListener("change", () => choose("ollama_url", s.url)); return r; })(), ` ${s.url} (${s.models.length} models)`)))
-      : found ? h("p", { class: "hint" }, "No Ollama answered on this machine, its host or the gateway. Type its address.") : null;
+        r.addEventListener("change", () => { c.local_kind = s.kind; choose("ollama_url", s.url); }); return r; })(), ` ${s.label} at ${s.url} (${s.models.length} models)`)))
+      : found ? h("p", { class: "hint" }, "No local model server (Ollama, mlx_lm, LM Studio) answered on this machine, its host or the gateway. Type its address.") : null;
     const modelEl = server && server.models.length
       ? (() => { const m = h("select", {}, server.models.map(n => h("option", { value: n, selected: n === c.ollama_model ? true : null }, n)));
           m.addEventListener("change", () => { c.ollama_model = m.value; }); return m; })()
       : (() => { const m = h("input", { type: "text", value: c.ollama_model }); m.addEventListener("input", () => { c.ollama_model = m.value.trim(); }); return m; })();
-    card.append(setting("Ollama", "The server the Ollama members use, and their model.",
+    card.append(setting("Local models", "The server the local members use (Ollama, or mlx_lm, LM Studio and other OpenAI-compatible servers), and their model.",
       h("div", {}, h("div", { class: "inline" }, url, find), pick,
         h("label", { class: "field" }, h("span", { class: "field-label" }, "Model"), modelEl))));
   }

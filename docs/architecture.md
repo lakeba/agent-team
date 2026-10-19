@@ -30,7 +30,7 @@ A provider turns `(system prompt, conversation)` into a reply. Built in:
 |---|---|---|
 | `anthropic` | Claude via the Anthropic API | Streams, shows summarised reasoning, retries dropped connections, cancels and retries a stalled reply, sees images. |
 | `ollama` | Ollama, on this machine or another | Retries while the server restarts. |
-| `openai` | Any OpenAI-compatible `/v1/chat/completions` server | vLLM, LM Studio, llama.cpp, gateways. |
+| `openai` | Any OpenAI-compatible `/v1/chat/completions` server | mlx_lm, vLLM, LM Studio, llama.cpp, gateways. `readiness.find_local` finds the local ones (ports 8080 and 1234) next to Ollama, and the setup can put the local members on one. |
 | `agent-http` | Another machine running `agent-team serve` | That machine keeps its model and credentials; see [remote-agents.md](remote-agents.md). |
 | `replay` | A recorded run (`demo/replay.json`) | No model at all: what `agent-team try` uses when there's no key and no Ollama. |
 

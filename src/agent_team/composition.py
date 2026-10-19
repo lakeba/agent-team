@@ -35,8 +35,9 @@ CLAUDE_MODEL = {"lead": OPUS, "builder": SONNET, "marketing": SONNET, "devops": 
 @dataclass
 class Composition:
     models: str = "mixed"                  # a key of MODELS
-    ollama_url: str = DEFAULT_OLLAMA
+    ollama_url: str = DEFAULT_OLLAMA       # the local model server (Ollama, or one speaking the OpenAI API)
     ollama_model: str = DEFAULT_MODEL
+    local_kind: str = "ollama"             # ollama | openai (mlx_lm, LM Studio, llama.cpp ...)
     extras: tuple[str, ...] = ()           # keys of EXTRAS
     builders: int = 1
     per_run: float = 0.0                   # US dollars; 0 means no limit
@@ -54,6 +55,8 @@ class Composition:
             raise ValueError(f"optional members are {', '.join(EXTRAS)}; unknown: {', '.join(unknown)}")
         if not 1 <= self.builders <= MAX_BUILDERS:
             raise ValueError(f"builders is 1 to {MAX_BUILDERS}, not {self.builders}")
+        if self.local_kind not in ("ollama", "openai"):
+            raise ValueError(f"the local server is ollama or openai (mlx_lm, LM Studio...), not {self.local_kind!r}")
         if self.per_run < 0 or self.per_day < 0:
             raise ValueError("spend limits are US dollars, 0 or more (0 means no limit)")
 
@@ -103,7 +106,8 @@ class Composition:
         names = [m["name"] for m in self.members()]
         limits = ("no spend limits" if not (self.per_run or self.per_day) else
                   "limits " + ", ".join(f"${v:g} per {k}" for k, v in (("run", self.per_run), ("day", self.per_day)) if v))
-        where = {"mixed": "Claude + Ollama builders", "ollama": f"all on Ollama at {self.ollama_url}",
+        local = "Ollama" if self.local_kind == "ollama" else "the local server"
+        where = {"mixed": f"Claude + {local} builders", "ollama": f"all on {local} at {self.ollama_url}",
                  "claude": "all on Claude"}[self.models]
         return f"{len(names)} members ({', '.join(names)}), {where}, {limits}"
 
@@ -144,7 +148,10 @@ def providers_text(c: Composition) -> str:
     else:
         parts.append("# [providers.claude]                 # add Claude later: uncomment, point members at it, and\n"
                      '# kind = "anthropic"                 # save the key with: agent-team keys set ANTHROPIC_API_KEY\n')
-    if c.uses_ollama:
+    if c.uses_ollama and c.local_kind == "openai":
+        parts.append(f'[providers.local]                    # an OpenAI-compatible server here (mlx_lm, LM Studio...)\n'
+                     f'kind = "openai"\nurl = "{c.ollama_url.rstrip("/")}"\n')
+    elif c.uses_ollama:
         parts.append(f'[providers.local]\nkind = "ollama"\nurl = "{c.ollama_url.rstrip("/")}"\n')
     else:
         parts.append("# [providers.local]                  # Ollama, on this machine or another\n"
@@ -208,14 +215,15 @@ def apply(data: dict, c: Composition) -> dict:
     if c.uses_claude and not claude:
         providers["claude"] = {"kind": "anthropic"}
         claude = "claude"
-    local = next((n for n, p in providers.items() if p.get("kind") == "ollama"
+    local = next((n for n, p in providers.items() if p.get("kind") == c.local_kind
                   and (not p.get("url") or "localhost" in p["url"] or "127.0.0.1" in p["url"]
                        or p["url"].rstrip("/") == c.ollama_url.rstrip("/"))), None)
-    local = local or next((n for n, p in providers.items() if p.get("kind") == "ollama"), None)
+    if c.local_kind == "ollama":
+        local = local or next((n for n, p in providers.items() if p.get("kind") == "ollama"), None)
     if c.uses_ollama:
         if not local:
-            local = "local" if "local" not in providers else "ollama"
-            providers[local] = {"kind": "ollama"}
+            local = "local" if "local" not in providers else ("ollama" if c.local_kind == "ollama" else "mlx")
+            providers[local] = {"kind": c.local_kind}
         providers[local]["url"] = c.ollama_url.rstrip("/")
     name_of = {"claude": claude, "local": local}
 
@@ -292,13 +300,14 @@ def from_data(data: dict) -> Composition:
     kind = {a["name"]: providers.get(a.get("provider"), {}).get("kind") for a in agents}
     kinds = set(kind.values())
     models = "claude" if kinds <= {"anthropic"} else "ollama" if "anthropic" not in kinds else "mixed"
-    ollama = next((p for n, p in providers.items() if p.get("kind") == "ollama"
+    ollama = next((p for n, p in providers.items() if p.get("kind") in ("ollama", "openai")
                    and any(a.get("provider") == n for a in agents)), None) \
         or next((p for p in providers.values() if p.get("kind") == "ollama"), {})
-    on_ollama = [a.get("model") for a in agents if kind.get(a["name"]) == "ollama" and a.get("model")]
+    local_kind = ollama.get("kind") or "ollama"
+    on_ollama = [a.get("model") for a in agents if kind.get(a["name"]) == local_kind and a.get("model")]
     limits = data.get("limits", {})
     return Composition(
-        models=models, ollama_url=ollama.get("url") or DEFAULT_OLLAMA,
+        models=models, ollama_url=ollama.get("url") or DEFAULT_OLLAMA, local_kind=local_kind,
         ollama_model=on_ollama[0] if on_ollama else DEFAULT_MODEL,
         extras=tuple(r for r in EXTRAS if any(a.get("role") == r for a in agents)),
         builders=max(1, min(MAX_BUILDERS, sum(a.get("role") == "builder" for a in agents))),
@@ -319,10 +328,11 @@ def from_form(form: dict) -> Composition:
     c = Composition(models=str(form.get("models") or "mixed"),
                     ollama_url=str(form.get("ollama_url") or DEFAULT_OLLAMA).strip(),
                     ollama_model=str(form.get("ollama_model") or DEFAULT_MODEL).strip(),
+                    local_kind=str(form.get("local_kind") or "ollama"),
                     extras=tuple(form.get("extras") or ()), builders=builders,
                     per_run=money(form.get("per_run")), per_day=money(form.get("per_day")),
                     keep_limits="per_run" not in form and "per_day" not in form)
     if c.uses_ollama and not c.ollama_url.startswith(("http://", "https://")):
-        raise ValueError("the Ollama address starts with http:// (e.g. http://192.168.1.20:11434)")
+        raise ValueError("the local server's address starts with http:// (e.g. http://192.168.1.20:11434)")
     c.check()
     return c

@@ -429,6 +429,7 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
                     from .. import composition as comp
                     current = comp.from_data(body.get("data") or {})
                     return self._json({"composition": {"models": current.models, "ollama_url": current.ollama_url,
+                                                       "local_kind": current.local_kind,
                                                        "ollama_model": current.ollama_model, "extras": list(current.extras),
                                                        "builders": current.builders, "per_run": current.per_run,
                                                        "per_day": current.per_day},
@@ -442,8 +443,8 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
                         return self._json({"error": str(e)}, 422)
                     return self._json({"data": data, "preview": config_io.plan_change(root, data)})
                 if path == "/api/ollama/find":
-                    from ..readiness import find_ollama
-                    return self._json({"servers": [{"url": u, "models": m} for u, m in find_ollama()]})
+                    from ..readiness import find_local
+                    return self._json({"servers": find_local()})
                 if path == "/api/templates/apply":
                     from .. import templates
                     try:

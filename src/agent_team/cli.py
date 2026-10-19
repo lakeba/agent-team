@@ -116,7 +116,7 @@ def cmd_init(args) -> int:
              per_run=args.per_run, per_day=args.per_day,
              interactive=interactive, vision=args.vision, use_rea=False if args.no_rea else None)
     if args.no_claude or args.models == "ollama":
-        ui.say("Every member runs on Ollama, so no Anthropic key is needed. The devops member acts through tool "
+        ui.say("Every member runs on a local model server, so no Anthropic key is needed. The devops member acts through tool "
                "calls: pick a model that's good at them (see agent-team doctor).")
     return 0
 
@@ -584,18 +584,19 @@ def cmd_serve(args) -> int:
 
 def cmd_discover(args) -> int:
     import json as _json
-    if args.ollama:   # Ollama servers: this machine, OLLAMA_HOST, a VM's or container's host, the gateway
-        from .readiness import find_ollama
-        servers = find_ollama(timeout=args.timeout)
+    if args.ollama:   # local model servers: Ollama, mlx_lm, LM Studio, llama.cpp; here, a VM's host, the gateway
+        from .readiness import find_local
+        servers = find_local(timeout=args.timeout)
         if args.json:
-            print(_json.dumps([{"url": u, "models": m} for u, m in servers]))
+            print(_json.dumps(servers))
             return 0
         if not servers:
-            ui.say("No Ollama server answered on this machine, its host or the gateway. On another machine, "
-                   "Ollama must listen on the network (OLLAMA_HOST=0.0.0.0) with port 11434 open.")
+            ui.say("No local model server answered on this machine, its host or the gateway. On another machine it "
+                   "must listen on the network: Ollama with OLLAMA_HOST=0.0.0.0 (port 11434), mlx_lm with "
+                   "mlx_lm.server --host 0.0.0.0 (port 8080), with the port open.")
             return 1
-        for u, m in servers:
-            ui.say(f"  {u:<32} {len(m)} models: {', '.join(m)[:80]}")
+        for f in servers:
+            ui.say(f"  {f['label']:<10} {f['url']:<32} {len(f['models'])} models: {', '.join(f['models'])[:70]}")
         return 0
     from . import discovery
     nodes = discovery.discover(args.timeout)
@@ -750,9 +751,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--node", default="", help="node name shown to callers (default: hostname)")
     s.add_argument("--no-announce", action="store_true", help="don't answer discovery probes on the network")
     s.set_defaults(fn=cmd_serve)
-    s = sub.add_parser("discover", help="find agent-team nodes on the local network (--ollama: Ollama servers)")
-    s.add_argument("--ollama", action="store_true",
-                   help="find Ollama servers instead: this machine, OLLAMA_HOST, a VM's host, the gateway")
+    s = sub.add_parser("discover", help="find agent-team nodes on the local network (--local: model servers such as Ollama and mlx_lm)")
+    s.add_argument("--ollama", "--local", dest="ollama", action="store_true",
+                   help="find local model servers instead (Ollama, mlx_lm, LM Studio, llama.cpp): here, a VM's host, the gateway")
     s.add_argument("--timeout", type=float, default=2.0)
     s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_discover)

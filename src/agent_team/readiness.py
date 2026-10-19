@@ -132,6 +132,82 @@ def find_ollama(timeout: float = 1.5, candidates: list[str] | None = None) -> li
     return [(u, m) for u, m in zip(urls, found) if m is not None]
 
 
+# Local model servers that speak the OpenAI API: mlx_lm.server (port 8080), LM Studio (1234),
+# llama.cpp's server (8080). They're used through a provider of kind "openai".
+OPENAI_PORTS = (8080, 1234)
+
+
+def openai_models(url: str, timeout: float = 5.0) -> tuple[list[str] | None, str]:
+    """(the models an OpenAI-compatible server lists, its Server header), or (None, "")."""
+    try:
+        with urllib.request.urlopen(f"{url.rstrip('/')}/v1/models", timeout=timeout) as r:
+            data = json.load(r)
+            server = r.headers.get("Server", "")
+        if not isinstance(data, dict) or not isinstance(data.get("data"), list):
+            return None, ""
+        return [m.get("id", "") for m in data["data"] if isinstance(m, dict) and m.get("id")], server
+    except Exception:
+        return None, ""
+
+
+def server_label(url: str, models: list[str], server: str) -> str:
+    """What an OpenAI-compatible server probably is, for people to recognise it."""
+    s = server.lower()
+    if "llama" in s:
+        return "llama.cpp"
+    if any("mlx" in m.lower() for m in models) or s.startswith("basehttp"):
+        return "mlx_lm"            # mlx_lm.server is Python's http.server, serving MLX models
+    if url.rstrip("/").endswith(":1234"):
+        return "LM Studio"
+    return "OpenAI-compatible server"
+
+
+def probe(url: str, timeout: float = 1.5) -> dict | None:
+    """{url, kind, label, models} for a local model server at `url`: Ollama, or an OpenAI-compatible
+    one such as mlx_lm. None when nothing answers."""
+    url = url.rstrip("/")
+    port = url.rsplit(":", 1)[-1]
+    if not (port.isdigit() and int(port) in OPENAI_PORTS):   # Ollama's port, or an address given by hand
+        models = ollama_models(url, timeout=timeout)
+        if models is not None:
+            return {"url": url, "kind": "ollama", "label": "Ollama", "models": models}
+        if port == "11434":
+            return None
+    models, server = openai_models(url, timeout=timeout)
+    if models is not None:
+        return {"url": url, "kind": "openai", "label": server_label(url, models, server), "models": models}
+    return None
+
+
+def local_candidates() -> list[str]:
+    """Where to look for local model servers: the Ollama addresses, and the same hosts on the
+    ports OpenAI-compatible servers use (mlx_lm, LM Studio)."""
+    ollama = ollama_candidates()
+    hosts = [u.rsplit(":", 1)[0] for u in ollama]
+    extra = [f"{h}:{p}" for h in dict.fromkeys(hosts) for p in OPENAI_PORTS]
+    for name in ("MLX_LM_URL", "OPENAI_BASE_URL"):
+        v = os.environ.get(name, "").strip().rstrip("/")
+        if v.startswith(("http://", "https://")):
+            extra.insert(0, v.removesuffix("/v1"))
+    return list(dict.fromkeys(ollama + extra))
+
+
+def find_local(timeout: float = 1.5, candidates: list[str] | None = None) -> list[dict]:
+    """Every local model server that answers, nearest first: Ollama servers (find_ollama), then
+    OpenAI-compatible ones such as mlx_lm, LM Studio or llama.cpp, as probe() describes them. Tries
+    them all at once."""
+    from concurrent.futures import ThreadPoolExecutor
+    urls = candidates if candidates is not None else local_candidates()
+    ollama_urls = [u for u in urls if u.rstrip("/").endswith(":11434")]
+    other = [u for u in urls if u not in ollama_urls]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        ollama_job = pool.submit(find_ollama, timeout, ollama_urls if candidates is not None else None)
+        with ThreadPoolExecutor(max_workers=max(1, min(64, len(other)))) as inner:
+            found_other = [f for f in inner.map(lambda u: probe(u, timeout=timeout), other) if f]
+        ollama = [{"url": u.rstrip("/"), "kind": "ollama", "label": "Ollama", "models": m} for u, m in ollama_job.result()]
+    return ollama + found_other
+
+
 def _identity_check(member) -> Check:
     """Whether a member's own GitHub token works, and which account it posts as."""
     name, var = f"{member.name}'s GitHub identity", member.github_token_env
@@ -268,7 +344,8 @@ def check(root: Path, ollama_url: str = "") -> list[Check]:
             p = team.providers[a.provider]
             if p.kind == "ollama":
                 servers.setdefault((p.url or "http://localhost:11434").rstrip("/"), []).append(a.model)
-    if ollama_url:   # a server being considered (init): check it whether or not a team uses it yet
+    given = probe(ollama_url, timeout=3) if ollama_url else None
+    if ollama_url and (not given or given["kind"] == "ollama"):   # a server being considered (init)
         servers.setdefault(ollama_url.rstrip("/"), [])
     for url, models in servers.items():
         have = ollama_models(url)
@@ -287,6 +364,27 @@ def check(root: Path, ollama_url: str = "") -> list[Check]:
                 hint = " (an -mlx model only runs on Apple Silicon)"
             out.append(Check(f"model {m}", pulled, ("pulled" if pulled else f"not pulled at {url}{hint}"),
                              "" if pulled else (f"ollama pull {m}" if is_local(url) else f"on that machine: ollama pull {m}")))
+    # OpenAI-compatible servers on this network (mlx_lm, LM Studio...): reachable, and serving the model.
+    openai_servers: dict[str, list[str]] = {}
+    if team:
+        for a in team.agents.values():
+            p = team.providers[a.provider]
+            if p.kind == "openai" and p.url and not p.api_key_env:   # hosted gateways need their key: doctor checks them
+                openai_servers.setdefault(p.url.rstrip("/"), []).append(a.model)
+    if given and given["kind"] == "openai":
+        openai_servers.setdefault(given["url"], [])
+    for url, models in openai_servers.items():
+        have, server = openai_models(url)
+        if have is None:
+            fix = ("start it (mlx_lm: mlx_lm.server --model MODEL); on another machine it must listen on the network "
+                   "(mlx_lm.server --host 0.0.0.0) with its port open")
+            out.append(Check(f"model server at {url}", False, "not reachable", fix))
+            continue
+        out.append(Check(f"model server at {url}", True, f"{server_label(url, have, server)}, {len(have)} models"))
+        for m in dict.fromkeys(models):
+            listed = not have or m in have
+            out.append(Check(f"model {m}", listed, "served" if listed else f"not served at {url}",
+                             "" if listed else f"start the server with this model (mlx_lm.server --model {m})"))
     return out
 
 

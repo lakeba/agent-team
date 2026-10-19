@@ -36,6 +36,18 @@ screenshots (otherwise Chrome, Edge, Chromium or Brave is found automatically).
 |---|---|
 | `kind` | `anthropic`, `ollama`, `openai`, `agent-http`, `replay` (a recorded run, used by `agent-team try`), or any registered kind. |
 | `url` | Base URL. Required for `openai` and `agent-http`; Ollama defaults to `http://localhost:11434`. |
+
+An mlx_lm server on a Mac is an `openai` connection (start it with `mlx_lm.server --model MODEL`; add
+`--host 0.0.0.0` for other machines, such as a VM, to reach it):
+
+```toml
+[providers.local]
+kind = "openai"
+url = "http://localhost:8080"          # mlx_lm's default port; LM Studio uses 1234
+```
+
+Members on it name the model the server runs, e.g. `model = "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"`.
+Reviews and devops shifts call tools: use a model that's good at them, or `[project].review = "snapshot"`.
 | `api_key_env` | Name of the environment variable holding a key or token. Never put the value itself here. Set it in your environment or, so every command finds it, with `agent-team keys set NAME` (saved in `~/.config/agent-team/env`). |
 | `options` | Kind-specific table, e.g. `{ num_ctx = 65536 }` for Ollama, `{ stall_seconds = 480 }` for Anthropic. |
 

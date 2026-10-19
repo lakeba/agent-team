@@ -181,6 +181,10 @@ class OpenAICompatProvider(Provider):
                           arguments=_args(c["function"].get("arguments")))
                  for c in msg.get("tool_calls") or []]
         text = msg.get("content") or ""
+        if not calls and not text.strip() and data["choices"][0].get("finish_reason") == "tool_calls":
+            raise ProviderError(f"{model} tried to call a tool, but {self.cfg.url} couldn't read the call (mlx_lm logs "
+                                f"'Failed to parse tool call'). The model may be too small for tool use: use a larger "
+                                f"one, or set [project].review = \"snapshot\" so reviews don't need tools")
         _say_calls(text, calls)
         u = data.get("usage") or {}
         return Reply(text=text, content=text, tool_calls=calls,
