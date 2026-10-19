@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.13.9] - 2026-10-19
+
 ### Added
 
 - `agent-team ui --client`, for desktop apps that start their own dashboard. The app passes a token in
