@@ -49,7 +49,7 @@ function pickModel(models, recommended) {
   if (!models || !models.length) return recommended;
   if (models.includes(recommended) || models.includes(`${recommended}:latest`)) return recommended;
   const size = n => { const m = n.match(/(\d+(?:\.\d+)?)b\b/); return m ? Number(m[1]) : 0; };
-  const score = n => (n.includes("coder") ? 4 : 0) + (n.includes("qwen") ? 2 : 0) + (size(n) >= 7 && size(n) <= 40 ? 2 : 0)
+  const score = n => (/instruct|chat/i.test(n) ? 3 : 0) + (n.includes("coder") ? 4 : 0) + (n.includes("qwen") ? 2 : 0) + (size(n) >= 7 && size(n) <= 40 ? 2 : 0)
     - (size(n) > 70 ? 6 : 0) - (/embed|ocr|vision/.test(n) ? 9 : 0);
   return [...models].sort((a, b) => score(b) - score(a))[0];
 }

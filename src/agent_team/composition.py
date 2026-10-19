@@ -334,5 +334,8 @@ def from_form(form: dict) -> Composition:
                     keep_limits="per_run" not in form and "per_day" not in form)
     if c.uses_ollama and not c.ollama_url.startswith(("http://", "https://")):
         raise ValueError("the local server's address starts with http:// (e.g. http://192.168.1.20:11434)")
+    from .config import address_problem
+    if c.uses_ollama and address_problem(c.ollama_url):
+        raise ValueError(address_problem(c.ollama_url))
     c.check()
     return c

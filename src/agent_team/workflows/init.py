@@ -252,6 +252,9 @@ def find_server(given: str, interactive: bool) -> tuple[str, list[str] | None, s
     from ..readiness import find_local, probe
     if given:
         url = given.rstrip("/")
+        from ..config import address_problem
+        if address_problem(url):
+            raise SystemExit(address_problem(url))
         found = probe(url, timeout=5)
         return url, (found or {}).get("models"), "", (found or {}).get("kind", "ollama")
     found = find_local()

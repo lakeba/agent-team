@@ -6,6 +6,18 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- Add a machine finds the model servers on the network ("Find servers on this network": Ollama,
+  mlx_lm, LM Studio, llama.cpp), fills in the address, the kind and an instruct model with one click,
+  and suggests the server's models as you type.
+
+### Fixed
+
+- An address with a number missing (`http://192.168.141:8080`) was silently read as another machine
+  (192.168.0.141) and failed with "connection refused". The dashboard, the guided setup, `init` and
+  `.team.toml` now refuse it and suggest the full address (192.168.1.141).
+
 ## [0.13.4] - 2026-10-19
 
 ### Added

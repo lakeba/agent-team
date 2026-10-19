@@ -220,7 +220,7 @@ function renderWizard() {
   const w = edit.wizard, d = edit.draft;
   const box = h("div", { class: "card wizard" }, h("div", { class: "section-head" }, h("h2", {}, "Add a machine"),
     h("button", { type: "button", onclick: () => { edit.wizard = null; renderTeam(); } }, "Close")));
-  const kinds = [["ollama", "Another computer running Ollama"], ["openai", "A server with an OpenAI-compatible API (vLLM, LM Studio, llama.cpp)"],
+  const kinds = [["ollama", "Another computer running Ollama"], ["openai", "A server with an OpenAI-compatible API (mlx_lm, vLLM, LM Studio, llama.cpp)"],
                  ["agent-http", "An agent-team node (the machine runs `agent-team serve` and keeps its own model and keys)"]];
   box.append(h("div", { class: "choices" }, kinds.map(([k, label]) => h("label", { class: "choice" },
     h("input", { type: "radio", name: "wk", value: k, checked: w.kind === k ? true : null, onchange: () => { w.kind = k; w.token = null; renderTeam(); } }), " ", label))));
@@ -232,7 +232,8 @@ function renderWizard() {
   nameIn.addEventListener("input", () => { w.name = nameIn.value.trim(); envIn.placeholder = suggestedEnv(); });
   const urlIn = h("input", { type: "text", value: w.url, placeholder: w.kind === "ollama" ? "http://studio.local:11434" : w.kind === "openai" ? "http://gpu-01:8000" : "http://studio.tailnet:8765" });
   urlIn.addEventListener("input", () => { w.url = urlIn.value.trim(); });
-  const modelIn = h("input", { type: "text", value: w.model, placeholder: w.kind === "agent-http" ? "the node chooses" : "e.g. qwen3.8:27b-mlx" });
+  const modelIn = h("input", { type: "text", value: w.model, list: "wizard-models",
+    placeholder: w.kind === "agent-http" ? "the node chooses" : w.kind === "openai" ? "e.g. mlx-community/Qwen2.5-Coder-7B-Instruct-4bit" : "e.g. qwen3.8:27b-mlx" });
   modelIn.addEventListener("input", () => { w.model = modelIn.value.trim(); });
   const envIn = h("input", { type: "text", value: w.env });
   function suggestedEnv() { return ((w.name || "machine").toUpperCase().replace(/[^A-Z0-9]+/g, "_") + (w.kind === "agent-http" ? "_NODE_TOKEN" : "_API_KEY")); }
@@ -242,6 +243,25 @@ function renderWizard() {
     field("Connection name", nameIn), field("URL", urlIn),
     w.kind !== "agent-http" ? field("Model", modelIn) : null,
     w.kind !== "ollama" ? field("Key variable on this Mac", envIn, w.kind === "agent-http" ? "Holds the node's token here" : "Only if the server needs a key") : null));
+
+  if (w.kind !== "agent-http") {   // model servers already running somewhere on the network
+    const picked = (w.servers || []).find(s => s.url === w.url);
+    box.append(h("datalist", { id: "wizard-models" }, (picked ? picked.models : []).map(m => h("option", { value: m }))));
+    const found = h("div", { class: "found" });
+    if (w.servers === null) found.append(status("pending", "looking here, on this machine's host and on the network… (up to half a minute)"));
+    else if (w.servers && !w.servers.length) found.append(h("p", { class: "muted small" }, "No model server answered. On another computer it must listen on the network: Ollama with OLLAMA_HOST=0.0.0.0, mlx_lm with --host 0.0.0.0."));
+    else if (w.servers) found.append(h("ul", { class: "found-list" }, w.servers.map(s => h("li", {},
+      h("strong", {}, s.label), ` ${s.url} · ${s.models.length} models `,
+      h("button", { type: "button", onclick: () => {
+        w.kind = s.kind; w.url = s.url; w.model = w.model && s.models.includes(w.model) ? w.model : (s.models.find(m => /instruct|chat/i.test(m)) || s.models[0] || "");
+        w.name = w.name || (s.label === "Ollama" ? "ollama" : s.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")) + "-" + s.url.split("//")[1].split(":")[0].split(".").pop();
+        renderTeam(); } }, "Use")))));
+    box.append(h("div", { class: "actions" }, h("button", { type: "button", disabled: w.servers === null ? true : null, onclick: async () => {
+      w.servers = null; renderTeam();
+      try { w.servers = (await postJSON("/api/ollama/find", {})).servers; } catch (e) { w.servers = []; toast(e.message); }
+      renderTeam();
+    } }, "Find servers on this network"), found));
+  }
 
   if (w.kind === "agent-http") {
     const found = h("div", { class: "found" });
@@ -281,6 +301,8 @@ function renderWizard() {
   const result = h("span", { class: "test-result" });
   box.append(h("div", { class: "actions" },
     h("button", { type: "button", onclick: async () => {
+      const bad = addressProblem(w.url);
+      if (bad) return result.replaceChildren(status("bad", bad));
       result.replaceChildren(status("pending", "testing…"));
       try { const r = await postJSON("/api/test-provider", { provider: wizardProvider(), model: w.model });
             result.replaceChildren(status(r.ok ? "good" : "bad", r.status), r.note ? h("span", { class: "muted small" }, " " + r.note) : "");
@@ -288,6 +310,7 @@ function renderWizard() {
     } }, "Test connection"), result,
     h("button", { type: "button", class: "primary", onclick: () => {
       if (!w.name || !w.url) return toast("Give the connection a name and a URL.");
+      if (addressProblem(w.url)) return toast(addressProblem(w.url));
       if (d.providers[w.name]) return toast(`A connection named ${w.name} already exists.`);
       d.providers[w.name] = wizardProvider();
       edit.wizard = null; markDirty(); renderTeam();
@@ -301,6 +324,22 @@ function renderWizard() {
     if (env) p.api_key_env = env;
     return p;
   }
+}
+
+// The same check as config.address_problem, before anything is sent.
+function addressProblem(url) {
+  if (!url) return "";
+  if (!/^https?:\/\//.test(url)) return `${url} needs http:// or https:// in front`;
+  let host = ""; try { host = new URL(url).hostname; } catch (_) { return `${url} isn't a valid address`; }
+  const raw = url.split("//")[1].split(/[:/]/)[0];   // the URL parser would quietly "fix" 192.168.141
+  if (/^[\d.]+$/.test(raw)) {
+    const parts = raw.split(".");
+    if (parts.length !== 4 || parts.some(p => p === "" || Number(p) > 255)) {
+      const example = parts.length === 3 ? [parts[0], parts[1], "1", parts[2]].join(".") : "192.168.1.20";
+      return `${raw} isn't a valid address: an IPv4 address has four numbers from 0 to 255 (for example ${example})`;
+    }
+  }
+  return "";
 }
 
 function codeBlock(textValue) {

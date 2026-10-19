@@ -522,6 +522,9 @@ def _test_provider(body: dict) -> dict:
         raise config.ConfigError(f"unknown kind {kind!r}")
     cfg = config.ProviderConfig(name="test", kind=kind, url=str(p.get("url", "")),
                                 api_key_env=str(p.get("api_key_env", "")))
+    problem = config.address_problem(cfg.url)
+    if problem:
+        return {"ok": False, "status": f"FAILED: {problem}", "note": ""}
     secret = os.environ.get(cfg.api_key_env, "") if cfg.api_key_env else ""
     status = providers.build(cfg, secret).check(str(body.get("model", "")))
     note = ("" if not cfg.api_key_env or secret else

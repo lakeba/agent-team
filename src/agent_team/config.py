@@ -28,6 +28,25 @@ SCOUT_TOOLS = {"capture_browser_scenario", "capture_web_screenshot", "inspect_we
                "compare_web_screenshots", "observe_web_session"}
 
 
+def address_problem(url: str) -> str:
+    """Why `url` can't be a server's address ("" when it can): mainly an IPv4 address with a number
+    missing, which networking code silently reads as another machine (192.168.141 is 192.168.0.141)."""
+    import re
+    import urllib.parse
+    if not url:
+        return ""
+    if not re.match(r"^https?://", url):
+        return f"{url} needs http:// or https:// in front"
+    host = urllib.parse.urlsplit(url).hostname or ""
+    if re.fullmatch(r"[\d.]+", host):
+        parts = host.split(".")
+        if len(parts) != 4 or not all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+            example = ".".join(parts[:2] + ["1"] + parts[2:]) if len(parts) == 3 else "192.168.1.20"
+            return (f"{host} isn't a valid address: an IPv4 address has four numbers from 0 to 255 "
+                    f"(for example {example})")
+    return ""
+
+
 def reverse_tool(name: str) -> bool:
     return any(word in name for word in REVERSE_TOOL)
 
@@ -376,6 +395,8 @@ def parse(data: dict, root: Path) -> Team:
         p = _take(dict(table), ProviderConfig, f"[providers.{name}]", name=name)
         if PROVIDER_KINDS and p.kind not in PROVIDER_KINDS:
             raise ConfigError(f"[providers.{name}]: unknown kind {p.kind!r}; known: {sorted(PROVIDER_KINDS)}")
+        if address_problem(p.url):
+            raise ConfigError(f"[providers.{name}].url: {address_problem(p.url)}")
         if p.kind in {"openai", "agent-http"} and not p.url:
             raise ConfigError(f"[providers.{name}]: kind {p.kind!r} needs a url")
         providers[name] = p

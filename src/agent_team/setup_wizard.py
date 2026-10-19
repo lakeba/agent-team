@@ -166,7 +166,10 @@ def create_project(form: dict) -> dict:
         raise SetupError("the daily limit is US dollars from 0 to 1000")
     ollama_url = _text(form, "ollama_url", 200)
     if ollama_url and not re.match(r"^https?://[\w.\-\[\]:]+/?$", ollama_url):
-        raise SetupError("the Ollama address looks like http://localhost:11434")
+        raise SetupError("the local server's address looks like http://localhost:11434")
+    from .config import address_problem
+    if address_problem(ollama_url):
+        raise SetupError(address_problem(ollama_url))
     ollama_model = _text(form, "ollama_model", 120)
     if not shutil.which("git"):
         raise SetupError("git isn't installed on this computer; install it (macOS: xcode-select --install) and try again")

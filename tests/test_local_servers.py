@@ -110,6 +110,20 @@ class LocalServerTests(unittest.TestCase):
             found = readiness._gentle_scan(["127.0.0"], 2)
         self.assertEqual([f["url"] for f in found], [self.url])
 
+    def test_incomplete_addresses_are_caught(self):
+        from agent_team.config import ConfigError, address_problem, parse
+        self.assertIn("for example 192.168.1.141", address_problem("http://192.168.141:8080"))
+        self.assertIn("isn't a valid address", address_problem("http://300.1.1.1:80"))
+        self.assertIn("needs http://", address_problem("192.168.1.2:80"))
+        for ok in ("http://192.168.1.141:8080", "http://studio.local:11434", "http://[::1]:8080", ""):
+            self.assertEqual(address_problem(ok), "", ok)
+        data = {"project": {"name": "x"}, "providers": {"mlx": {"kind": "openai", "url": "http://192.168.141:8080"}},
+                "agents": [{"name": "A", "role": "lead", "provider": "mlx"}]}
+        with self.assertRaisesRegex(ConfigError, "192.168.141 isn't a valid address"):
+            parse(data, Path(tempfile.mkdtemp()))
+        with self.assertRaises(SystemExit):
+            init.find_server("http://192.168.141:8080", False)
+
     def test_init_on_an_mlx_server(self):
         root = Path(tempfile.mkdtemp())
         with quiet():
