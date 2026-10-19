@@ -253,6 +253,36 @@ class ReaTests(unittest.TestCase):
         team = config.load(root)
         self.assertEqual((team.mcp["rea"].command, team.behaviour.server), ("/opt/rea", "rea"))
 
+    def test_the_own_copy_runs_with_the_node_it_was_installed_with(self):
+        data = Path(tempfile.mkdtemp())
+        with mock.patch.dict(os.environ, {"XDG_DATA_HOME": str(data)}):
+            shim = rea.own_command()
+            shim.parent.mkdir(parents=True)
+            shim.write_text("#!/usr/bin/env node\n")
+            node, old = data / "node24", data / "node25"
+            for path, v in ((node, "v24.22.0"), (old, "v25.9.0")):
+                path.write_text(f"#!/bin/sh\necho {v}\n")
+                path.chmod(0o755)
+            self.assertEqual(rea.pin_node(str(old)), "")                      # Node 25 isn't one REA supports
+            self.assertEqual(rea.find(), (str(shim), ["--mcp"], "agent-team's copy"))
+            self.assertEqual(rea.pin_node(str(node)), str(node.resolve()))
+            command, args, _ = rea.find()
+            self.assertEqual((command, args), (str(node.resolve()), [os.path.realpath(shim), "--mcp"]))
+            root = helpers.project()                                            # a project set up before: brought up to date
+            rea.configure(root, str(shim), ["--mcp"])
+            (root / ".team.toml").write_text((root / ".team.toml").read_text() + "\n# kept\n")
+            self.assertTrue(rea.configure(root, command, args))
+            self.assertFalse(rea.configure(root, command, args))
+            team = config.load(root)
+            self.assertEqual((team.mcp["rea"].command, team.mcp["rea"].args), (command, args))
+            self.assertIn("# kept", (root / ".team.toml").read_text())
+            other = helpers.project()                                           # someone's own REA is left alone
+            rea.configure(other, "/opt/rea", ["--mcp"])
+            self.assertFalse(rea.configure(other, command, args))
+            self.assertEqual(config.load(other).mcp["rea"].command, "/opt/rea")
+            node.unlink()                                                       # that Node was removed: the shim again
+            self.assertEqual(rea.find()[0], str(shim))
+
     def test_node_versions(self):
         for out, ok in [("v22.19.0", True), ("v22.18.1", False), ("v24.10.0", False), ("v24.11.0", True),
                         ("v26.1.0", True), ("v20.5.0", False)]:

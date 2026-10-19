@@ -236,9 +236,10 @@ agent-team inspire https://an-app-you-like.com \
   --journey 'click link "Pricing"; click button "Start free"'
 ```
 
-The scout reads up to 20 pages of that site (two links deep), each one's text, address and a
-screenshot, plus a screen after every step of your journeys. It reads `robots.txt` first and skips
-what it disallows. It never signs in, never asks REA for a page's scripts or network traffic, and
+The scout reads up to 20 pages of that site (two links deep, pricing, features, docs and demos
+first), each one's text, address and a screenshot, plus a screen after every step of your journeys.
+When a page has the same link twice (a "Pricing" in the header and the footer), the journey follows
+its address. It reads `robots.txt` first and skips what it disallows. It never signs in, never asks REA for a page's scripts or network traffic, and
 never uses REA's tools that look inside software. Everything is kept under `.team/inspiration/`,
 which no member's context includes. You confirm once per app that you use it and may look at it
 this way.

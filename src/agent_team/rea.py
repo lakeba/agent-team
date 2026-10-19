@@ -46,9 +46,53 @@ def claude_registration() -> dict | None:
     return entry if isinstance(entry, dict) and entry.get("command") else None
 
 
+def node_file() -> Path:
+    return home() / "node.json"
+
+
+def _node_version(node: str) -> tuple[int, int] | None:
+    try:
+        r = subprocess.run([node, "--version"], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    m = re.match(r"v(\d+)\.(\d+)", r.stdout.strip())
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def supported(v: tuple[int, int] | None) -> bool:
+    return bool(v) and ((v[0] == 22 and v[1] >= 19) or (v[0] == 24 and v[1] >= 11) or v[0] >= 26)
+
+
+def pin_node(node: str | None = None) -> str:
+    """Remember the Node.js agent-team's REA copy was installed with, so it keeps running with it when
+    the PATH's node changes (nvm, Homebrew). Returns the pinned node, or "" if it isn't supported."""
+    node = node or shutil.which("node") or ""
+    if not node:
+        return ""
+    node = os.path.realpath(node)
+    v = _node_version(node)
+    if not supported(v):
+        return ""
+    node_file().write_text(json.dumps({"node": node, "version": "%d.%d" % v}) + "\n", encoding="utf-8")
+    return node
+
+
+def pinned_node() -> str:
+    """The Node.js REA was installed with, if it's still there and still supported."""
+    try:
+        node = json.loads(node_file().read_text(encoding="utf-8")).get("node", "")
+    except (OSError, ValueError):
+        return ""
+    return node if node and os.access(node, os.X_OK) and supported(_node_version(node)) else ""
+
+
 def find() -> tuple[str, list[str], str]:
-    """(command, args, where it came from) for a usable REA, or ("", [], "") if there's none."""
+    """(command, args, where it came from) for a usable REA, or ("", [], "") if there's none.
+    agent-team's own copy runs with the Node.js it was installed with, while that one is there."""
     if own_command().exists():
+        node = pinned_node()
+        if node:
+            return node, [os.path.realpath(own_command()), "--mcp"], "agent-team's copy"
         return str(own_command()), ["--mcp"], "agent-team's copy"
     on_path = shutil.which("rea")
     if on_path:
@@ -61,9 +105,14 @@ def find() -> tuple[str, list[str], str]:
     return "", [], ""
 
 
-def version(command: str) -> str:
+def _argv(command: str, args=()) -> list[str]:
+    """REA's command line without --mcp, for --version and doctor."""
+    return [command, *(str(a) for a in args if a != "--mcp")]
+
+
+def version(command: str, args=()) -> str:
     try:
-        r = subprocess.run([command, "--version"], capture_output=True, text=True, timeout=60)
+        r = subprocess.run([*_argv(command, args), "--version"], capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired):
         return ""
     m = re.search(r"(\d+\.\d+\.\d+)", r.stdout + r.stderr)
@@ -104,6 +153,7 @@ def install(yes: bool = False) -> str:
                        capture_output=True, text=True)
     if r.returncode != 0 or not own_command().exists():
         raise SystemExit(f"npm couldn't install REA:\n{(r.stdout + r.stderr)[-2000:]}")
+    pin_node()
     return str(own_command())
 
 
@@ -120,25 +170,50 @@ server = "rea"
 '''
 
 
+def _ours(command: str, args: list) -> bool:
+    """Whether an [mcp.rea] entry runs agent-team's own REA copy (its shim, or a node with its script)."""
+    own = {str(own_command()), os.path.realpath(own_command())}
+    return command in own or any(str(a) in own for a in args)
+
+
+def _toml_str(s: str) -> str:
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
 def configure(root: Path, command: str, args: list[str]) -> bool:
     """Add [mcp.rea] and [behaviour] to the project's team file if they're missing (text appended,
-    so comments stay). Returns whether anything changed."""
+    so comments stay). An [mcp.rea] that runs agent-team's own copy is brought up to date (it runs
+    with the Node.js REA was installed with). Returns whether anything changed."""
+    import tomllib
     path = Path(root) / CONFIG_NAME
     text = path.read_text(encoding="utf-8")
     if re.search(r"^\s*\[mcp\.rea\]", text, re.M):
-        return False
-    block = SECTION.format(command=command.replace("\\", "\\\\").replace('"', '\\"'), args=json.dumps(args))
+        try:
+            entry = (tomllib.loads(text).get("mcp") or {}).get("rea") or {}
+        except tomllib.TOMLDecodeError:
+            return False
+        old = (entry.get("command", ""), list(entry.get("args") or []))
+        if not _ours(*old) or old == (command, args):
+            return False
+        head = re.search(r"^\s*\[mcp\.rea\][^\n]*\n", text, re.M)
+        nxt = re.search(r"^\s*\[", text[head.end():], re.M)
+        end = head.end() + (nxt.start() if nxt else len(text) - head.end())
+        body = re.sub(r"^command\s*=.*$", lambda _: f"command = {_toml_str(command)}", text[head.end():end], count=1, flags=re.M)
+        body = re.sub(r"^args\s*=.*$", lambda _: f"args = {json.dumps(args)}", body, count=1, flags=re.M)
+        path.write_text(text[:head.end()] + body + text[end:], encoding="utf-8")
+        return True
+    block = SECTION.format(command=_toml_str(command)[1:-1], args=json.dumps(args))
     if re.search(r"^\s*\[behaviour\]", text, re.M):
         block = block.split("\n[behaviour]")[0] + "\n"
     path.write_text(text.rstrip() + "\n" + block, encoding="utf-8")
     return True
 
 
-def doctor(command: str) -> tuple[bool, str]:
+def doctor(command: str, args=()) -> tuple[bool, str]:
     """What REA's own doctor says about what behaviour checks need (Node and the host). The deep
     native-analysis engines (Hopper, Ghidra, IDA, JADX) aren't needed and aren't reported."""
     try:
-        r = subprocess.run([command, "doctor", "--format", "json"], capture_output=True, text=True, timeout=120)
+        r = subprocess.run([*_argv(command, args), "doctor", "--format", "json"], capture_output=True, text=True, timeout=120)
         data = json.loads(r.stdout)
     except (OSError, subprocess.TimeoutExpired, ValueError):
         return False, "rea doctor didn't answer"
@@ -152,7 +227,7 @@ def doctor(command: str) -> tuple[bool, str]:
 
 def status(root: Path | None = None) -> dict:
     command, args, where = find()
-    out = {"command": command, "args": args, "where": where, "version": version(command) if command else "",
+    out = {"command": command, "args": args, "where": where, "version": version(command, args) if command else "",
            "pinned": VERSION, "claude_code": bool(claude_registration()), "configured": False}
     if root and (Path(root) / CONFIG_NAME).exists():
         out["configured"] = bool(re.search(r"^\s*\[mcp\.rea\]", (Path(root) / CONFIG_NAME).read_text(encoding="utf-8"), re.M))

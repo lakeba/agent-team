@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import re
 import urllib.error
 import urllib.parse
@@ -143,26 +144,36 @@ class Robots:
 class _Links(HTMLParser):
     def __init__(self):
         super().__init__()
-        self.hrefs: list[str] = []
+        self.links: list[list[str]] = []    # [href, its text]
+        self._open: list[str] | None = None
 
     def handle_starttag(self, tag, attrs):
         if tag == "a":
             href = dict(attrs).get("href")
-            if href:
-                self.hrefs.append(href)
+            self._open = [href, ""] if href else None
+            if self._open:
+                self.links.append(self._open)
+
+    def handle_data(self, data):
+        if self._open is not None:
+            self._open[1] += data
+
+    def handle_endtag(self, tag):
+        if tag == "a":
+            self._open = None
 
 
-def same_site_links(html: str, base: str) -> list[str]:
-    """The page's links that stay on its origin, without fragments, files or duplicates. Only
-    <a href> is read; the page's scripts never are."""
+def same_site_links(html: str, base: str, with_text: bool = False) -> list:
+    """The page's links that stay on its origin, without fragments, files or duplicates (with each
+    one's text when asked). Only <a href> is read; the page's scripts never are."""
     p = _Links()
     try:
         p.feed(html)
     except Exception:   # a broken page still gives the links found so far
         pass
     origin = urllib.parse.urlsplit(base)
-    out, seen = [], set()
-    for href in p.hrefs:
+    out, seen = [], {}
+    for href, text in p.links:
         if href.startswith(("mailto:", "tel:", "javascript:", "#")):
             continue
         u = urllib.parse.urlsplit(urllib.parse.urljoin(base, href))
@@ -171,25 +182,53 @@ def same_site_links(html: str, base: str) -> list[str]:
         if u.path.lower().endswith(SKIP_EXT):
             continue
         clean = urllib.parse.urlunsplit((u.scheme, u.netloc, u.path or "/", u.query, ""))
+        text = " ".join(text.split())
         if clean not in seen:
-            seen.add(clean)
-            out.append(clean)
-    return out
+            seen[clean] = len(out)
+            out.append([clean, text])
+        else:
+            out[seen[clean]][1] += " " + text
+    return [tuple(x) for x in out] if with_text else [x[0] for x in out]
+
+
+# What a founder learns most from, first. A word in the link's address or text scores its weight.
+PAGE_WORDS = {
+    3: ("pricing", "price", "prices", "plans", "plan"),
+    2: ("features", "feature", "product", "products", "demo", "tour", "how-it-works", "how it works", "docs",
+        "documentation", "guide", "guides", "getting-started", "get started"),
+    1: ("about", "help", "faq", "solutions", "use-cases", "integrations", "changelog", "customers"),
+}
+LOW_WORDS = ("blog", "login", "log-in", "signin", "sign-in", "register", "signup", "sign-up", "privacy", "terms",
+             "legal", "cookie", "careers", "jobs", "press", "tag", "category", "author")
+
+
+def score(url: str, text: str = "") -> int:
+    """How much a page likely tells about the app: pricing first, then features, docs and demos; a
+    blog post, a sign-in or a legal page last."""
+    path = urllib.parse.urlsplit(url).path.lower()
+    words = set(re.split(r"[^a-z0-9]+", path)) | set(re.split(r"[^a-z0-9]+", text.lower()))
+    hay = f"{path} {text.lower()}"
+    best = max((w for w, names in PAGE_WORDS.items() for n in names if (n in words if " " not in n and "-" not in n else n in hay)),
+               default=0)
+    if words & set(LOW_WORDS) or any(w in path for w in ("/blog/", "/tag/", "/category/")):
+        best -= 2
+    return best
 
 
 # --- REA ---------------------------------------------------------------------------------------
 
-def capture_input(browser: str, url: str, actions: list[dict]) -> dict:
-    """The one shape of REA call this module makes: a headless browser, the steps, and CAPTURE."""
+def capture_input(browser: str, url: str, actions: list[dict], each_step: bool = False) -> dict:
+    """The one shape of REA call this module makes: a headless browser, the steps, and CAPTURE
+    (after every step for a journey, at the end for a page)."""
+    capture = {"after_each_step": list(CAPTURE), "at_end": ["url"]} if each_step else {"at_end": list(CAPTURE)}
     return {"browser": {"mode": "launch", "executable_path": browser, "headless": True},
-            "start_url": {"url": url}, "actions": actions,
-            "capture": {"at_end": list(CAPTURE)}}
+            "start_url": {"url": url}, "actions": actions, "capture": capture}
 
 
 def check_input(payload: dict) -> None:
     """Refuse any call asking REA for more than CAPTURE (scripts, events, network...)."""
     cap = payload.get("capture") or {}
-    if set(cap) - {"at_end"} or set(cap.get("at_end") or []) - set(CAPTURE):
+    if set(cap) - {"at_end", "after_each_step"} or any(set(cap.get(k) or []) - set(CAPTURE) for k in cap):
         raise InspireError(f"refused: inspire only captures {', '.join(CAPTURE)}")
 
 
@@ -205,37 +244,118 @@ def _actions(url: str, steps: list[str]) -> list[dict]:
 
 
 RETRY_ERRORS = ("cleanup_incomplete",)   # REA couldn't confirm the browser closed; the next try usually works
+RETRY_WAIT = 5                           # seconds before that try
 
 
-def look(client: mcp.Client, browser: str, url: str, steps: list[str] | None = None, label: str = "") -> Look:
-    from . import behaviour
-    payload = capture_input(browser, url, _actions(url, steps or []))
+def _scenario(client: mcp.Client, payload: dict) -> tuple[dict | None, str]:
+    """(REA's evidence, or None with why it wasn't observed), retrying once when REA asks for it."""
+    import time
     check_input(payload)
     for attempt in (1, 2):
+        if attempt == 2:
+            time.sleep(RETRY_WAIT)
         try:
             result = client.call("capture_browser_scenario", payload, timeout=120)
         except mcp.McpError as e:
-            return Look(url, problem=f"not observed: {e}", label=label)
+            return None, f"not observed: {e}"
         if not (result.get("isError") and any(code in mcp.text_of(result) for code in RETRY_ERRORS)):
             break
     evidence = result.get("structuredContent")
     if result.get("isError") or not isinstance(evidence, dict):
-        return Look(url, problem=f"not observed: {mcp.text_of(result)[:300]}", label=label)
+        return None, f"not observed: {mcp.text_of(result)[:300]}"
+    return evidence, ""
+
+
+def look(client: mcp.Client, browser: str, url: str, steps: list[str] | None = None, label: str = "") -> Look:
+    """One page as a visitor sees it, after `steps` if any."""
+    from . import behaviour
+    evidence, problem = _scenario(client, capture_input(browser, url, _actions(url, steps or [])))
+    if evidence is None:
+        return Look(url, problem=problem, label=label)
     seen = behaviour._browser(evidence, steps)
     shot = seen.png or {}
     at = (behaviour._captured(evidence, "url") or {}).get("url", "") or url
-    if seen.exit != "all steps completed":
-        return Look(at, text=behaviour.page_text(evidence), png=shot.get("data_base64", ""), problem=seen.exit, label=label)
-    return Look(at, text=behaviour.page_text(evidence), png=shot.get("data_base64", ""), label=label)
+    problem = "" if seen.exit == "all steps completed" else seen.exit
+    return Look(at, text=behaviour.page_text(evidence), png=shot.get("data_base64", ""), problem=problem, label=label)
+
+
+def _artifact(step: dict, key: str):
+    a = (step.get("artifacts") or {}).get(key) or {}
+    return a.get("value") if a.get("state") == "captured" else None
+
+
+def link_addresses(text: str, name: str) -> list[str]:
+    """The addresses of the links called `name` in an accessibility snapshot (REA's aria text:
+    `link "Pricing":` with `- /url: /#pricing` under it)."""
+    pattern = rf'^(\s*)- link "{re.escape(name)}"(?: \[[^\]]*\])*:\s*\n\1\s+- /url: (\S+)'
+    return [m.group(2) for m in re.finditer(pattern, text, re.M)]
+
+
+def _repeated(error: str) -> bool:
+    return "strict mode violation" in (error or "")
+
+
+def _screens(evidence: dict, url: str, steps: list[str], j: int) -> list[Look]:
+    """A Look after each journey step REA ran, up to the one that failed."""
+    by_id = {str(s.get("step_id")): s for s in (evidence.get("normalized_result") or {}).get("steps") or []}
+    screens = []
+    for k, line in enumerate(steps, start=1):
+        s = by_id.get(f"step-{k}")
+        if s is None:
+            break
+        status = s.get("status") or "completed"
+        shot = _artifact(s, "screenshot") or {}
+        problem = "" if status == "completed" else f"step {k} ({line}) {status}: {str(s.get('error') or '')[:400]}"
+        screens.append(Look((_artifact(s, "url") or {}).get("url", "") or url, text=(_artifact(s, "accessibility") or {}).get("text", ""),
+                            png=shot.get("data_base64", ""), problem=problem, label=f"journey {j}, step {k}"))
+        if problem:
+            break
+    return screens
+
+
+def journey(client: mcp.Client, browser: str, start: str, steps: list[str], j: int, robots: Robots,
+            notes: list[str]) -> list[Look]:
+    """One journey in one browser run, with a screenshot after every step. A click on a link whose
+    name the page repeats (a header and a footer "Pricing") follows that link's address instead,
+    when it stays on the site and robots.txt allows it."""
+    actions = _actions(start, steps)
+    origin = urllib.parse.urlsplit(start)[:2]
+    for _ in range(len(steps) + 1):
+        evidence, problem = _scenario(client, capture_input(browser, start, actions, each_step=True))
+        if evidence is None:
+            return [Look(start, problem=problem, label=f"journey {j}, step 1")]
+        screens = _screens(evidence, start, steps, j)
+        if not screens and not problem:   # REA stopped before the first step
+            screens = [Look(start, problem="not observed: no step was run", label=f"journey {j}, step 1")]
+        last = screens[-1]
+        k = len(screens)
+        a = actions[k - 1]
+        loc = a.get("locator") or {}
+        failed = next((s for s in (evidence.get("normalized_result") or {}).get("steps") or [] if s.get("step_id") == f"step-{k}"), {})
+        if not (last.problem and a["action"] == "click" and loc.get("role") == "link" and _repeated(str(failed.get("error")))):
+            return screens
+        before = screens[-2].text if k > 1 else (_artifact((evidence["normalized_result"]["steps"] or [{}])[0], "accessibility") or {}).get("text", "")
+        found = link_addresses(before, loc.get("name", "")) or re.findall(r'<a [^>]*href="([^"]+)"', str(failed.get("error")))
+        href = urllib.parse.urljoin(last.url or start, found[0]) if found else ""
+        if not href or urllib.parse.urlsplit(href)[:2] != origin:
+            last.problem += f" (the links named {loc.get('name')!r} lead off the site, so they weren't followed)" if href else ""
+            return screens
+        if not robots.allowed(href):
+            last.problem += f" (robots.txt disallows {href}, where the link leads)"
+            return screens
+        notes.append(f"journey {j}, step {k}: the page has several links named {loc.get('name')!r}; followed the first, to {href}")
+        actions[k - 1] = {"step_id": a["step_id"], "action": "goto", "destination": {"url": href}, "wait_until": "load",
+                          "timeout_ms": STEP_MS}
+    return screens
 
 
 # --- exploring ---------------------------------------------------------------------------------
 
 def explore(client: mcp.Client, browser: str, start: str, journeys: list[list[str]] | None = None,
             max_pages: int = MAX_PAGES, robots: Robots | None = None, get=_get) -> Exploration:
-    """Same-site pages from `start`, breadth first, two links deep; then each journey, with a
-    screenshot after every step (each step is replayed from the start: the screens of a journey
-    that stops show where)."""
+    """Same-site pages from `start`, two links deep, the likeliest useful ones first (pricing,
+    features, docs, a demo); then each journey, with a screenshot after every step."""
+    import heapq
     parts = urllib.parse.urlsplit(start)
     if parts.scheme not in ("http", "https") or not parts.netloc:
         raise InspireError(f"{start} isn't a web address (https://...)")
@@ -244,9 +364,9 @@ def explore(client: mcp.Client, browser: str, start: str, journeys: list[list[st
     ex = Exploration(start=start)
     if robots.note:
         ex.notes.append(robots.note)
-    queue, seen = [(start, 0)], {start}
+    queue, seen, order = [(0, 0, 0, start)], {start}, 0
     while queue and len(ex.pages) < max_pages:
-        url, depth = queue.pop(0)
+        _, depth, _, url = heapq.heappop(queue)
         if not robots.allowed(url):
             ex.skipped.append(url)
             continue
@@ -261,13 +381,14 @@ def explore(client: mcp.Client, browser: str, start: str, journeys: list[list[st
             continue
         if status != 200 or "html" not in ctype:
             continue
-        for link in same_site_links(html, url):
+        for link, text in same_site_links(html, url, with_text=True):
             if link not in seen:
                 seen.add(link)
-                queue.append((link, depth + 1))
+                order += 1
+                heapq.heappush(queue, (-score(link, text), depth + 1, order, link))
+    from .steps import StepError
     for j, steps in enumerate((journeys or [])[:MAX_JOURNEYS], start=1):
         steps = steps[:MAX_STEPS]
-        from .steps import StepError
         try:
             gotos = [a["destination"]["url"] for a in _actions(start, steps) if a["action"] == "goto"]
         except StepError as e:   # a mistyped step: say which, run the other journeys
@@ -278,13 +399,7 @@ def explore(client: mcp.Client, browser: str, start: str, journeys: list[list[st
             ex.notes.append(f"journey {j} wasn't run: robots.txt disallows {blocked}")
             continue
         ui.action(f"inspire: journey {j} ({len(steps)} steps)")
-        screens = []
-        for k in range(1, len(steps) + 1):
-            shot = look(client, browser, start, steps[:k], label=f"journey {j}, step {k}")
-            screens.append(shot)
-            if shot.problem:
-                break
-        ex.journeys.append(screens)
+        ex.journeys.append(journey(client, browser, start, steps, j, robots, ex.notes))
     return ex
 
 
@@ -369,6 +484,10 @@ def run(team: Team, url: str, journeys: list[list[str]] | None = None, max_pages
     if not browser:
         raise InspireError("no Chrome or Chromium found; set [behaviour].browser to its path")
     cfg = writer(team)
+    provider = team.providers.get(cfg.provider)
+    if provider and provider.kind == "anthropic" and not (team.secret(provider) or os.environ.get("ANTHROPIC_API_KEY")):
+        raise InspireError(f"{cfg.name} writes the brief with Claude, and no Anthropic key is set: save it with "
+                           "agent-team keys set ANTHROPIC_API_KEY in your own terminal (nothing was explored)")
     with mcp.Client(team.mcp[server], team.root) as client:
         ex = explore(client, browser, url, journeys, max(1, min(max_pages, 50)))
     where = save(team.root, ex)
@@ -377,7 +496,11 @@ def run(team: Team, url: str, journeys: list[list[str]] | None = None, max_pages
             [p.problem for p in ex.pages[:3]] + ex.notes + ([f"robots.txt disallows {url}"] if ex.skipped else [])))
     ui.action(f"inspire: {cfg.name} writes the brief")
     scout = agent.make(team, cfg, "inspire")
-    text = scout.turn(model_input(ex, journeys))
+    try:
+        text = scout.turn(model_input(ex, journeys))
+    except Exception as e:   # the model couldn't be reached: the captures are kept for the next try
+        raise InspireError(f"the captures are saved in {where.relative_to(team.root)}, but {cfg.name} couldn't write "
+                           f"the brief: {str(e)[:300]}") from e
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     brief = where / "brief.md"
     brief.write_text(f"# Inspiration brief: {ex.start}\n\nWritten by {cfg.name} on {stamp} from {len(ex.pages)} pages and "

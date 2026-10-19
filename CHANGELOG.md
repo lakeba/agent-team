@@ -14,13 +14,21 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
   - business model, strengths, gaps;
   - three ways to be different, and what not to copy.
 
-  It reads up to 20 same-site pages, two links deep, after `robots.txt`, with each page's text,
-  address and a screenshot, plus a screen per step of the journeys you give
-  (`--journey 'click link "Pricing"; ...'`). It never signs in, never asks REA for scripts or
+  It reads up to 20 same-site pages, two links deep, after `robots.txt`, pricing, features, docs
+  and demos first, with each page's text, address and a screenshot, plus a screen after every step
+  of the journeys you give (`--journey 'click link "Pricing"; ...'`), in one browser run each. A
+  link the page repeats is followed by its address. It never signs in, never asks REA for scripts or
   network traffic, and never uses REA's tools that look inside software. You confirm once per app.
 
   The lead plans from the brief in `discuss`. Members who write code never get it or the captures
   (`.team/inspiration/`); `--list` and `--forget` manage them.
+
+### Changed
+
+- `agent-team rea setup` runs agent-team's own REA copy with the Node.js it was installed with, so
+  REA keeps working when the default `node` changes to a version REA doesn't support (Node 25,
+  say). Running it again brings projects set up earlier up to date; a REA you installed yourself is
+  left as it is.
 
 ## [0.13.11] - 2026-10-19
 

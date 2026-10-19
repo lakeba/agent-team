@@ -196,8 +196,12 @@ the page's session token and a same-origin request, and are refused if the file 
 - `workflows/scout.py`: the scout observes `[research] sites` through REA's browser before `discuss`.
 - `inspire.py`: `agent-team inspire <url>`. It explores an app the founder likes from the outside:
   - `robots.txt` first (RFC 9309);
-  - same-site pages, two links deep, found from `<a href>` only;
-  - each journey replayed step by step for a screen per step;
+  - same-site pages, two links deep, found from `<a href>` only, the likeliest useful first
+    (`score`: pricing, then features, docs and demos; blog posts, sign-ins and legal pages last);
+  - each journey in one REA run, with the capture taken after every step (`after_each_step`);
+    a click on a link the page repeats (Playwright's strict mode refuses it) follows that link's
+    address from the previous step's accessibility text, when it stays on the site and
+    `robots.txt` allows it;
   - REA is asked for exactly `CAPTURE` (screenshot, accessibility text, address), checked by
     `check_input`.
 

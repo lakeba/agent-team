@@ -26,28 +26,59 @@ TOOLS = [
 
 
 def browse(args):
-    """A pretend browser: the page's text (tags removed) after the steps, which must name real text."""
+    """A pretend browser: the page's text (tags removed, then its links as REA's aria snapshot lists
+    them) after the steps, which must name real text. A link name used twice fails a click on it, as
+    Playwright's strict mode does. Captures after each step when asked, else at the end."""
     import re
+    import urllib.parse
     import urllib.request
-    html = urllib.request.urlopen(args["start_url"]["url"], timeout=5).read().decode()
-    steps = [{"step_id": "scenario_start", "status": "completed", "artifacts": {}}]
+
+    def fetch(url):
+        return urllib.request.urlopen(url, timeout=5).read().decode()
+
+    def anchors(html):
+        return [(h, " ".join(re.sub(r"<[^>]+>", " ", t).split())) for h, t in re.findall(r'<a [^>]*href="([^"]*)"[^>]*>(.*?)</a>', html, re.S)]
+
+    def artifacts(html, url):
+        text = " ".join(re.sub(r"<[^>]+>", " ", html).split())
+        text += "".join(f'\n- link "{t}":\n  - /url: {h}' for h, t in anchors(html))
+        png = {"sha256": "a" * 64 if "v2" not in html else "b" * 64, "bytes": 4, "media_type": "image/png",
+               "data_base64": "iVBORw=="}
+        return {"accessibility": {"state": "captured", "value": {"text": text}},
+                "url": {"state": "captured", "value": {"url": url}},
+                "screenshot": {"state": "captured", "value": png}}
+
+    each = bool((args.get("capture") or {}).get("after_each_step"))
+    url = args["start_url"]["url"]
+    html = fetch(url)
+    steps = [{"step_id": "scenario_start", "status": "completed", "artifacts": artifacts(html, url) if each else {}}]
     for a in args["actions"]:
         step = {"step_id": a["step_id"], "status": "completed", "artifacts": {}}
         name = (a.get("locator") or {}).get("name")
-        if a["action"] == "click" and name is not None:
-            if name not in html:   # as REA does: the scenario stops there, with no final capture
-                step.update(status="failed", error=f"no element named {name}")
+        if a["action"] == "goto":
+            url = urllib.parse.urljoin(url, a["destination"]["url"])
+            html = fetch(url)
+        elif a["action"] == "click" and name is not None:
+            same = [h for h, t in anchors(html) if t == name]
+            if (a.get("locator") or {}).get("role") == "link" and len(same) > 1:
+                error = (f"locator.click: Error: strict mode violation: getByRole('link', {{ name: '{name}', exact: true }}) "
+                         f"resolved to {len(same)} elements:\n" + "".join(f'    {i}) <a href="{h}">{name}</a>\n' for i, h in enumerate(same, 1)))
+                step.update(status="failed", error=error, artifacts=artifacts(html, url) if each else {})
                 return {"normalized_result": {"steps": steps + [step], "events": {"items": []}}}
+            if name not in html:   # as REA does: the scenario stops there, with no final capture
+                step.update(status="failed", error=f"no element named {name}", artifacts=artifacts(html, url) if each else {})
+                return {"normalized_result": {"steps": steps + [step], "events": {"items": []}}}
+            elif same and (a.get("locator") or {}).get("role") == "link":   # a link: follow it
+                url = urllib.parse.urljoin(url, same[0])
+                html = fetch(url)
             else:   # clicking inside a <dialog> closes it, as accepting a cookie banner does
                 html = re.sub(r"<dialog>.*?</dialog>", "", html, flags=re.S) if re.search(
                     rf"<dialog>[^<]*(<[^>]+>[^<]*)*?{re.escape(name)}", html) else html
+        if each:
+            step["artifacts"] = artifacts(html, url)
         steps.append(step)
-    text = re.sub(r"<[^>]+>", " ", html)
-    png = {"sha256": "a" * 64 if "v2" not in html else "b" * 64, "bytes": 4, "media_type": "image/png",
-           "data_base64": "iVBORw=="}
-    steps[-1]["artifacts"] = {"accessibility": {"state": "captured", "value": {"text": " ".join(text.split())}},
-                              "url": {"state": "captured", "value": {"url": args["start_url"]["url"]}},
-                              "screenshot": {"state": "captured", "value": png}}
+    if not each:
+        steps[-1]["artifacts"] = artifacts(html, args["start_url"]["url"])
     errors = [{"kind": "page-error", "text": "boom"}] if "boom" in html else []
     return {"normalized_result": {"steps": steps, "events": {"items": errors}}}
 

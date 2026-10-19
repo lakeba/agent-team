@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -901,17 +902,22 @@ def cmd_rea(args) -> int:
                                                   "but agent-team was tried with this one)"))
         ui.say(f"  registered with Claude Code: {'yes' if st['claude_code'] else 'no'}")
         ui.say(f"  this project: {'uses it ([mcp.rea])' if st['configured'] else 'not set up yet (agent-team rea setup)'}")
-        ok, detail = rea.doctor(st["command"])
+        ok, detail = rea.doctor(st["command"], st["args"])
         ui.say(f"  rea doctor: {'ok' if ok else 'needs attention'}: {detail}")
         return 0 if ok else 1
     command, cargs, where = rea.find()
     if not command:
-        command, cargs, where = rea.install(args.yes), ["--mcp"], "agent-team's copy"
+        rea.install(args.yes)
+        command, cargs, where = rea.find()
+    elif where == "agent-team's copy" and not rea.pinned_node() and rea.pin_node():   # installed before agent-team pinned it
+        command, cargs, where = rea.find()
     ui.action(f"REA: {command} ({where})")
     from .config import CONFIG_NAME
     if (root / CONFIG_NAME).exists():
+        had = re.search(r"^\s*\[mcp\.rea\]", (root / CONFIG_NAME).read_text(encoding="utf-8"), re.M)
         if rea.configure(root, command, cargs):
-            ui.action(f"added [mcp.rea] and [behaviour] to {CONFIG_NAME}")
+            ui.action(f"updated [mcp.rea] in {CONFIG_NAME}: REA runs with the Node.js it was installed with" if had
+                      else f"added [mcp.rea] and [behaviour] to {CONFIG_NAME}")
         else:
             ui.say(f"{CONFIG_NAME} already has [mcp.rea].")
         team = config.load(root)
