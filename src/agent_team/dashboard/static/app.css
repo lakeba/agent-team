@@ -283,3 +283,14 @@ a.button:hover { text-decoration: none; filter: brightness(1.05); }
 .next-tasks li { margin: 6px 0; }
 .mvp-apply { border-left: 3px solid var(--accent); }
 @media (max-width: 600px) { .wiz { padding: 18px 16px; } .row { flex-wrap: wrap; } }
+
+/* Inspiration */
+#inspire label { display: block; margin: 10px 0 0; color: var(--text-secondary); font-size: 12.5px; }
+#inspire input[type=url], #inspire textarea { display: block; width: 100%; margin-top: 4px; font: inherit; font-size: 13px; padding: 8px 10px;
+  color: var(--text-primary); background: var(--surface-0); border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; }
+#inspire label.check { display: flex; gap: 8px; align-items: flex-start; color: var(--text-primary); font-size: 13px; line-height: 1.5; }
+#inspire label.check input { margin-top: 3px; }
+.grid.three { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.card.brief h3 { margin: 18px 0 6px; } .card.brief h3:first-child { margin-top: 0; }
+.card.brief p, .card.brief li { line-height: 1.55; } .card.brief table { margin: 6px 0 10px; }
+#inspire img.shot { height: auto; aspect-ratio: 16 / 9; object-fit: cover; object-position: top; }

@@ -70,6 +70,11 @@ GET routes need no token. POST routes take a JSON body. Errors come back as `{"e
 | `POST /api/config/save` | `{"data", "sha"}`: saves it, keeping `.team.toml.bak`; refused if the file changed since `sha` |
 | `POST /api/approve` | `{"number"}`: approves a pull request's current commit. The owner's action: a program must only send it after the person confirms. |
 | `POST /api/release/approve` | `{"version"}`: approves the release the devops shift proposed (`release_proposal` in `/api/team`), and only that version; starts the shift that publishes it and returns the run. The owner's action, as above. Feature `release.approve`. `POST /api/jobs/start` refuses a `release` parameter. |
+| `GET /api/inspiration` | `{"apps": [{"app", "url", "brief", "confirmed", "pages", "journeys", "updated"}], "statement"}`: the apps explored by `agent-team inspire`, and the confirmation statement. Feature `inspiration` |
+| `GET /api/inspiration/<app>` | `{"app", "url", "confirmed", "brief", "pages", "journeys", "skipped", "notes", "asked"}`: the brief (Markdown, or null), each page and journey step with its `url`, `problem` and `shot`, and the journeys asked for |
+| `GET /api/inspiration/<app>/shot/<name>` | One screenshot (PNG), by a `shot` name from the route above (`pages/NN.png`, `journeys/J-K.png`); any other name is 404 |
+| `POST /api/inspiration/confirm` | `{"url"}`: the owner confirms they use the app and may look at it this way (`statement`). The owner's action: a program must only send it after the person confirms. `POST /api/jobs/start` with `inspire` (`{"url", "journeys": [[step, ...]], "max_pages"}`) is refused for an app that isn't confirmed. Never offered over MCP |
+| `POST /api/inspiration/forget` | `{"app"}`: deletes the app's captures and brief |
 | `GET /api/github` | Open PRs, issues and releases (cached for 60 s) |
 | `GET /api/projects` | Every known project, summarised |
 

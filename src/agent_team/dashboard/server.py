@@ -39,13 +39,14 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/projects.js": ("projects.js", "text/javascript; charset=utf-8"),
           "/lakeba-mark.svg": ("lakeba-mark.svg", "image/svg+xml"),
           "/behaviour.js": ("behaviour.js", "text/javascript; charset=utf-8"),
+          "/inspire.js": ("inspire.js", "text/javascript; charset=utf-8"),
           "/setup.js": ("setup.js", "text/javascript; charset=utf-8"),
           "/mvp.js": ("mvp.js", "text/javascript; charset=utf-8")}
 # The contract for programs using this API (the LakebaOS desktop client): `api` goes up only when a
 # route changes in a way that breaks them; `features` names what this version offers.
 API_VERSION = 1
 FEATURES = ["meta", "client-token", "jobs.offset", "config.sha", "approve", "release.approve", "estimate", "story", "setup",
-            "schedule", "usage.resets", "client-token-stdin", "pr.review"]
+            "schedule", "usage.resets", "client-token-stdin", "pr.review", "inspiration"]
 SCHEDULABLE = ("ship", "doctor")   # what `agent-team schedule --workflow` accepts
 PR_FILES_LIMIT = 300_000           # bytes of patches /api/pr/<n> returns
 MAX_REVIEW_COMMENTS = 50
@@ -361,6 +362,22 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
                     if not png.is_file():
                         return self._json({"error": "not found"}, 404)
                     return self._send(200, png.read_bytes(), "image/png")
+                if path == "/api/inspiration":
+                    from .. import inspire
+                    return self._json({"apps": inspire.apps(team.root), "statement": inspire.CONFIRMATION})
+                if path.startswith("/api/inspiration/"):
+                    from .. import inspire
+                    rest = urllib.parse.unquote(path.removeprefix("/api/inspiration/"))
+                    app, _, name = rest.partition("/shot/")
+                    try:
+                        if name:
+                            png = inspire.shot(team.root, app, name)
+                            if png is None:
+                                return self._json({"error": "not found"}, 404)
+                            return self._send(200, png.read_bytes(), "image/png")
+                        return self._json(inspire.details(team.root, app))
+                    except inspire.InspireError as e:
+                        return self._json({"error": str(e)}, 404)
                 if path == "/api/metrics":
                     from .. import metrics
                     return self._json(metrics.compute(team))
@@ -516,6 +533,24 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
                     if isinstance(params, dict) and "release" in params:
                         return self._json({"error": "approving a release has its own route: POST /api/release/approve"}, 422)
                     return self._json(jobs.start(root, str(body.get("workflow", "")), params))
+                if path == "/api/inspiration/confirm":
+                    # The owner's statement that they use the app and may look at it this way. A program
+                    # must only send it after the person confirms; never offered over MCP.
+                    from .. import inspire
+                    try:
+                        url = inspire.check_url(body.get("url"))
+                    except inspire.InspireError as e:
+                        return self._json({"error": str(e)}, 422)
+                    config.load(root)
+                    inspire.confirm(root, url)
+                    return self._json({"app": inspire.slug(url), "url": url, "statement": inspire.CONFIRMATION})
+                if path == "/api/inspiration/forget":
+                    from .. import inspire
+                    try:
+                        gone = inspire.forget(root, str(body.get("app", "")))
+                    except inspire.InspireError as e:
+                        return self._json({"error": str(e)}, 422)
+                    return self._json({"forgotten": gone})
                 if path == "/api/schedule":
                     from .. import schedule
                     workflow = body.get("workflow")

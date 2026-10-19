@@ -6,6 +6,17 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- Inspire without a terminal. The dashboard has an **Inspiration** tab: add an app you like (its address,
+  journeys in plain words, and your confirmation), follow the run, then read the brief and see every page
+  and journey step the scout saw. Run again and Forget are there too.
+- `inspire` is a background run (`POST /api/jobs/start`), with every field checked before it starts. It's
+  refused for an app the owner hasn't confirmed. New routes for programs such as the desktop app:
+  `/api/inspiration`, `/api/inspiration/<app>`, its screenshots, `confirm` and `forget` (feature
+  `inspiration`). MCP never offers it.
+- The journeys you asked for are kept with the captures, so a run can be repeated.
+
 ## [0.13.12] - 2026-10-20
 
 ### Added

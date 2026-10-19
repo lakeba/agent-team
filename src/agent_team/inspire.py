@@ -70,6 +70,7 @@ class Exploration:
     pages: list[Look] = field(default_factory=list)
     journeys: list[list[Look]] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)     # disallowed by robots.txt
+    asked: list[list[str]] = field(default_factory=list)  # the journeys the founder asked for
     notes: list[str] = field(default_factory=list)
 
 
@@ -400,7 +401,7 @@ def explore(client: mcp.Client, browser: str, start: str, journeys: list[list[st
         raise InspireError(f"{start} isn't a web address (https://...)")
     origin = f"{parts.scheme}://{parts.netloc}"
     robots = robots or Robots(origin, get)
-    ex = Exploration(start=start)
+    ex = Exploration(start=start, asked=[list(j) for j in (journeys or [])[:MAX_JOURNEYS]])
     if robots.note:
         ex.notes.append(robots.note)
     queue, seen, order = [(0, 0, 0, start)], {start}, 0
@@ -498,7 +499,7 @@ def save(root: Path, ex: Exploration) -> Path:
     (f / "index.json").write_text(json.dumps({
         "start": ex.start, "pages": [{"label": p.label, "url": p.url, "problem": p.problem} for p in ex.pages],
         "journeys": [[{"label": s.label, "url": s.url, "problem": s.problem} for s in js] for js in ex.journeys],
-        "skipped": ex.skipped, "notes": ex.notes}, indent=1), encoding="utf-8")
+        "skipped": ex.skipped, "notes": ex.notes, "asked": ex.asked}, indent=1), encoding="utf-8")
     return f
 
 
@@ -558,9 +559,54 @@ def apps(root: Path | str) -> list[dict]:
         if not f.is_dir():
             continue
         info = json.loads((f / "index.json").read_text(encoding="utf-8")) if (f / "index.json").is_file() else {}
-        out.append({"app": f.name, "url": info.get("start", ""), "brief": (f / "brief.md").is_file(),
-                    "pages": len(info.get("pages", [])), "journeys": len(info.get("journeys", []))})
+        url = info.get("start", "")
+        if not url and (f / "confirmed.json").is_file():   # confirmed, not explored yet
+            url = json.loads((f / "confirmed.json").read_text(encoding="utf-8")).get("url", "")
+        when = max((g.stat().st_mtime for g in (f / "index.json", f / "brief.md") if g.is_file()), default=None)
+        out.append({"app": f.name, "url": url, "brief": (f / "brief.md").is_file(),
+                    "confirmed": (f / "confirmed.json").is_file(),
+                    "pages": len(info.get("pages", [])), "journeys": len(info.get("journeys", [])),
+                    "updated": datetime.fromtimestamp(when, timezone.utc).isoformat(timespec="seconds") if when else None})
     return out
+
+
+SHOT_RE = re.compile(r"(pages/\d{2}|journeys/\d{1,2}-\d{1,2})\.png")
+
+
+def details(root: Path | str, app: str) -> dict:
+    """One app, for the owner's screens: the brief, every page and journey step with its address,
+    problem and screenshot name, and the notes. Raises InspireError for an app that isn't here."""
+    f = folder(root, app)
+    if not f.is_dir():
+        raise InspireError(f"no app called {app} here")
+    info = json.loads((f / "index.json").read_text(encoding="utf-8")) if (f / "index.json").is_file() else {}
+
+    def with_shot(item: dict, name: str) -> dict:
+        return {**item, "shot": name if (f / name).is_file() else None}
+
+    return {"app": app, "url": info.get("start", ""), "confirmed": (f / "confirmed.json").is_file(),
+            "brief": (f / "brief.md").read_text(encoding="utf-8") if (f / "brief.md").is_file() else None,
+            "pages": [with_shot(p, f"pages/{i:02d}.png") for i, p in enumerate(info.get("pages", []), start=1)],
+            "journeys": [[with_shot(s, f"journeys/{j}-{k}.png") for k, s in enumerate(js, start=1)]
+                         for j, js in enumerate(info.get("journeys", []), start=1)],
+            "skipped": info.get("skipped", []), "notes": info.get("notes", []), "asked": info.get("asked", [])}
+
+
+def shot(root: Path | str, app: str, name: str) -> Path | None:
+    """A screenshot's file, only by the names details() gives (pages/NN.png, journeys/J-K.png)."""
+    if not SHOT_RE.fullmatch(name or ""):
+        return None
+    path = folder(root, app) / name
+    return path if path.is_file() else None
+
+
+def check_url(url: str) -> str:
+    """A web address inspire may start from, or InspireError."""
+    url = (url or "").strip() if isinstance(url, str) else ""
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.netloc or len(url) > 2000 or any(c.isspace() for c in url):
+        raise InspireError("the app's address must be a web address (https://...)")
+    return url
 
 
 def for_member(team: Team, cfg: AgentConfig) -> str:

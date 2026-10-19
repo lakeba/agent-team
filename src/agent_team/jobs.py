@@ -103,7 +103,37 @@ def argv_for(workflow: str, params: dict) -> list[str]:
         if skip:
             argv += ["--skip", ",".join(skip)]
         return argv
-    raise JobError(f"can't start {workflow!r}; choose doctor, build, fix, autopilot, discuss, market or ship")
+    if workflow == "inspire":
+        return _inspire_argv(p, text, number)
+    raise JobError(f"can't start {workflow!r}; choose doctor, build, fix, autopilot, discuss, market, ship or inspire")
+
+
+def _inspire_argv(p: dict, text, number) -> list[str]:
+    """agent-team inspire's arguments: a web address, up to MAX_JOURNEYS journeys of up to MAX_STEPS
+    steps in plain words (each one parsed now, so a typo is refused before anything starts)."""
+    import urllib.parse
+    from . import inspire
+    from .steps import StepError, parse_step
+    url = text("url", required=True)
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.netloc or any(c.isspace() for c in url):
+        raise JobError("url must be a web address (https://...)")
+    journeys = p.get("journeys") or []
+    if not isinstance(journeys, list) or len(journeys) > inspire.MAX_JOURNEYS:
+        raise JobError(f"journeys is a list of at most {inspire.MAX_JOURNEYS} journeys")
+    argv = ["inspire", url, "--max-pages", number("max_pages", inspire.MAX_PAGES, 1, 50)]
+    for j, steps in enumerate(journeys, start=1):
+        if not isinstance(steps, list) or not 1 <= len(steps) <= inspire.MAX_STEPS:
+            raise JobError(f"journey {j} is a list of 1 to {inspire.MAX_STEPS} steps")
+        for k, step in enumerate(steps, start=1):
+            if not isinstance(step, str) or not step.strip() or len(step) > 300 or ";" in step:
+                raise JobError(f"journey {j}, step {k} must be one step in plain words (no ';')")
+            try:
+                parse_step(step.strip(), k)
+            except StepError as e:
+                raise JobError(f"journey {j}, step {k}: {e}") from None
+        argv += ["--journey", "; ".join(s.strip() for s in steps)]
+    return argv
 
 
 def _alive(pid: int) -> bool:
@@ -149,6 +179,11 @@ def list_jobs(root: Path, limit: int = 20) -> list[dict]:
 
 def start(root: Path, workflow: str, params: dict | None = None) -> dict:
     argv = argv_for(workflow, params or {})
+    if workflow == "inspire":
+        from . import inspire
+        if not inspire.confirmed(root, argv[1]):
+            raise JobError("confirm first, as the owner, that you use this app and may look at it this way "
+                           "(POST /api/inspiration/confirm, or agent-team inspire in a terminal)")
     running = [j for j in list_jobs(root, 100) if j["status"] == "running"]
     if workflow in WRITERS and any(j["workflow"] in WRITERS for j in running):
         busy = next(j for j in running if j["workflow"] in WRITERS)
