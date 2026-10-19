@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.13.6] - 2026-10-19
+
 ### Fixed
 
 - A member on a local model server with its model's short name (`Qwen2.5-Coder-7B-Instruct-4bit`
