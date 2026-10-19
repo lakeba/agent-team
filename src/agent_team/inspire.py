@@ -204,14 +204,20 @@ def _actions(url: str, steps: list[str]) -> list[dict]:
     return out + [{"step_id": "settle", "action": "wait_for_timeout", "duration_ms": 1500}]
 
 
+RETRY_ERRORS = ("cleanup_incomplete",)   # REA couldn't confirm the browser closed; the next try usually works
+
+
 def look(client: mcp.Client, browser: str, url: str, steps: list[str] | None = None, label: str = "") -> Look:
     from . import behaviour
     payload = capture_input(browser, url, _actions(url, steps or []))
     check_input(payload)
-    try:
-        result = client.call("capture_browser_scenario", payload, timeout=120)
-    except mcp.McpError as e:
-        return Look(url, problem=f"not observed: {e}", label=label)
+    for attempt in (1, 2):
+        try:
+            result = client.call("capture_browser_scenario", payload, timeout=120)
+        except mcp.McpError as e:
+            return Look(url, problem=f"not observed: {e}", label=label)
+        if not (result.get("isError") and any(code in mcp.text_of(result) for code in RETRY_ERRORS)):
+            break
     evidence = result.get("structuredContent")
     if result.get("isError") or not isinstance(evidence, dict):
         return Look(url, problem=f"not observed: {mcp.text_of(result)[:300]}", label=label)

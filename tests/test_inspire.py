@@ -131,6 +131,22 @@ class ExploreTests(unittest.TestCase):
         self.assertEqual(ex.journeys, [])
         self.assertIn("robots.txt disallows", ex.notes[-1])
 
+    def test_a_browser_that_didnt_close_cleanly_is_tried_once_more(self):
+        site = Site(self, dict(PAGES))
+        team = team_with_scout()
+        real, failed = mcp.Client.call, []
+
+        def flaky(client, name, args, **kw):
+            if not failed:
+                failed.append(1)
+                return {"isError": True, "content": [{"type": "text", "text": '{"error":{"code":"cleanup_incomplete"}}'}]}
+            return real(client, name, args, **kw)
+
+        with mock.patch.object(mcp.Client, "call", flaky), mcp.Client(team.mcp["fake"], team.root) as client:
+            page = inspire.look(client, "/usr/bin/true", site.url + "/")
+        self.assertEqual(page.problem, "")
+        self.assertIn("Track time with tags", page.text)
+
     def test_links_are_read_from_anchors_only(self):
         html = '<script>location="/hidden"</script><a href="/a">A</a><a href="/a#x">A</a><a href="mailto:x@y">M</a>'
         self.assertEqual(inspire.same_site_links(html, "https://app.example/"), ["https://app.example/a"])
