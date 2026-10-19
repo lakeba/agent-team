@@ -537,6 +537,10 @@ def cmd_projects(args) -> int:
         ui.say("Forgotten." if projects.forget(args.path or ".") else "That project wasn't remembered.")
         return 0
     rows = projects.all_summaries()
+    if args.json:
+        import json as _json
+        print(_json.dumps(rows))
+        return 0
     if not rows:
         ui.say("No projects yet: they're remembered when you run agent-team in them.")
     for r in rows:
@@ -551,13 +555,26 @@ def cmd_projects(args) -> int:
     return 0
 
 
+CLIENT_TOKEN_ENV = "AGENT_TEAM_CLIENT_TOKEN"
+
+
 def cmd_ui(args) -> int:
     from .dashboard.server import serve as serve_ui
+    import os
+    client_token = None
+    if args.client:
+        # Taken out of the environment, so the runs this dashboard starts never see it.
+        client_token = os.environ.pop(CLIENT_TOKEN_ENV, "")
+        if len(client_token) < 32:
+            raise SystemExit(f"ui --client needs a token of 32 or more characters in {CLIENT_TOKEN_ENV}.")
     try:
-        serve_ui(Path(args.project).resolve(), args.port, not args.no_open, from_app=args.from_app)
+        serve_ui(Path(args.project).resolve(), args.port, not args.no_open and not args.client,
+                 from_app=args.from_app, client_token=client_token)
     except config.ConfigError as e:
         raise SystemExit(f"Config error: {e}")
     except OSError as e:
+        if args.client:   # a program asked for this port: another dashboard there isn't the one it started
+            raise SystemExit(f"Could not start the dashboard on port {args.port}: {e}.")
         # Already running (e.g. opened again from the Lakeba OS app): show that one instead.
         import urllib.request
         import webbrowser
@@ -738,11 +755,14 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("projects", help="every project you use agent-team in: spend, runs, what waits for you")
     s.add_argument("action", nargs="?", default="list", choices=["list", "forget"])
     s.add_argument("path", nargs="?", default="")
+    s.add_argument("--json", action="store_true", help="list: as JSON")
     s.set_defaults(fn=cmd_projects)
     s = add("ui", cmd_ui, "open the dashboard: see and edit the team, start runs, follow costs")
     s.add_argument("--port", type=int, default=8790)
     s.add_argument("--no-open", action="store_true", help="don't open a browser")
     s.add_argument("--from-app", action="store_true", help=argparse.SUPPRESS)   # the Lakeba OS app: open the one project directly
+    s.add_argument("--client", action="store_true",
+                   help=f"for a desktop app: its token in {CLIENT_TOKEN_ENV}, a JSON ready line, stop when stdin closes")
     s = sub.add_parser("serve", help="serve a model on this machine as a remote team member")
     s.add_argument("--provider", required=True, choices=["anthropic", "ollama", "openai"])
     s.add_argument("--model", required=True)

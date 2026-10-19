@@ -41,6 +41,10 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/behaviour.js": ("behaviour.js", "text/javascript; charset=utf-8"),
           "/setup.js": ("setup.js", "text/javascript; charset=utf-8"),
           "/mvp.js": ("mvp.js", "text/javascript; charset=utf-8")}
+# The contract for programs using this API (the LakebaOS desktop client): `api` goes up only when a
+# route changes in a way that breaks them; `features` names what this version offers.
+API_VERSION = 1
+FEATURES = ["meta", "client-token", "jobs.offset", "config.sha", "approve", "estimate", "story", "setup"]
 HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
     "X-Content-Type-Options": "nosniff",
@@ -194,10 +198,13 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def make_handler(root: Path | None, port: int, token: str | None = None, folder: Path | None = None):
+def make_handler(root: Path | None, port: int, token: str | None = None, folder: Path | None = None,
+                 client_token: str | None = None):
     """`root` is the project (None: no project yet, so the page shows the setup wizard; creating
     or opening a project there switches this dashboard to it). `folder` is where the dashboard was
-    started, which the wizard offers to set up."""
+    started, which the wizard offers to set up. `client_token`: the program that started this
+    dashboard (`ui --client`) may POST with `Authorization: Bearer <it>` instead of the page's
+    same-origin header and session token."""
     here = {"root": root}
     allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
     allowed_origins = {f"http://{h}" for h in allowed_hosts}
@@ -233,6 +240,9 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
             if path == "/api/session":
                 # Readable only by pages from this origin: no CORS headers are ever sent.
                 return self._json({"token": session_token})
+            if path == "/api/meta":
+                return self._json({"version": __version__, "api": API_VERSION, "features": FEATURES,
+                                   "project": str(here["root"]) if here["root"] else "", "setup": here["root"] is None})
             try:
                 if path == "/api/setup/status":
                     from .. import setup_wizard
@@ -345,10 +355,15 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
         def do_POST(self):
             if self.headers.get("Host", "") not in allowed_hosts:
                 return self._json({"error": "unexpected Host header"}, 421)
-            if self.headers.get("Origin") not in allowed_origins:
-                return self._json({"error": "cross-origin request refused"}, 403)
-            if not secrets.compare_digest(self.headers.get("X-Agent-Team-Token", ""), session_token):
-                return self._json({"error": "missing or wrong session token; reload the page"}, 403)
+            bearer = self.headers.get("Authorization", "")
+            if client_token and bearer:
+                if not secrets.compare_digest(bearer, f"Bearer {client_token}"):
+                    return self._json({"error": "wrong client token"}, 403)
+            else:
+                if self.headers.get("Origin") not in allowed_origins:
+                    return self._json({"error": "cross-origin request refused"}, 403)
+                if not secrets.compare_digest(self.headers.get("X-Agent-Team-Token", ""), session_token):
+                    return self._json({"error": "missing or wrong session token; reload the page"}, 403)
             if not self.headers.get("Content-Type", "").startswith("application/json"):
                 return self._json({"error": "send JSON"}, 415)
             length = int(self.headers.get("Content-Length") or 0)
@@ -539,10 +554,13 @@ def _test_provider(body: dict) -> dict:
     return {"ok": not status.startswith("FAILED"), "status": status, "note": note}
 
 
-def serve(project: Path, port: int = 8790, open_browser: bool = True, from_app: bool = False) -> None:
+def serve(project: Path, port: int = 8790, open_browser: bool = True, from_app: bool = False,
+          client_token: str | None = None) -> None:
     """The dashboard for `project`; without a .team.toml there (or above it), the setup wizard, which
     offers to set up that folder. Started from the Lakeba OS app (`from_app`), the one project there
-    is opens directly."""
+    is opens directly. Started by a program (`client_token`, from `ui --client`): it says it's ready
+    with one JSON line on stdout, accepts that program's token, and stops when its stdin closes, so
+    it never outlives the program."""
     try:
         team = config.load(project)
     except config.ConfigError as e:
@@ -559,10 +577,20 @@ def serve(project: Path, port: int = 8790, open_browser: bool = True, from_app: 
     httpd = ThreadingHTTPServer(("127.0.0.1", port), None)
     # The port it's actually on (port 0 picks a free one): requests are checked against that Host.
     httpd.RequestHandlerClass = make_handler(team.root if team else None, httpd.server_address[1],
-                                             folder=None if from_app else project)
+                                             folder=None if from_app else project, client_token=client_token)
     url = f"http://127.0.0.1:{httpd.server_address[1]}/"
-    what = f"for {team.project.name}" if team else "(no project here yet: the setup wizard opens)"
-    print(f"agent-team dashboard {what}: {url}  (Ctrl-C to stop; runs started here keep going)", flush=True)
+    if client_token:
+        def until_stdin_closes():
+            import sys
+            for _ in sys.stdin:
+                pass
+            httpd.shutdown()
+        threading.Thread(target=until_stdin_closes, daemon=True).start()
+        print(json.dumps({"event": "ready", "url": url, "port": httpd.server_address[1], "version": __version__,
+                          "api": API_VERSION, "project": str(team.root) if team else ""}), flush=True)
+    else:
+        what = f"for {team.project.name}" if team else "(no project here yet: the setup wizard opens)"
+        print(f"agent-team dashboard {what}: {url}  (Ctrl-C to stop; runs started here keep going)", flush=True)
     if open_browser:
         threading.Timer(0.5, webbrowser.open, args=(url,)).start()
     try:

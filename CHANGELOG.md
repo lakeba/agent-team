@@ -6,6 +6,17 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- `agent-team ui --client`, for desktop apps that start their own dashboard. The app passes a token in
+  `AGENT_TEAM_CLIENT_TOKEN` and POSTs with `Authorization: Bearer <token>`. The dashboard says it's ready
+  with a JSON line, never reuses a busy port, and stops when the app's pipe to it closes. The page's own
+  same-origin checks are unchanged.
+- `GET /api/meta`: the version, an API version that goes up only on breaking changes, and the features
+  offered, answered with or without a project. The new [Dashboard API](https://lakeba.github.io/agent-team/api.html)
+  page documents the routes a program can rely on.
+- `agent-team projects --json`.
+
 ## [0.13.8] - 2026-10-19
 
 ### Security

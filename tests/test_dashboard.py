@@ -7,6 +7,7 @@ import time
 import unittest
 from unittest import mock
 from http.server import ThreadingHTTPServer
+from pathlib import Path
 
 from agent_team import logs, usage
 from agent_team.dashboard import server as dash
@@ -138,6 +139,93 @@ class DashboardPortZeroTests(unittest.TestCase):
             finally:
                 httpd.shutdown()
                 t.join(5)
+
+
+class DashboardClientModeTests(unittest.TestCase):
+    """`ui --client`: what the LakebaOS desktop client relies on."""
+    TOKEN = "c" * 40
+
+    @classmethod
+    def setUpClass(cls):
+        cls.root = project()
+        cls.httpd = ThreadingHTTPServer(("127.0.0.1", 0), None)
+        cls.port = cls.httpd.server_address[1]
+        cls.httpd.RequestHandlerClass = dash.make_handler(cls.root, cls.port, token="s" * 40, client_token=cls.TOKEN)
+        threading.Thread(target=cls.httpd.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.httpd.shutdown()
+        cls.httpd.server_close()
+
+    def call(self, method, path, headers=None, body=None):
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        data = json.dumps(body).encode() if body is not None else None
+        c.request(method, path, body=data, headers={"Host": f"127.0.0.1:{self.port}", "Content-Type": "application/json", **(headers or {})})
+        r = c.getresponse()
+        return r.status, json.loads(r.read() or b"{}")
+
+    def test_meta(self):
+        status, meta = self.call("GET", "/api/meta")
+        self.assertEqual(status, 200)
+        self.assertEqual((meta["api"], meta["version"], meta["project"], meta["setup"]),
+                         (dash.API_VERSION, dash.__version__, str(self.root), False))
+        self.assertIn("client-token", meta["features"])
+
+    def test_the_client_token_replaces_origin_and_session_token(self):
+        stop = {"id": "nope"}
+        status, _ = self.call("POST", "/api/jobs/stop", {"Authorization": f"Bearer {self.TOKEN}"}, stop)
+        self.assertNotEqual(status, 403)                      # past the checks: the job just doesn't exist
+        status, body = self.call("POST", "/api/jobs/stop", {"Authorization": "Bearer wrong"}, stop)
+        self.assertEqual((status, body["error"]), (403, "wrong client token"))
+        status, _ = self.call("POST", "/api/jobs/stop", {}, stop)
+        self.assertEqual(status, 403)                         # no token, no Origin
+        status, _ = self.call("POST", "/api/jobs/stop", {"Origin": f"http://127.0.0.1:{self.port}", "X-Agent-Team-Token": "s" * 40}, stop)
+        self.assertNotEqual(status, 403)                      # the page's own way still works
+        status, _ = self.call("POST", "/api/jobs/stop", {"Authorization": f"Bearer {self.TOKEN}", "Host": "evil.test"}, stop)
+        self.assertEqual(status, 421)                         # the Host check still applies
+
+    def test_without_client_mode_a_bearer_token_is_no_way_in(self):
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), None)
+        port = httpd.server_address[1]
+        httpd.RequestHandlerClass = dash.make_handler(self.root, port)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+            c.request("POST", "/api/jobs/stop", body=b'{"id":"x"}', headers={
+                "Host": f"127.0.0.1:{port}", "Content-Type": "application/json", "Authorization": f"Bearer {self.TOKEN}"})
+            self.assertEqual(c.getresponse().status, 403)
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+
+    def test_ui_client_says_ready_and_stops_with_its_stdin(self):
+        import subprocess
+        import sys
+        env = {**os.environ, "AGENT_TEAM_CLIENT_TOKEN": self.TOKEN, "PYTHONPATH": str(Path(dash.__file__).parents[2])}
+        import tempfile
+        folder = tempfile.mkdtemp()   # no team yet (this process's fake provider isn't there): the setup wizard's dashboard
+        proc = subprocess.Popen([sys.executable, "-m", "agent_team.cli", "ui", "--client", "--port", "0", "-C", folder],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+        try:
+            line = proc.stdout.readline()
+            if not line:
+                self.fail(f"ui --client printed nothing: {proc.stderr.read()[-800:]}")
+            ready = json.loads(line)
+            self.assertEqual((ready["event"], ready["api"], ready["project"]), ("ready", dash.API_VERSION, ""))
+            c = http.client.HTTPConnection("127.0.0.1", ready["port"], timeout=10)
+            c.request("GET", "/api/meta", headers={"Host": f"127.0.0.1:{ready['port']}"})
+            self.assertTrue(json.loads(c.getresponse().read())["setup"])
+            proc.stdin.close()
+            self.assertEqual(proc.wait(10), 0)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+        env.pop("AGENT_TEAM_CLIENT_TOKEN")
+        short = subprocess.run([sys.executable, "-m", "agent_team.cli", "ui", "--client", "-C", folder],
+                               capture_output=True, text=True, env=env, timeout=30)
+        self.assertNotEqual(short.returncode, 0)
+        self.assertIn("AGENT_TEAM_CLIENT_TOKEN", short.stderr)
 
 
 class DashboardServerTests(unittest.TestCase):

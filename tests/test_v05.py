@@ -156,6 +156,14 @@ class MetricsAndProjectsTests(unittest.TestCase):
         s = projects.summary(str(Path(root).resolve()))
         self.assertTrue(s["ok"])
         self.assertEqual(s["members"], 4)
+        import contextlib
+        import io
+        from agent_team import cli
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            cli.main(["projects", "--json"])
+        listed = json.loads(out.getvalue())
+        self.assertIn(str(Path(root).resolve()), [r["root"] for r in listed])
         self.assertTrue(projects.forget(root))
         self.assertIn("agent-team-test-config", str(projects._path()))      # never the real config folder
 

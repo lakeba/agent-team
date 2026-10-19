@@ -9,7 +9,7 @@
   <aside aria-label="Guides">
     <h4>Guides</h4>
     <ul>
-      {% assign guides = "architecture|Architecture,configuration|Configuration,extending|Extending the team,remote-agents|Remote agents,publishing|Publishing" | split: "," %}
+      {% assign guides = "architecture|Architecture,configuration|Configuration,extending|Extending the team,remote-agents|Remote agents,api|Dashboard API,publishing|Publishing" | split: "," %}
       {% for g in guides %}{% assign parts = g | split: "|" %}
       <li><a href="{{ '/' | append: parts[0] | append: '.html' | relative_url }}"{% if page.url contains parts[0] %} class="on" aria-current="page"{% endif %}>{{ parts[1] }}</a></li>
       {% endfor %}
