@@ -562,7 +562,12 @@ def cmd_ui(args) -> int:
     from .dashboard.server import serve as serve_ui
     import os
     client_token = None
-    if args.client:
+    if args.client and args.client_token_stdin:
+        # Over SSH the environment and argv aren't private: the token is the first line of stdin.
+        client_token = sys.stdin.readline().strip()
+        if len(client_token) < 32:
+            raise SystemExit("ui --client --client-token-stdin needs a token of 32 or more characters as stdin's first line.")
+    elif args.client:
         # Taken out of the environment, so the runs this dashboard starts never see it.
         client_token = os.environ.pop(CLIENT_TOKEN_ENV, "")
         if len(client_token) < 32:
@@ -763,6 +768,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--from-app", action="store_true", help=argparse.SUPPRESS)   # the Lakeba OS app: open the one project directly
     s.add_argument("--client", action="store_true",
                    help=f"for a desktop app: its token in {CLIENT_TOKEN_ENV}, a JSON ready line, stop when stdin closes")
+    s.add_argument("--client-token-stdin", action="store_true",
+                   help="with --client: read the token from stdin's first line instead (for SSH)")
     s = sub.add_parser("serve", help="serve a model on this machine as a remote team member")
     s.add_argument("--provider", required=True, choices=["anthropic", "ollama", "openai"])
     s.add_argument("--model", required=True)

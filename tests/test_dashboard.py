@@ -208,6 +208,65 @@ class DashboardClientModeTests(unittest.TestCase):
             proposal.unlink()
         self.assertIn("release.approve", self.call("GET", "/api/meta")[1]["features"])
 
+    def test_schedules(self):
+        from agent_team import schedule
+        auth = {"Authorization": f"Bearer {self.TOKEN}"}
+        shown = {"workflow": "ship", "every": 21600, "where": "launchd agent x"}
+        with mock.patch.object(schedule, "show", side_effect=lambda root, w: shown if w == "ship" else None), \
+                mock.patch.object(schedule, "install", return_value="launchd agent x") as install, \
+                mock.patch.object(schedule, "remove", return_value=True) as remove:
+            self.assertEqual(self.call("GET", "/api/schedule")[1], {"schedules": {"ship": shown, "doctor": None}})
+            status, body = self.call("POST", "/api/schedule", auth, {"workflow": "ship", "every": "6h"})
+            self.assertEqual((status, body["every"], body["where"]), (200, 21600, "launchd agent x"))
+            install.assert_called_once_with(self.root, "ship", 21600, ["--max-steps", "30"])
+            self.assertEqual(self.call("POST", "/api/schedule", auth, {"workflow": "build", "every": "6h"})[0], 422)
+            self.assertEqual(self.call("POST", "/api/schedule", auth, {"workflow": "ship", "every": "soon"})[0], 422)
+            self.assertTrue(self.call("POST", "/api/schedule/remove", auth, {"workflow": "ship"})[1]["removed"])
+            remove.assert_called_once_with(self.root, "ship")
+
+    def test_usage_says_when_the_daily_limit_resets(self):
+        import datetime
+        usage_body = self.call("GET", "/api/usage")[1]
+        resets = datetime.datetime.fromisoformat(usage_body["resets_at"])
+        now = datetime.datetime.now(datetime.timezone.utc)
+        self.assertTrue(now < resets <= now + datetime.timedelta(days=1))
+        self.assertEqual((resets.hour, resets.minute), (0, 0))
+        per_day = usage_body["limits"]["per_day"]
+        expected = None if not per_day else round(max(0.0, per_day - usage_body["today"]), 4)
+        self.assertEqual(usage_body["remaining_today"], expected)
+
+    def test_pr_review_from_the_client(self):
+        from agent_team import config as cfg, github as gh_mod
+        auth = {"Authorization": f"Bearer {self.TOKEN}"}
+        view = {"number": 7, "title": "Export", "headRefOid": "abc123", "state": "OPEN", "url": "https://github.com/o/r/pull/7"}
+        files = [{"filename": "src/export.py", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}]
+
+        def fake_json(*args, **kw):
+            return view if args[:2] == ("pr", "view") else files
+        posted = []
+
+        def fake_gh(*args, input=None, **kw):
+            posted.append((args, json.loads(input)))
+            return json.dumps({"html_url": "https://github.com/o/r/pull/7#review-1"})
+        team = cfg.load(self.root)
+        team.project.repo = "o/r"
+        with mock.patch.object(gh_mod, "gh_json", side_effect=fake_json), mock.patch.object(gh_mod, "gh", side_effect=fake_gh), \
+                mock.patch.object(dash.config, "load", return_value=team), \
+                mock.patch.object(dash.jobs, "start", return_value={"id": "fix-1", "status": "running"}) as start:
+            status, pr = self.call("GET", "/api/pr/7")
+            self.assertEqual((status, pr["head_sha"], pr["files"][0]["path"]), (200, "abc123", "src/export.py"))
+            comment = {"path": "src/export.py", "line": 1, "body": "Use the CSV module here."}
+            status, body = self.call("POST", "/api/pr/7/comments", auth, {"comments": [comment], "start_fix": True})
+            self.assertEqual((status, body["posted"], body["run"]["id"]), (200, 1, "fix-1"))
+            args, review = posted[0]
+            self.assertIn("repos/o/r/pulls/7/reviews", args)
+            self.assertEqual((review["commit_id"], review["event"], review["comments"][0]["side"]), ("abc123", "COMMENT", "RIGHT"))
+            start.assert_called_once_with(self.root, "fix", {"number": 7})
+            for bad in ([{**comment, "path": "other.py"}], [{**comment, "line": 0}], [{**comment, "body": ""}], [], [comment] * 51):
+                self.assertEqual(self.call("POST", "/api/pr/7/comments", auth, {"comments": bad})[0], 422, bad)
+            self.assertEqual(len(posted), 1, "nothing invalid reaches GitHub")
+            self.assertEqual(self.call("POST", "/api/pr/7/comments", {}, {"comments": [comment]})[0], 403)
+
     def test_without_client_mode_a_bearer_token_is_no_way_in(self):
         httpd = ThreadingHTTPServer(("127.0.0.1", 0), None)
         port = httpd.server_address[1]
@@ -239,6 +298,23 @@ class DashboardClientModeTests(unittest.TestCase):
             c = http.client.HTTPConnection("127.0.0.1", ready["port"], timeout=10)
             c.request("GET", "/api/meta", headers={"Host": f"127.0.0.1:{ready['port']}"})
             self.assertTrue(json.loads(c.getresponse().read())["setup"])
+            proc.stdin.close()
+            self.assertEqual(proc.wait(10), 0)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+        # Over SSH: the token comes as stdin's first line, never in the environment or argv.
+        env_no_token = {k: v for k, v in env.items() if k != "AGENT_TEAM_CLIENT_TOKEN"}
+        proc = subprocess.Popen([sys.executable, "-m", "agent_team.cli", "ui", "--client", "--client-token-stdin", "--port", "0", "-C", folder],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env_no_token)
+        try:
+            proc.stdin.write(self.TOKEN + "\n")
+            proc.stdin.flush()
+            ready = json.loads(proc.stdout.readline())
+            c = http.client.HTTPConnection("127.0.0.1", ready["port"], timeout=10)
+            c.request("POST", "/api/jobs/stop", body=b'{"id":"x"}', headers={"Host": f"127.0.0.1:{ready['port']}",
+                      "Content-Type": "application/json", "Authorization": f"Bearer {self.TOKEN}"})
+            self.assertNotEqual(c.getresponse().status, 403)
             proc.stdin.close()
             self.assertEqual(proc.wait(10), 0)
         finally:

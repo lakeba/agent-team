@@ -6,6 +6,14 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- Dashboard API for the desktop client: schedules (`GET/POST /api/schedule`, `/api/schedule/remove`), when
+  the daily spend limit resets (`resets_at` and `remaining_today` in `/api/usage`), a pull request's
+  changes (`GET /api/pr/<n>`) and the owner's line comments posted as one review, optionally followed by
+  a fix run (`POST /api/pr/<n>/comments`), and `ui --client --client-token-stdin` for dashboards started
+  over SSH.
+
 ### Security
 
 - A key pasted into the dashboard's "Key variable" field was saved into `.team.toml` as the provider's

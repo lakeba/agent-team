@@ -23,6 +23,9 @@ AGENT_TEAM_CLIENT_TOKEN=<32+ random characters> agent-team ui --client --port 0 
 - **It never reuses a busy port.** Without `--client`, `ui` shows a dashboard already running on its port
   instead; with `--client` it exits with an error.
 
+Over SSH, where the environment and argv of a remote command aren't private, add `--client-token-stdin`:
+the token is then the first line the program writes to the dashboard's stdin (feature `client-token-stdin`).
+
 `agent-team projects --json` lists the projects agent-team knows, without a dashboard.
 
 ## Versions
@@ -55,7 +58,12 @@ GET routes need no token. POST routes take a JSON body. Errors come back as `{"e
 | `POST /api/jobs/start` | `{"workflow", "params"}`: starts a run. Spend limits and guardrails apply here. |
 | `POST /api/jobs/stop` | `{"id"}`: stops a run at its next step |
 | `GET /api/estimate?workflow=&cycles=` | What a run would cost |
-| `GET /api/usage` | Spend: `total`, `today`, `limits` (`per_run`, `per_day`), `by_day`, `by_agent`, `by_model`, `by_run`, `unpriced_models` |
+| `GET /api/usage` | Spend: `total`, `today`, `limits` (`per_run`, `per_day`), `by_day`, `by_agent`, `by_model`, `by_run`, `unpriced_models`; `resets_at` (when the daily limit resets: the next UTC midnight) and `remaining_today` (null without a daily limit). Feature `usage.resets` |
+| `GET /api/schedule` | `{"schedules": {"ship": {"every", "where"} or null, "doctor": ...}}`. Feature `schedule` |
+| `POST /api/schedule` | `{"workflow": "ship" or "doctor", "every": "6h"}`: installs it with the system scheduler (launchd or cron) |
+| `POST /api/schedule/remove` | `{"workflow"}`: removes it |
+| `GET /api/pr/<n>` | `{"number", "title", "state", "url", "head_sha", "files": [{"path", "status", "patch"}]}`; patches past 300 kB come back empty. Feature `pr.review` |
+| `POST /api/pr/<n>/comments` | `{"comments": [{"path", "line", "body"}], "start_fix": bool}`: posts the owner's line comments as one review (event COMMENT) from their gh account, then optionally starts a `fix` run. Checked: an open PR, a changed file, a positive line, 1 to 4000 characters, 1 to 50 comments |
 | `GET /api/metrics` | The team's numbers |
 | `GET /api/config` | The team file's data and its `sha` |
 | `POST /api/config/preview` | `{"data"}`: the diff a save would make |

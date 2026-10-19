@@ -44,7 +44,11 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
 # The contract for programs using this API (the LakebaOS desktop client): `api` goes up only when a
 # route changes in a way that breaks them; `features` names what this version offers.
 API_VERSION = 1
-FEATURES = ["meta", "client-token", "jobs.offset", "config.sha", "approve", "release.approve", "estimate", "story", "setup"]
+FEATURES = ["meta", "client-token", "jobs.offset", "config.sha", "approve", "release.approve", "estimate", "story", "setup",
+            "schedule", "usage.resets", "client-token-stdin", "pr.review"]
+SCHEDULABLE = ("ship", "doctor")   # what `agent-team schedule --workflow` accepts
+PR_FILES_LIMIT = 300_000           # bytes of patches /api/pr/<n> returns
+MAX_REVIEW_COMMENTS = 50
 HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
     "X-Content-Type-Options": "nosniff",
@@ -153,7 +157,65 @@ def usage_info(team: config.Team) -> dict:
     summary["recorded_calls"] = len(entries)
     summary["today"] = by_day.get(usage.now()[:10], {}).get("cost", 0.0)
     summary["limits"] = {"per_run": team.limits.per_run, "per_day": team.limits.per_day}
+    # The daily limit counts UTC days (usage.now()), so it resets at the next UTC midnight.
+    import datetime
+    midnight = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    summary["resets_at"] = midnight.isoformat(timespec="seconds")
+    summary["remaining_today"] = round(max(0.0, team.limits.per_day - summary["today"]), 4) if team.limits.per_day else None
     return summary
+
+
+def schedules(root) -> dict:
+    from .. import schedule
+    return {"schedules": {w: schedule.show(root, w) for w in SCHEDULABLE}}
+
+
+def pr_info(team, number: int) -> dict:
+    """A pull request's title, head commit and changed files with their patches (size-limited)."""
+    from .. import github as gh_mod
+    repo = team.project.repo
+    if not repo:
+        raise config.ConfigError("[project].repo is not set")
+    info = gh_mod.gh_json("pr", "view", str(number), "-R", repo, "--json", "number,title,headRefOid,state,url")
+    files, used = [], 0
+    for f in gh_mod.gh_json("api", f"repos/{repo}/pulls/{number}/files?per_page=100") or []:
+        patch = f.get("patch") or ""
+        if used + len(patch) > PR_FILES_LIMIT:
+            patch = ""   # listed, but too much to show here
+        used += len(patch)
+        files.append({"path": f.get("filename", ""), "status": f.get("status", ""), "patch": patch})
+    return {"number": info["number"], "title": info["title"], "state": info["state"], "url": info.get("url", ""),
+            "head_sha": info["headRefOid"], "files": files}
+
+
+def post_review(team, number: int, comments, start_fix: bool) -> dict:
+    """The owner's line comments on a pull request, posted as one review (event COMMENT) from their
+    own gh account; with start_fix, a fix run starts on it afterwards."""
+    from .. import github as gh_mod
+    if not isinstance(comments, list) or not 1 <= len(comments) <= MAX_REVIEW_COMMENTS:
+        raise config.ConfigError(f"send 1 to {MAX_REVIEW_COMMENTS} comments")
+    pr = pr_info(team, number)
+    if pr["state"] != "OPEN":
+        raise config.ConfigError(f"PR #{number} is {pr['state'].lower()}")
+    paths = {f["path"] for f in pr["files"]}
+    checked = []
+    for c in comments:
+        path, line, body = (c or {}).get("path"), (c or {}).get("line"), (c or {}).get("body")
+        if path not in paths:
+            raise config.ConfigError(f"{path!r} isn't one of the files PR #{number} changes")
+        if not isinstance(line, int) or isinstance(line, bool) or line < 1:
+            raise config.ConfigError("line must be a positive whole number")
+        if not isinstance(body, str) or not 1 <= len(body.strip()) <= 4000:
+            raise config.ConfigError("each comment is 1 to 4000 characters")
+        checked.append({"path": path, "line": line, "side": "RIGHT", "body": body.strip()})
+    review = {"commit_id": pr["head_sha"], "event": "COMMENT", "body": "", "comments": checked}
+    out = gh_mod.gh("api", "--method", "POST", f"repos/{team.project.repo}/pulls/{number}/reviews", "--input", "-",
+                    input=json.dumps(review))
+    posted = json.loads(out or "{}")
+    result = {"posted": len(checked), "review_url": posted.get("html_url", "")}
+    if start_fix:
+        result["run"] = jobs.start(team.root, "fix", {"number": number})
+    return result
 
 
 class _GitHubCache:
@@ -318,6 +380,14 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
                     return self._json(github_cache.get(team))
                 if path == "/api/jobs":
                     return self._json({"jobs": jobs.list_jobs(team.root)})
+                if path == "/api/schedule":
+                    return self._json(schedules(team.root))
+                if re.fullmatch(r"/api/pr/\d{1,7}", path):
+                    from .. import github as gh_mod
+                    try:
+                        return self._json(pr_info(team, int(path.rsplit("/", 1)[1])))
+                    except gh_mod.GitHubError as e:
+                        return self._json({"error": f"GitHub: {str(e)[:300]}"}, 502)
                 if path.startswith("/api/jobs/"):
                     query = dict(q.split("=", 1) for q in self.path.partition("?")[2].split("&") if "=" in q)
                     try:
@@ -446,6 +516,32 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
                     if isinstance(params, dict) and "release" in params:
                         return self._json({"error": "approving a release has its own route: POST /api/release/approve"}, 422)
                     return self._json(jobs.start(root, str(body.get("workflow", "")), params))
+                if path == "/api/schedule":
+                    from .. import schedule
+                    workflow = body.get("workflow")
+                    if workflow not in SCHEDULABLE:
+                        return self._json({"error": f"workflow is one of {', '.join(SCHEDULABLE)}"}, 422)
+                    try:
+                        every = schedule.parse_every(str(body.get("every", "")))
+                    except ValueError as e:
+                        return self._json({"error": str(e)}, 422)
+                    config.load(root)
+                    extra = ["--max-steps", "30"] if workflow == "ship" else []
+                    where = schedule.install(root, workflow, every, extra)
+                    return self._json({"workflow": workflow, "every": every, "where": where, **schedules(root)})
+                if path == "/api/schedule/remove":
+                    from .. import schedule
+                    workflow = body.get("workflow")
+                    if workflow not in SCHEDULABLE:
+                        return self._json({"error": f"workflow is one of {', '.join(SCHEDULABLE)}"}, 422)
+                    return self._json({"removed": schedule.remove(root, workflow), **schedules(root)})
+                if re.fullmatch(r"/api/pr/\d{1,7}/comments", path):
+                    from .. import github as gh_mod
+                    try:
+                        return self._json(post_review(config.load(root), int(path.split("/")[3]), body.get("comments"),
+                                                      bool(body.get("start_fix"))))
+                    except gh_mod.GitHubError as e:
+                        return self._json({"error": f"GitHub: {str(e)[:300]}"}, 502)
                 if path == "/api/release/approve":
                     # The owner approves the release the devops shift proposed, and only that one: a shift
                     # starts that publishes it. Never offered over MCP.
