@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.13.7] - 2026-10-19
+
 ### Fixed
 
 - `init` and the guided setup gave the QA member `tests/` in a project whose folder is `Tests/` (common
