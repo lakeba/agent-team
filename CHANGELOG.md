@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-10-19
+
 ### Added
 
 - Local model servers besides Ollama are found and can run the local members: mlx_lm (port 8080),
