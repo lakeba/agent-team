@@ -99,19 +99,24 @@ for you, or autopilot stops.
 
 On a Mac, download [Lakeba OS](https://lakeba.github.io/agent-team/downloads/Lakeba-OS-mac.zip), unzip
 it and double-click **Lakeba OS** (the first time, right-click it and choose **Open**). It installs
-agent-team and opens the dashboard in your browser, where a guided setup walks through seven short
+agent-team and opens the dashboard in your browser, where a guided setup walks through eight short
 steps:
 
 1. **Your idea**: a name and a few sentences; it becomes the project's `VISION.md`.
-2. **Where the AI runs**: free on this computer (Ollama, found for you, with a one-click model
+2. **Inspiration** (optional): an app you like, a few things to try there, and your confirmation that
+   you may look at it from the outside.
+3. **Where the AI runs**: free on this computer (Ollama, found for you, with a one-click model
    download), Claude (paste your key: it's saved only on this computer and checked at once), or both.
-3. **Your team**: the members and what each does, optional QA, security and docs members, the
+4. **Your team**: the members and what each does, optional QA, security and docs members, the
    number of builders and a daily spend limit.
-4. The project is created for you in `~/LakebaOS/<name>`: git, `VISION.md`, `README.md`,
+5. The project is created for you in `~/LakebaOS/<name>`: git, `VISION.md`, `README.md`,
    `.team.toml`, the library template and a first save.
-5. **GitHub** (optional): sign in on GitHub's own page and create a private repository.
-6. **Ready check**: every requirement with a button to fix it where it can be fixed from the page.
-7. **First version**: the lead reads the idea and suggests the first tasks; tick them and press Build.
+6. **GitHub** (optional): sign in on GitHub's own page and create a private repository.
+7. **Ready check**: every requirement with a button to fix it where it can be fixed from the page,
+   including installing REA.
+8. **First version**: the team first explores the app you like (if you named one); the lead reads the
+   idea and the brief, suggests the first tasks and drafts an "Inspired by, and different from" section
+   for your vision; tick the tasks and press Build.
 
 The dashboard then opens on **My MVP**: what the team is doing right now in plain words ("Forge
 is writing the code", "Tests: 12 passed", "Atlas approved it"), **Run my app** (a web app opens in

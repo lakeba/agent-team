@@ -1,6 +1,6 @@
 # Inspire in the app, and a website for people who don't code
 
-Status: approved on 20 October 2026, with the decisions in section 6. Phase A1 is under way.
+Status: approved on 20 October 2026, with the decisions in section 6. Phases A1 and A2 are done (not yet released).
 
 Checked against agent-team 0.13.12 (`main` at f839d12) and lakebaos-client `main` at a2850c0, on 20 October 2026.
 
@@ -175,7 +175,8 @@ A 60–90 second narrated walkthrough, from idea to a running MVP, once the app'
 | A3 | lakebaos-client | The Inspiration card, the native confirmation, the brief view and gallery, smoke tests | M |
 | B1 | lakebaos-client | `npm run capture`: screenshots and loops from the real app and a demo project | M |
 | B2 | agent-team | The new page: hero, the four steps with loops, Inspire, For developers | M |
-| A4 | agent-team | Inspire for desktop apps and APKs: run them and watch, never open them up | M |
+| A4 | agent-team | Inspire for desktop apps and APKs: run them and watch | M |
+| A5 | agent-team | Opening up apps the founder owns or may inspect (after legal review) | M |
 | B3 | either | The narrated walkthrough on YouTube (later) | S |
 
 - A1, then A2 and A3. B1, then B2.
@@ -218,11 +219,16 @@ A 60–90 second narrated walkthrough, from idea to a running MVP, once the app'
      does and records its screens and the text a screen reader gets: macOS and Linux apps, Electron apps (their
      windows only), and Android apps in an emulator. As with websites: no sign-in, nothing beyond what a user sees,
      and the founder confirms. The founder's own screenshots of an app are also accepted (phase 3 of the first plan).
-   - **Opening the app up (not planned; needs your decision and Lakeba's legal review).** This covers decompiling,
-     disassembling, unpacking bundles, reading the code, its strings or its network API. Most apps' licences forbid
-     it, and it's how a product ends up copying another's code. If it's ever added, it would only be for apps the
-     founder owns or has written permission to inspect, and its output would still never reach members who write
-     code.
+   - **Opening the app up (decided: allowed only for apps the founder owns or has written permission to
+     inspect, after Lakeba's legal review; phase A5, not started until that review).** This covers decompiling,
+     disassembling, unpacking bundles, and reading the code, its strings or its network API. Most apps' licences
+     forbid it for anyone else, so the limits are in code, not just in the confirmation:
+     - the founder states which applies (their own app, or written permission) and attaches or names the
+       permission; it's kept with the captures, dated;
+     - REA's inspection tools are offered for that run only, to the scout, never to the lead's tools or members
+       who write code (`config.REVERSE_TOOL` and `WRITES_CODE` stay as they are);
+     - the brief describes what the app does in the team's words, never its code, and the "Don't copy" rules apply.
+
 3. **The walkthrough video lives on YouTube**, embedded with `youtube-nocookie.com`.
 4. **The hero's main button is "Start your Business Now".**
 5. **The made-up app needs a better idea.** Before B1, we'll come up with a product worth showing: a believable
@@ -235,4 +241,4 @@ A 60–90 second narrated walkthrough, from idea to a running MVP, once the app'
 ## 7. Still open
 
 1. **Legal review** of the confirmation statement and of the website's description of Inspire.
-2. **Opening apps up** (decision 2, second part): yes with the limits above, or never.
+2. **Opening apps up**: Lakeba's legal review, before phase A5 starts.

@@ -11,7 +11,10 @@ library pieces), so a project set up here is the same as one set up in a termina
     github_login()      `gh auth login --web`, its one-time code shown in the page
     create_repo()       a private GitHub repository for the project, pushed
     ready()             the readiness checklist, with the fixes the page can do itself
-    suggest_tasks()     the lead reads the vision and proposes the first tasks
+    suggest_tasks()     the lead reads the vision (and any inspiration brief) and proposes the first tasks
+    install_rea()       REA, for behaviour checks and Inspire, installed and set up for the project
+    inspired_section()  the lead drafts "Inspired by, and different from" for VISION.md from the brief
+    add_to_vision()     the founder's accepted section, added to VISION.md
 """
 from __future__ import annotations
 
@@ -171,6 +174,7 @@ def create_project(form: dict) -> dict:
     if address_problem(ollama_url):
         raise SetupError(address_problem(ollama_url))
     ollama_model = _text(form, "ollama_model", 120)
+    inspiration = _inspiration(form)
     if not shutil.which("git"):
         raise SetupError("git isn't installed on this computer; install it (macOS: xcode-select --install) and try again")
     folder = _text(form, "folder", 500)
@@ -231,7 +235,26 @@ def create_project(form: dict) -> dict:
             shutil.rmtree(root, ignore_errors=True)   # nothing half-made left behind (never a folder we didn't make)
         raise
     projects.register(root)
+    if inspiration:   # the founder ticked the confirmation in the wizard: kept with the app's captures
+        from . import inspire
+        inspire.confirm(root, inspiration)
     return {"root": str(root.resolve()), "notes": notes}
+
+
+def _inspiration(form: dict) -> str:
+    """The app the founder likes, from the wizard's optional step: its address, only with the
+    confirmation ticked. "" when the step was skipped."""
+    from . import inspire
+    want = form.get("inspire") or {}
+    if not isinstance(want, dict) or not str(want.get("url", "")).strip():
+        return ""
+    try:
+        url = inspire.check_url(want.get("url"))
+    except inspire.InspireError as e:
+        raise SetupError(str(e)) from None
+    if want.get("confirmed") is not True:
+        raise SetupError("tick the confirmation to explore that app, or skip the step")
+    return url
 
 
 # ---------------------------------------------------------------------------------------------
@@ -357,7 +380,8 @@ def create_repo(root: Path, private: bool = True) -> dict:
 
 OPTIONAL_HERE = {"GitHub CLI": "Optional: connect GitHub to keep your code online (the GitHub step).",
                  "GitHub repo": "Optional: connect GitHub to keep your code online (the GitHub step).",
-                 "REA (behaviour checks)": "Optional: behaviour checks use the app like a user would. Set up later."}
+                 "REA (behaviour checks)": "Optional: behaviour checks use the app like a user would, and Inspire explores an "
+                                           "app you like with it."}
 
 
 def ready(root: Path) -> list[dict]:
@@ -371,6 +395,9 @@ def ready(root: Path) -> list[dict]:
             continue
         seen.add(name)
         short = name.split(":")[0]
+        if short == "REA (behaviour checks)":   # listed only while this team doesn't use it: the page sets it up
+            c = {**c, "ok": False}
+            action = "rea"
         if short in OPTIONAL_HERE and not c["ok"]:
             c = {**c, "optional": True, "fix": "", "detail": f"{c['detail']}. {OPTIONAL_HERE[short]}"}
         if not c["ok"]:
@@ -396,6 +423,26 @@ TASK: <the task>
 {vision}"""
 
 
+INSPIRED = """
+
+# An app the founder likes, seen from the outside
+
+The founder named an app that inspires them; the brief below was written from its public pages. Plan
+the founder's own product: use it to choose what matters first, never to copy its names, wording or
+design. Write the tasks in your own words.
+
+{briefs}"""
+
+
+def _briefs(team, cfg) -> str:
+    from . import github, inspire
+    try:
+        text = inspire.for_member(team, cfg)
+    except inspire.InspireError:
+        return ""
+    return github.untrusted(text[:12_000]) if text.strip() else ""
+
+
 def suggest_tasks(root: Path, n: int = 4) -> list[str]:
     from . import agent
     from .config import load
@@ -404,9 +451,81 @@ def suggest_tasks(root: Path, n: int = 4) -> list[str]:
     vision = vision_path.read_text(encoding="utf-8") if vision_path.exists() else ""
     if not vision.strip():
         raise SetupError("the project has no VISION.md to plan from")
-    lead = agent.make(team, team.by_role("lead"), "member", label_suffix=" · first tasks")
-    reply = lead.turn(SUGGEST.format(n=n, vision=vision[:12_000]))
+    lead_cfg = team.by_role("lead")
+    lead = agent.make(team, lead_cfg, "member", label_suffix=" · first tasks")
+    prompt = SUGGEST.format(n=n, vision=vision[:12_000])
+    briefs = _briefs(team, lead_cfg)
+    if briefs:
+        prompt += INSPIRED.format(briefs=briefs)
+    reply = lead.turn(prompt)
     tasks = [t.strip().strip("`") for t in TASK_RE.findall(reply)][:6]
     if not tasks:
         raise SetupError("the lead didn't propose tasks; write your own below")
     return tasks
+
+
+# ---------------------------------------------------------------------------------------------
+# REA and Inspire
+
+def install_rea(root: Path) -> dict:
+    """REA, set up for this project: agent-team's own copy installed first when none is here (npm,
+    a minute or two). Returns {"command", "where"}; SetupError says what's missing (Node.js)."""
+    from . import rea
+    command, args, where = rea.find()
+    if not command:
+        ok, detail = rea.node_ok()
+        if not ok:
+            raise SetupError(f"REA needs Node.js 22.19+, 24.11+ or 26+ ({detail}); install it from https://nodejs.org, then check again")
+        try:
+            rea.install(yes=True)
+        except SystemExit as e:
+            raise SetupError(str(e)) from None
+        command, args, where = rea.find()
+    rea.configure(Path(root), command, args)
+    return {"command": command, "where": where}
+
+
+VISION_HEADING = "## Inspired by, and different from"
+
+INSPIRED_SECTION = """The founder's product vision and the inspiration brief of an app they like are below. Write a short
+section for their VISION.md, in their voice, under no heading of your own: two or three sentences on
+what they take as inspiration (in general words, never the other app's names for things), then three
+bullet points on how their product will be different and for whom. Never name the other app's brand
+in a way that suggests a connection, and never copy its wording. Under 150 words.
+
+# The vision
+
+{vision}
+
+# The brief
+
+{briefs}"""
+
+
+def inspired_section(root: Path) -> str:
+    """The lead's draft of "Inspired by, and different from", from the brief, for the founder to edit."""
+    from . import agent
+    from .config import load
+    team = load(root)
+    lead_cfg = team.by_role("lead")
+    briefs = _briefs(team, lead_cfg)
+    if not briefs:
+        raise SetupError("no inspiration brief yet: explore an app first")
+    vision = (Path(root) / "VISION.md").read_text(encoding="utf-8") if (Path(root) / "VISION.md").exists() else ""
+    lead = agent.make(team, lead_cfg, "member", label_suffix=" · inspired by")
+    text = lead.turn(INSPIRED_SECTION.format(vision=vision[:8000], briefs=briefs)).strip()
+    return re.sub(r"^#+\s*Inspired by.*\n+", "", text, flags=re.I).strip()
+
+
+def add_to_vision(root: Path, text: str) -> dict:
+    """The founder's section, added to VISION.md (or replacing the one added before), and committed."""
+    text = (text or "").strip() if isinstance(text, str) else ""
+    if not text or len(text) > 4000:
+        raise SetupError("the section is 1 to 4000 characters")
+    path = Path(root) / "VISION.md"
+    body = path.read_text(encoding="utf-8") if path.exists() else "# Vision\n"
+    body = re.split(rf"\n{re.escape(VISION_HEADING)}\n", body)[0].rstrip()
+    path.write_text(f"{body}\n\n{VISION_HEADING}\n\n{text}\n", encoding="utf-8")
+    _run(["git", "add", "--", "VISION.md"], Path(root))
+    _run(["git", "commit", "-q", "-m", "Vision: inspired by, and different from"], Path(root))
+    return {"ok": True}

@@ -16,6 +16,11 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
   `/api/inspiration`, `/api/inspiration/<app>`, its screenshots, `confirm` and `forget` (feature
   `inspiration`). MCP never offers it.
 - The journeys you asked for are kept with the captures, so a run can be repeated.
+- The guided setup has an optional **Inspiration** step: an app you like, what to try there, and your
+  confirmation. The Ready check installs REA with one button. At **First version**, the team explores
+  the app, the lead suggests the first tasks with the brief in mind, and drafts an "Inspired by, and
+  different from" section for `VISION.md`, which you edit and accept. `agent-team init` asks about an
+  app you like too.
 
 ## [0.13.12] - 2026-10-20
 

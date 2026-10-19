@@ -496,6 +496,12 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
                         return self._json({"ok": True})
                     if path == "/api/setup/tasks":
                         return self._json({"tasks": setup_wizard.suggest_tasks(here["root"])})
+                    if path == "/api/setup/rea":
+                        return self._json(setup_wizard.install_rea(here["root"]))
+                    if path == "/api/setup/inspired":
+                        return self._json({"text": setup_wizard.inspired_section(here["root"])})
+                    if path == "/api/setup/vision":
+                        return self._json(setup_wizard.add_to_vision(here["root"], body.get("text")))
                     return self._json({"error": "not found"}, 404)
                 root = here["root"]
                 if root is None:

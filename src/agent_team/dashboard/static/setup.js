@@ -7,8 +7,9 @@
 const wizard = { step: 0, status: null, busy: "", error: "", project: "", ready: null, tasks: null, chosen: [],
   own: "", login: null, pull: {}, repo: "", keyResult: null,
   form: { name: "", vision: "", owner: "", models: "", ollama_url: "", ollama_model: "", extras: ["qa"], builders: 1, per_day: 5,
-          folder: "", existing: false } };
-const STEPS = ["Welcome", "Your idea", "Where the AI runs", "Your team", "GitHub", "Ready check", "First version"];
+          folder: "", existing: false, inspire: { url: "", journeys: "", ok: false } },
+  explore: null };   // the inspire run started from the last step: {id, status, story}
+const STEPS = ["Welcome", "Your idea", "Inspiration", "Where the AI runs", "Your team", "GitHub", "Ready check", "First version"];
 
 function wizardRoot() { return document.getElementById("setup"); }
 
@@ -42,7 +43,7 @@ async function scanNetwork() {
     if (!wizard.form.ollama_url && s.ollama.length) { wizard.form.ollama_url = s.ollama[0].url; wizard.form.local_kind = s.ollama[0].kind; }
   } catch (_) {}
   wizard.scanning = false;
-  if (wizard.step === 2) renderSetup();
+  if (wizard.step === 3) renderSetup();
 }
 
 function pickModel(models, recommended) {
@@ -75,7 +76,7 @@ function renderSetup() {
   const card = h("div", { class: "card wiz" }, stepDots());
   if (wizard.error) card.append(h("div", { class: "card notice bad wiz-msg", role: "alert" }, wizard.error));
   if (wizard.busy) card.append(h("p", { class: "wiz-busy", role: "status" }, h("span", { class: "spinner", "aria-hidden": "true" }), wizard.busy));
-  const body = [welcome, idea, models, team, github, readyCheck, firstVersion][wizard.step]();
+  const body = [welcome, idea, inspiration, models, team, github, readyCheck, firstVersion][wizard.step]();
   card.append(...[body].flat());
   root.append(card);
 }
@@ -149,6 +150,31 @@ function idea() {
 }
 function fail(msg) { wizard.error = msg; renderSetup(); }
 
+// ---------- 2. An app you like (optional) ----------
+function journeyLines() {
+  return wizard.form.inspire.journeys.split("\n").map(l => l.split(";").map(x => x.trim()).filter(Boolean)).filter(j => j.length).slice(0, 3);
+}
+function inspiration() {
+  const i = wizard.form.inspire;
+  const ok = h("input", { type: "checkbox", checked: i.ok ? true : null, onchange: e => { i.ok = e.target.checked; } });
+  return [h("h2", { class: "wiz-title" }, "Is there an app you like?"),
+    h("p", { class: "secondary" }, "Optional. Most products start as “like X, but for Y”. Name X and the team looks at it the way a visitor does: " +
+      "its public pages and a few steps you choose, with a screenshot of each. Atlas then writes a brief (what it does, its prices, " +
+      "what’s missing, and how yours can be different) and plans your product with it in mind. Nothing is copied, and the members " +
+      "who write the code never see it."),
+    field("The app’s web address", input(i, "url", { type: "url", placeholder: "https://an-app-you-like.com", maxlength: 2000 })),
+    field("What to try there (optional)", area(i, "journeys", { rows: 3, placeholder: 'click link "Pricing"\nclick link "Features"; click button "Watch the demo"' }),
+      "One journey per line, up to three, steps separated by ; (click, fill, press, goto, wait)."),
+    h("label", { class: "choice wiz-confirm" }, ok, " ", "I use this app, and I may look at its public pages this way: from the outside, " +
+      "without signing in, keeping to its robots.txt. The team won’t copy its code, wording, names, logos or designs."),
+    nav("Next", () => {
+      if (!i.url.trim()) return go(3);
+      if (!/^https?:\/\/[^\s/]+\S*$/.test(i.url.trim())) return fail("The app’s address starts with https:// (or leave it empty to skip).");
+      if (!i.ok) return fail("Tick the confirmation to explore that app, or skip this step.");
+      go(3);
+    }, { skip: () => { Object.assign(i, { url: "", journeys: "", ok: false }); go(3); } })];
+}
+
 // ---------- 2. Where the AI runs ----------
 function models() {
   const f = wizard.form, s = wizard.status || {};
@@ -167,7 +193,7 @@ function models() {
     if (f.models !== "ollama" && !s.claude_key) return fail("Add your Anthropic key first, or choose “Free, on this computer”.");
     if (f.models !== "claude" && !f.ollama_url) return fail("No local model server was found. Install Ollama and press “Check again”, or choose Claude.");
     if (f.models !== "claude" && !f.ollama_model) return fail("Say which model the local server runs.");
-    go(3);
+    go(4);
   }));
   return out;
 }
@@ -302,9 +328,10 @@ async function createProject() {
   const f = wizard.form;
   wizard.busy = "Setting up your project: folder, team, rules and a first save…"; wizard.error = ""; renderSetup();
   try {
-    const made = await postJSON("/api/setup/project", { ...f, per_day: f.models === "ollama" ? 0 : f.per_day });
+    const inspire = f.inspire.url.trim() ? { url: f.inspire.url.trim(), confirmed: f.inspire.ok } : null;
+    const made = await postJSON("/api/setup/project", { ...f, inspire, per_day: f.models === "ollama" ? 0 : f.per_day });
     wizard.project = made.root;
-    wizard.busy = ""; go(4);
+    wizard.busy = ""; go(5);
   } catch (e) { wizard.busy = ""; fail(e.message); }
 }
 
@@ -328,7 +355,7 @@ function github() {
   } else box.append(status("good", `Signed in to GitHub as ${g.user}`),
     h("p", { class: "secondary small" }, "Create a private repository for this project and upload the code."),
     h("div", { class: "actions" }, h("button", { type: "button", class: "primary", onclick: makeRepo }, "Create my private repository")));
-  out.push(box, nav("Next", () => go(5), { skip: () => go(5) }));
+  out.push(box, nav("Next", () => go(6), { skip: () => go(6) }));
   return out;
 }
 async function refreshGithub() { try { wizard.status.github = await getJSON("/api/setup/github"); } catch (e) { wizard.error = e.message; } renderSetup(); }
@@ -359,9 +386,14 @@ function readyCheck() {
       c.ok ? status("good", c.name) : c.optional ? status("warn", c.name) : status("bad", c.name),
       h("span", { class: "muted small" }, ` ${c.detail}`),
       !c.ok ? fixFor(c) : null)))];
-  out.push(nav(missing.length ? "Continue anyway" : "Next", () => go(6),
+  out.push(nav(missing.length ? "Continue anyway" : "Next", () => go(7),
     { skip: () => { wizard.ready = null; renderSetup(); }, skipLabel: "Check again" }));
   return out;
+}
+async function installRea() {
+  wizard.busy = "Installing REA (a minute or two)…"; wizard.error = ""; renderSetup();
+  try { await postJSON("/api/setup/rea", {}); } catch (e) { wizard.error = e.message; }
+  wizard.busy = ""; wizard.ready = null; renderSetup();
 }
 async function loadReady() {
   wizard.busy = "Checking git, GitHub, keys and models…"; renderSetup();
@@ -372,7 +404,8 @@ function fixFor(c) {
   const a = c.action || "";
   if (a === "key") return h("div", { class: "wiz-fix" }, keyBox());
   if (a.startsWith("pull:")) return h("div", { class: "wiz-fix" }, pullControl(wizard.form.ollama_url || "http://localhost:11434", a.slice(5)));
-  if (a === "github") return h("button", { type: "button", onclick: () => go(4) }, "Connect GitHub");
+  if (a === "github") return h("button", { type: "button", onclick: () => go(5) }, "Connect GitHub");
+  if (a === "rea") return h("button", { type: "button", onclick: installRea }, "Install REA");
   if (a === "identity") {
     const who = { name: wizard.form.owner || "", email: "" };
     return h("div", { class: "wiz-fix row" }, input(who, "name", { placeholder: "Your name" }), input(who, "email", { placeholder: "Email (optional)" }),
@@ -382,8 +415,73 @@ function fixFor(c) {
 }
 
 // ---------- 6. First version ----------
+function exploreBox() {
+  const i = wizard.form.inspire, x = wizard.explore;
+  if (!i.url.trim()) return null;
+  const box = h("div", { class: "card wiz-box" }, h("h3", {}, "The app you like"), h("p", { class: "mono small" }, i.url.trim()));
+  const reaMissing = (wizard.ready || []).some(c => c.action === "rea");
+  if (!x) {
+    if (reaMissing) box.append(h("p", { class: "secondary small" }, "Exploring it needs REA, which looks at web pages like a visitor."),
+      h("div", { class: "actions" }, h("button", { type: "button", onclick: installRea }, "Install REA")));
+    else box.append(h("p", { class: "secondary small" }, "First the team explores it, then Atlas suggests your first tasks with the brief in mind. A few minutes."),
+      h("div", { class: "actions" }, h("button", { type: "button", class: "primary", onclick: startExplore }, "Explore it now"),
+        h("button", { type: "button", onclick: () => { wizard.explore = { status: "skipped" }; renderSetup(); } }, "Skip")));
+  } else if (x.status === "running") {
+    box.append(h("p", { class: "wiz-busy", role: "status" }, h("span", { class: "spinner", "aria-hidden": "true" }), x.story || "Exploring…"));
+  } else if (x.status === "succeeded") {
+    box.append(h("p", {}, status("good", "brief written"), " ", h("span", { class: "muted small" }, "Read it any time in the Inspiration tab.")));
+    box.append(inspiredBox());
+  } else if (x.status !== "skipped") {
+    box.append(h("p", {}, status("bad", `didn’t finish (${x.status})`), " ", h("span", { class: "muted small" }, x.tail || "")),
+      h("div", { class: "actions" }, h("button", { type: "button", onclick: startExplore }, "Try again")));
+  }
+  return box;
+}
+async function startExplore() {
+  const i = wizard.form.inspire;
+  wizard.error = "";
+  try {
+    const job = await postJSON("/api/jobs/start", { workflow: "inspire", params: { url: i.url.trim(), journeys: journeyLines(), max_pages: 12 } });
+    wizard.explore = { id: job.id, status: "running", story: "Exploring…" };
+    renderSetup();
+    followExplore();
+  } catch (e) { fail(e.message); }
+}
+async function followExplore() {
+  const x = wizard.explore;
+  while (x && x.status === "running") {
+    await new Promise(r => setTimeout(r, 3000));
+    try {
+      const out = await getJSON(`/api/jobs/${encodeURIComponent(x.id)}?offset=0`);
+      x.status = out.status;
+      const last = out.text.trim().split("\n").filter(l => l.includes("inspire:")).pop();
+      x.story = last ? last.replace(/^.*inspire:\s*/, "").replace(/^looking at /, "Looking at ") : x.story;
+      if (out.status !== "running") x.tail = out.text.trim().split("\n").slice(-2).join(" ").slice(-300);
+    } catch (e) { x.status = "lost"; x.tail = e.message; }
+    if (wizard.step === 7) renderSetup();
+  }
+}
+function inspiredBox() {
+  const v = wizard.vision || (wizard.vision = { text: null, done: false });
+  if (v.done) return h("p", { class: "muted small" }, "Added to your vision (VISION.md).");
+  if (v.text === null) return h("div", { class: "actions" },
+    h("button", { type: "button", disabled: wizard.busy ? true : null, onclick: async () => {
+      wizard.busy = "Atlas is writing how yours will be different…"; renderSetup();
+      try { v.text = (await postJSON("/api/setup/inspired", {})).text; } catch (e) { wizard.error = e.message; }
+      wizard.busy = ""; renderSetup();
+    } }, "Draft “Inspired by, and different from” for my vision"));
+  return h("div", {}, field("Inspired by, and different from (edit as you like)", area(v, "text", { rows: 7 })),
+    h("div", { class: "actions" }, h("button", { type: "button", class: "primary", onclick: async () => {
+      try { await postJSON("/api/setup/vision", { text: v.text }); v.done = true; } catch (e) { wizard.error = e.message; }
+      renderSetup();
+    } }, "Add to my vision"), h("button", { type: "button", onclick: () => { v.done = true; v.text = ""; renderSetup(); } }, "Not now")));
+}
+
 function firstVersion() {
   const out = [h("h2", { class: "wiz-title" }, "What should the first version do?")];
+  const ex = exploreBox();
+  if (ex) out.push(ex);
+  if (ex && wizard.explore?.status === "running") return out;   // the tasks wait for the brief
   if (wizard.tasks === null && !wizard.busy) {
     out.push(h("p", { class: "secondary" }, "Atlas, your lead, can read your idea and suggest the first tasks. It takes a minute (longer on a local model)."),
       h("div", { class: "actions" }, h("button", { type: "button", class: "primary", onclick: suggest }, "Suggest the first tasks"),

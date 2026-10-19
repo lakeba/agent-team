@@ -54,7 +54,7 @@ class CompositionTests(unittest.TestCase):
 
     def test_init_asks_in_a_terminal(self):
         root = Path(tempfile.mkdtemp())
-        answers = iter(["", "2", "security, docs", "2", "1", "y"])   # no vision, Ollama only, two extras, 2 builders, first server, write
+        answers = iter(["", "", "2", "security, docs", "2", "1", "y"])   # no vision, no app, Ollama only, two extras, 2 builders, first server, write
         servers = [("http://10.37.129.2:11434", ["qwen3-coder:30b"])]
         with mock.patch("builtins.input", lambda prompt="": next(answers)), \
                 mock.patch.object(readiness, "find_ollama", return_value=servers), quiet():
@@ -67,7 +67,7 @@ class CompositionTests(unittest.TestCase):
 
     def test_saying_no_writes_nothing(self):
         root = Path(tempfile.mkdtemp())
-        answers = iter(["", "3", "none", "1", "n", "n"])   # no vision, Claude only, no extras, 1 builder, no limits, don't write
+        answers = iter(["", "", "3", "none", "1", "n", "n"])   # no vision, no app, Claude only, no extras, 1 builder, no limits, don't write
         with mock.patch("builtins.input", lambda prompt="": next(answers)), quiet():
             with self.assertRaises(SystemExit):
                 init.run(root, interactive=True)
@@ -77,8 +77,26 @@ class CompositionTests(unittest.TestCase):
         root = Path(tempfile.mkdtemp())
         answers = iter(["y"])   # only the final confirmation is asked
         with mock.patch("builtins.input", lambda prompt="": next(answers)), quiet():
-            init.run(root, interactive=True, models="claude", extras=(), builders=1, per_run=0, per_day=0, vision="")
+            init.run(root, interactive=True, models="claude", extras=(), builders=1, per_run=0, per_day=0, vision="", inspire_url="")
         self.assertEqual(len(config.load(root).agents), 4)
+
+
+class InspirationQuestionTests(unittest.TestCase):
+    def test_init_asks_for_an_app_you_like_and_its_confirmation(self):
+        from agent_team import inspire
+        root = Path(tempfile.mkdtemp())
+        answers = iter(["", "https://app.example/", "y", "3", "none", "1", "n", "y"])
+        out = io.StringIO()
+        with mock.patch("builtins.input", lambda prompt="": next(answers)), mock.patch("sys.stdout", out):
+            init.run(root, interactive=True)
+        self.assertTrue(inspire.confirmed(root, "https://app.example/"))
+        self.assertIn(inspire.CONFIRMATION, out.getvalue())
+        self.assertIn("agent-team inspire https://app.example/", out.getvalue())
+        other = Path(tempfile.mkdtemp())   # no confirmation, no app
+        answers = iter(["", "https://app.example/", "", "3", "none", "1", "n", "y"])
+        with mock.patch("builtins.input", lambda prompt="": next(answers)), quiet():
+            init.run(other, interactive=True)
+        self.assertEqual(inspire.apps(other), [])
 
 
 class VisionTests(unittest.TestCase):
@@ -87,7 +105,7 @@ class VisionTests(unittest.TestCase):
 
     def test_init_asks_for_the_vision_first_and_saves_it(self):
         root = Path(tempfile.mkdtemp())
-        answers = iter(["Split a bill between friends in one command.", "3", "none", "1", "n", "y"])
+        answers = iter(["Split a bill between friends in one command.", "", "3", "none", "1", "n", "y"])
         with mock.patch("builtins.input", lambda prompt="": next(answers)), quiet():
             init.run(root, interactive=True)
         self.assertEqual((root / "VISION.md").read_text(), "# Vision\n\nSplit a bill between friends in one command.\n")

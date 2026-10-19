@@ -235,7 +235,7 @@ button.link.selected { font-weight: 600; text-decoration: underline; }
 .wiz-title { font-size: 22px; margin: 6px 0 0; }
 .wiz .lede { font-size: 16px; color: var(--text-secondary); }
 .wiz-sub { margin-top: 18px; }
-.wiz-steps { display: flex; flex-wrap: wrap; gap: 6px 14px; list-style: none; padding: 0; margin: 0 0 6px; font-size: 12px; color: var(--text-muted); }
+.wiz-steps { display: flex; flex-wrap: wrap; gap: 6px 9px; list-style: none; padding: 0; margin: 0 0 6px; font-size: 12px; color: var(--text-muted); }
 .wiz-steps li { display: flex; align-items: center; gap: 6px; }
 .wiz-steps .n { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); font-size: 11px; }
 .wiz-steps .on { color: var(--text-primary); font-weight: 600; }
@@ -255,7 +255,7 @@ button.big, .button.big { padding: 9px 18px; font-size: 15px; }
 button.primary, a.button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 a.button { display: inline-block; border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
 a.button:hover { text-decoration: none; filter: brightness(1.05); }
-.wiz textarea, .wiz input[type=text], .wiz input[type=password], .wiz select, .row input[type=text], #mvp textarea { width: 100%; font: inherit; padding: 8px 10px;
+.wiz textarea, .wiz input[type=text], .wiz input[type=url], .wiz input[type=password], .wiz select, .row input[type=text], #mvp textarea { width: 100%; font: inherit; padding: 8px 10px;
   border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); color: var(--text-primary); }
 .row { display: flex; gap: 8px; align-items: center; }
 .row input { flex: 1; }

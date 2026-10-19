@@ -332,6 +332,23 @@ def ask_vision(root: Path) -> str:
     return _ask("Vision")
 
 
+def ask_inspiration() -> str:
+    """An app the founder likes (optional): its address, once they confirm they may look at it."""
+    from .. import inspire
+    ui.say("Is there an app you like? The team can look at it the way a visitor does and plan your product with\n"
+           "it in mind, never copying it (Enter to skip).")
+    url = _ask("Its web address").strip()
+    if not url:
+        return ""
+    try:
+        url = inspire.check_url(url)
+    except inspire.InspireError as e:
+        ui.say(f"  Skipped: {e}. Later: agent-team inspire <address>.")
+        return ""
+    ui.say(inspire.CONFIRMATION)
+    return url if ask_yes("Is that right?", default=False) else ""
+
+
 def ask_composition(c: Composition, asked: dict) -> None:
     """Fill in, by asking, every choice the flags left open (keys of `asked` that are None)."""
     if asked["models"] is None:
@@ -360,7 +377,7 @@ def run(root: Path, builder_provider: str = "local", builder_model: str = "", fo
         ollama_url: str = "", no_claude: bool = False, *, models: str | None = None,
         extras: tuple[str, ...] | None = None, builders: int | None = None,
         per_run: float | None = None, per_day: float | None = None, interactive: bool = False,
-        vision: str | None = None, use_rea: bool | None = None) -> Path:
+        vision: str | None = None, use_rea: bool | None = None, inspire_url: str | None = None) -> Path:
     """Write a starter .team.toml. Every choice left as None is asked in a terminal (interactive)
     or takes its default."""
     path = root / CONFIG_NAME
@@ -392,6 +409,8 @@ def run(root: Path, builder_provider: str = "local", builder_model: str = "", fo
         ui.say("Press Enter to take the default shown in brackets.\n")
         if vision is None:
             vision = ask_vision(root)
+        if inspire_url is None:
+            inspire_url = ask_inspiration()
         ask_composition(c, {"models": models, "extras": extras, "builders": builders,
                             "limits": None if per_run is None and per_day is None else True})
     try:
@@ -438,6 +457,11 @@ def run(root: Path, builder_provider: str = "local", builder_model: str = "", fo
     if note:
         ui.say(f"Builder model: {note}.")
     rea_note = setup_rea(root, use_rea, interactive)
+    if inspire_url:   # confirmed by the founder when asked
+        from .. import inspire
+        inspire.confirm(root, inspire_url)
+        rea_note = (rea_note + "\n" if rea_note else "") + (
+            f"Next: agent-team inspire {inspire_url} explores the app you like; the lead plans from its brief in discuss.")
     vision_note = write_vision(root, vision or "")
     if vision_note:
         ui.say(vision_note[0].upper() + vision_note[1:] + ".")
