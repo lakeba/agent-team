@@ -84,7 +84,7 @@ function renderEditor(el) {
         field("Name", text(a, "name")),
         field("Role", select(a, "role", ROLES.map(r => [r, r]))),
         field("Connection", select(a, "provider", providerNames.map(p => [p, `${p} (${KINDS[d.providers[p].kind] || d.providers[p].kind})`]))),
-        field("Model", text(a, "model", { placeholder: d.providers[a.provider]?.kind === "agent-http" ? "chosen by the node" : "e.g. claude-sonnet-5-5" })),
+        modelField(a, d.providers[a.provider], i),
         field("Effort", select(a, "effort", EFFORTS.map(x => [x, x]), { allowBlank: true }), "default: high"),
         field("Owns (one path per line)", list(a, "owns", { rows: 2 }), "This member must sign off PRs that change these paths"),
         field("Description", text(a, "description", { placeholder: "Shown to the team; also this member's view in discussions" })),
@@ -213,6 +213,42 @@ function toast(msg) {
   const t = h("div", { class: "toast", role: "status" }, msg);
   document.body.append(t);
   setTimeout(() => t.remove(), 5000);
+}
+
+// The model box: for a member on a local model server, the models that server serves, and a warning
+// (with the likely right name) when the one typed isn't among them.
+const servedModels = {};   // url -> {models, reachable} | "loading"
+function modelField(a, p, i) {
+  const kind = p && p.kind;
+  const local = kind === "ollama" || kind === "openai";
+  const input = text(a, "model", { list: local ? `models-${i}` : null,
+    placeholder: kind === "agent-http" ? "chosen by the node" : kind === "openai" ? "e.g. mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"
+      : kind === "ollama" ? "e.g. qwen3.8:27b-mlx" : "e.g. claude-sonnet-5-5" });
+  if (!local) return field("Model", input);
+  const url = (p.url || (kind === "ollama" ? "http://localhost:11434" : "")).replace(/\/$/, "");
+  const served = servedModels[url];
+  if (served === undefined && url) {
+    servedModels[url] = "loading";
+    postJSON("/api/models", { url }).then(r => { servedModels[url] = r; renderTeam(); })
+      .catch(() => { servedModels[url] = { models: [], reachable: false }; });
+  }
+  const models = served && served !== "loading" ? served.models : [];
+  const note = h("span", { class: "hint" });
+  input.addEventListener("input", () => refresh());
+  function refresh() {
+    note.replaceChildren();
+    if (!served || served === "loading") return note.append("Looking at what the server serves…");
+    if (!served.reachable) return note.append(`The server at ${url} doesn't answer right now.`);
+    if (!a.model || models.includes(a.model)) return note.append(models.length ? `Served there: ${models.length} models` : "");
+    const want = a.model.toLowerCase();
+    const near = models.find(m => m.toLowerCase().split("/").pop() === want.split("/").pop() || m.toLowerCase() === `${want}:latest`);
+    note.append(h("span", { class: "warn-text" }, `${a.model} isn't served there. `));
+    if (near) note.append(h("button", { type: "button", onclick: () => { a.model = near; markDirty(); renderTeam(); } }, `Use ${near}`));
+    else note.append(`It serves: ${models.join(", ")}`);
+  }
+  refresh();
+  return h("label", { class: "field" }, h("span", { class: "field-label" }, "Model"), input,
+    h("datalist", { id: `models-${i}` }, models.map(m => h("option", { value: m }))), note);
 }
 
 // ---------- Add a machine ----------

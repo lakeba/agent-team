@@ -445,6 +445,13 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
                     except ValueError as e:
                         return self._json({"error": str(e)}, 422)
                     return self._json({"data": data, "preview": config_io.plan_change(root, data)})
+                if path == "/api/models":   # what a connection's server serves, for the member editor
+                    from ..readiness import probe
+                    url = str(body.get("url", "")).strip()
+                    if config.address_problem(url) or not url:
+                        return self._json({"models": [], "error": config.address_problem(url) or "no address"})
+                    found = probe(url, timeout=4)
+                    return self._json({"models": (found or {}).get("models", []), "reachable": bool(found)})
                 if path == "/api/ollama/find":
                     from ..readiness import find_local
                     return self._json({"servers": find_local(scan=True)})

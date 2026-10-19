@@ -6,6 +6,14 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Fixed
+
+- A member on a local model server with its model's short name (`Qwen2.5-Coder-7B-Instruct-4bit`
+  where mlx_lm serves `mlx-community/Qwen2.5-Coder-7B-Instruct-4bit`) was only reported as
+  unreachable. The check now says which name is served ("did you mean …?"), and the dashboard's
+  member editor lists the models the connection's server serves, warns when the name typed isn't
+  one of them, and fixes it with one click.
+
 ## [0.13.5] - 2026-10-19
 
 ### Added

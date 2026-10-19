@@ -125,8 +125,27 @@ class OllamaProvider(Provider):
             names = [m["name"] for m in _get_json(f"{self.url}/api/tags")["models"]]
         except Exception as e:
             return f"FAILED: can't reach Ollama at {self.url} ({e})"
-        return (f"ok (Ollama at {self.url}, model {model} is pulled)" if model in names
-                else f"FAILED: {model!r} is not pulled at {self.url} (run: ollama pull {model})")
+        if model in names:
+            return f"ok (Ollama at {self.url}, model {model} is pulled)"
+        near = closest_model(model, names)
+        if near:
+            return f"FAILED: {model!r} is not pulled at {self.url}; did you mean {near!r}?"
+        return f"FAILED: {model!r} is not pulled at {self.url} (run: ollama pull {model})"
+
+
+def closest_model(model: str, served: list[str]) -> str:
+    """The served model `model` most likely means: the same name without its organisation
+    ("Qwen2.5-Coder-7B-Instruct-4bit" for "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"), ignoring case,
+    or the same name with :latest. "" when nothing matches."""
+    want = model.strip().lower()
+    for m in served:
+        if m.startswith("/"):
+            continue
+        name = m.lower()
+        if want in (name.rsplit("/", 1)[-1], name.removesuffix(":latest"), f"{name}:latest") or \
+                want.rsplit("/", 1)[-1] == name.rsplit("/", 1)[-1]:
+            return m
+    return ""
 
 
 @register("openai")
@@ -196,7 +215,12 @@ class OpenAICompatProvider(Provider):
             ids = [m.get("id") for m in data.get("data", [])]
         except Exception as e:
             return f"FAILED: can't reach {self.cfg.url} ({e})"
-        return f"ok ({self.cfg.url})" if not ids or model in ids else f"FAILED: {model!r} not served by {self.cfg.url}"
+        if not ids or model in ids:
+            return f"ok ({self.cfg.url})"
+        near = closest_model(model, ids)
+        hint = f"; did you mean {near!r}? (set the member's model to that)" if near else \
+            f"; it serves: {', '.join(i for i in ids if not i.startswith('/'))[:200]}"
+        return f"FAILED: {model!r} not served by {self.cfg.url}{hint}"
 
 
 @register("agent-http")

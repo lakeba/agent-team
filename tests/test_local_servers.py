@@ -124,6 +124,17 @@ class LocalServerTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             init.find_server("http://192.168.141:8080", False)
 
+    def test_a_short_model_name_gets_the_full_one_suggested(self):
+        from agent_team.providers import build
+        from agent_team.providers.http_providers import closest_model
+        served = ["mlx-community/Qwen2.5-Coder-7B-Instruct-4bit", "/cache/models--x/snapshots/1"]
+        self.assertEqual(closest_model("Qwen2.5-Coder-7B-Instruct-4bit", served), served[0])
+        self.assertEqual(closest_model("qwen2.5-coder-7b-instruct-4bit", served), served[0])
+        self.assertEqual(closest_model("llama3", served), "")
+        self.assertEqual(closest_model("qwen3", ["qwen3:latest"]), "qwen3:latest")
+        status = build(config.ProviderConfig(name="m", kind="openai", url=self.url), "").check("Qwen2.5-Coder-7B-Instruct-4bit")
+        self.assertIn("did you mean 'mlx-community/Qwen2.5-Coder-7B-Instruct-4bit'", status)
+
     def test_init_on_an_mlx_server(self):
         root = Path(tempfile.mkdtemp())
         with quiet():
