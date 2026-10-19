@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.13.3] - 2026-10-19
+
 ### Added
 
 - Model servers on other computers are found too: `discover --local`, the guided setup (in the
