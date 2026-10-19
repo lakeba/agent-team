@@ -7,6 +7,7 @@ See examples/todo-py.team.toml for a complete file.
 from __future__ import annotations
 
 import os
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -56,6 +57,35 @@ PROVIDER_KINDS: set[str] = set()
 
 class ConfigError(ValueError):
     pass
+
+
+ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,99}$")
+
+
+def looks_like_secret(value: str) -> bool:
+    """A key or token rather than a variable's name: sk-..., or a long run of mixed letters and digits."""
+    v = value.strip()
+    if v.startswith("sk-"):
+        return True
+    if len(v) < 20 or " " in v or re.fullmatch(r"[A-Z0-9_]+", v):
+        return False
+    if not ENV_NAME_RE.match(v):
+        return True
+    mixed = any(c.islower() for c in v) and any(c.isupper() for c in v) and sum(c.isdigit() for c in v) >= 3
+    return mixed or (len(v) >= 40 and "_" not in v)
+
+
+def key_env_problem(value) -> str:
+    """Why `value` can't be an api_key_env, or "". Never includes the value: it may be a key."""
+    if not isinstance(value, str):
+        return "is the name of an environment variable, e.g. ANTHROPIC_API_KEY"
+    if ENV_NAME_RE.match(value) and not looks_like_secret(value):
+        return ""
+    fix = ("Save the key with `agent-team keys set ANTHROPIC_API_KEY` (or the key step of the dashboard's guided "
+           "setup) and put that variable's name here")
+    if looks_like_secret(value):
+        return f"this looks like a key or token, not a variable's name, so it wasn't saved. {fix}."
+    return f"is the name of an environment variable (letters, digits and _, e.g. ANTHROPIC_API_KEY). {fix}."
 
 
 @dataclass
@@ -399,6 +429,8 @@ def parse(data: dict, root: Path) -> Team:
             raise ConfigError(f"[providers.{name}].url: {address_problem(p.url)}")
         if p.kind in {"openai", "agent-http"} and not p.url:
             raise ConfigError(f"[providers.{name}]: kind {p.kind!r} needs a url")
+        if p.api_key_env and key_env_problem(p.api_key_env):
+            raise ConfigError(f"[providers.{name}].api_key_env: {key_env_problem(p.api_key_env)}")
         providers[name] = p
 
     agents = {}

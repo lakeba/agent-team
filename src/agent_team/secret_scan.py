@@ -12,6 +12,7 @@ import re
 from pathlib import PurePosixPath
 
 from . import github, keys
+from .config import CONFIG_NAME, looks_like_secret
 
 PATTERNS = [
     ("Anthropic API key", re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}")),
@@ -23,6 +24,7 @@ PATTERNS = [
     ("Slack webhook", re.compile(r"hooks\.slack\.com/services/T[A-Za-z0-9]+/B[A-Za-z0-9]+/[A-Za-z0-9]+")),
     ("private key", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP |ENCRYPTED )?PRIVATE KEY-----")),
 ]
+KEY_ENV_LINE = re.compile(r"""^\s*api_key_env\s*=\s*(["'])(.*)\1""")
 SECRET_FILES = (".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx", "id_rsa", "id_ed25519", "*.keystore", ".npmrc",
                 ".pypirc")
 ALLOWED_FILES = (".env.example", ".env.sample", ".env.template")
@@ -38,6 +40,9 @@ def scan_text(path: str, added: list[tuple[int, str]]) -> list[str]:
                 found.append(f"{path}:{n}: looks like a {kind}")
         if any(v in line for v in saved):
             found.append(f"{path}:{n}: contains a value from agent-team's keys file")
+        m = KEY_ENV_LINE.match(line) if PurePosixPath(path).name == CONFIG_NAME else None
+        if m and looks_like_secret(m.group(2)):
+            found.append(f"{path}:{n}: api_key_env holds what looks like a key, not a variable's name")
     return found
 
 

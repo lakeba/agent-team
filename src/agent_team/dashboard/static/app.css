@@ -153,6 +153,7 @@ fieldset.member-edit { border: 1px solid var(--border); border-radius: 8px; padd
 fieldset.member-edit legend { font-weight: 600; padding: 0 6px; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 14px; }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.key-variable { display: flex; flex-direction: column; gap: 4px; }
 .field-label { color: var(--text-secondary); font-size: 12px; }
 .hint { color: var(--text-muted); font-size: 11.5px; }
 input[type=text], input[type=number], select, textarea { font: inherit; font-size: 13px; color: var(--text-primary); background: var(--surface-0);

@@ -54,6 +54,25 @@ function select(obj, key, options, { allowBlank = false, onchange } = {}) {
   el.addEventListener("change", () => { if (el.value === "") delete obj[key]; else obj[key] = el.value; markDirty(); onchange && onchange(); });
   return el;
 }
+// Mirrors config.looks_like_secret: a key pasted where a variable's name goes. The value is never shown.
+function looksLikeSecret(value) {
+  const v = (value || "").trim();
+  if (v.startsWith("sk-")) return true;
+  if (v.length < 20 || v.includes(" ") || /^[A-Z0-9_]+$/.test(v)) return false;
+  if (!/^[A-Za-z_][A-Za-z0-9_]{0,99}$/.test(v)) return true;
+  const mixed = /[a-z]/.test(v) && /[A-Z]/.test(v) && (v.match(/[0-9]/g) || []).length >= 3;
+  return mixed || (v.length >= 40 && !v.includes("_"));
+}
+function keyVariable(p) {
+  const input = text(p, "api_key_env", { placeholder: p.kind === "anthropic" ? "default: ANTHROPIC_API_KEY" : "e.g. STUDIO_NODE_TOKEN" });
+  const warn = h("span", { class: "hint warn-text", role: "alert" },
+    "This looks like a key, not a variable's name. Save the key with agent-team keys set ANTHROPIC_API_KEY " +
+    "(or the key step of the guided setup) and put the variable's name here.");
+  const check = () => { warn.hidden = !looksLikeSecret(input.value); };
+  input.addEventListener("input", check);
+  check();
+  return h("span", { class: "key-variable" }, input, warn);
+}
 function markDirty() { edit.review = null; const b = document.getElementById("review-btn"); if (b) b.disabled = false; }
 
 // ---------- the editor ----------
@@ -108,7 +127,7 @@ function renderEditor(el) {
       h("div", { class: "form-grid" },
         field("Kind", select(p, "kind", Object.entries(KINDS), { onchange: () => renderTeam() })),
         p.kind !== "anthropic" ? field("URL", text(p, "url", { placeholder: p.kind === "ollama" ? "http://localhost:11434" : "http://host:port" })) : null,
-        field("Key variable", text(p, "api_key_env", { placeholder: p.kind === "anthropic" ? "default: ANTHROPIC_API_KEY" : "e.g. STUDIO_NODE_TOKEN" }),
+        field("Key variable", keyVariable(p),
           "The name of an environment variable. Never the key itself.")),
       h("div", { class: "actions" },
         h("button", { type: "button", onclick: async () => {

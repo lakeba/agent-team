@@ -6,6 +6,15 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Security
+
+- A key pasted into the dashboard's "Key variable" field was saved into `.team.toml` as the provider's
+  `api_key_env`, and the provider then couldn't find a key. `api_key_env` must now be an environment
+  variable's name; a value that looks like a key or token (`sk-...`, a long token) is refused with a pointer
+  to `agent-team keys set NAME` or the guided setup's key step, and the message, the edit preview and its
+  diff never show it. The field warns as you type, and the pre-push secret check flags such a value in a
+  staged `.team.toml`.
+
 ## [0.13.10] - 2026-10-19
 
 ### Added

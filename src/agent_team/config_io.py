@@ -16,7 +16,7 @@ from pathlib import Path
 
 from .config import (CONFIG_NAME, AgentConfig, BehaviourConfig, BehaviourScenario, ConfigError, LimitsConfig,
                      McpServerConfig, NotifyConfig, ProjectConfig, ProviderConfig, ResearchConfig, RoutingConfig,
-                     SandboxConfig, Team, parse)
+                     SandboxConfig, Team, looks_like_secret, parse)
 
 HEADER = ("# agent-team configuration. Docs: https://github.com/lakeba/agent-team/blob/main/docs/configuration.md\n"
           "# Secrets never go here: providers name the environment variable that holds them.\n")
@@ -252,6 +252,10 @@ def plan_change(root: Path, data: dict) -> dict:
         error = None
     except ConfigError as e:
         error = str(e)
+        for p in (data.get("providers") or {}).values():   # a key pasted as a variable's name stays off the page
+            value = str(p.get("api_key_env", "")) if isinstance(p, dict) else ""
+            if value and looks_like_secret(value):
+                old, new = old.replace(value, "<hidden>"), new.replace(value, "<hidden>")
     diff = "".join(difflib.unified_diff(old.splitlines(keepends=True), new.splitlines(keepends=True),
                                         fromfile=CONFIG_NAME, tofile=f"{CONFIG_NAME} (new)"))
     return {"valid": error is None, "error": error, "diff": diff, "text": new,
