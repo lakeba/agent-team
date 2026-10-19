@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.13.11] - 2026-10-19
+
 ### Added
 
 - Dashboard API for the desktop client: schedules (`GET/POST /api/schedule`, `/api/schedule/remove`), when
