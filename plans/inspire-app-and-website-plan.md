@@ -176,7 +176,7 @@ A 60–90 second narrated walkthrough, from idea to a running MVP, once the app'
 | B1 | lakebaos-client | `npm run capture`: screenshots and loops from the real app and a demo project | M |
 | B2 | agent-team | The new page: hero, the four steps with loops, Inspire, For developers | M |
 | A4 | agent-team | Inspire for desktop apps and APKs: run them and watch | M |
-| A5 | agent-team | Opening up apps the founder owns or may inspect (after legal review) | M |
+| A5 | agent-team | Opening up apps the founder owns or may inspect | M |
 | B3 | either | The narrated walkthrough on YouTube (later) | S |
 
 - A1, then A2 and A3. B1, then B2.
@@ -215,12 +215,18 @@ A 60–90 second narrated walkthrough, from idea to a running MVP, once the app'
 2. **Apps, binaries and APKs, not only websites.** This changes the boundary approved in `plans/inspire-plan.md`
    ("never decompiling, disassembling, unpacking app bundles"). So it's split in two, and only the first part is
    planned:
-   - **Running the app and watching it (planned, phase A4).** Inspire opens a desktop app or an APK the way a user
-     does and records its screens and the text a screen reader gets: macOS and Linux apps, Electron apps (their
-     windows only), and Android apps in an emulator. As with websites: no sign-in, nothing beyond what a user sees,
-     and the founder confirms. The founder's own screenshots of an app are also accepted (phase 3 of the first plan).
+   - **Running the app and watching it (phase A4).** Inspire opens a desktop app or an APK the way a user does and
+     records its screens and the text a screen reader gets: macOS apps (Electron ones included) and Android apps in
+     an emulator. As with websites: no sign-in, nothing beyond what a user sees, and the founder confirms.
+     - Checked against REA 6.5.0: its macOS window tools (`observe_native_ui`, `capture_native_ui_scenario`) only
+       work after `open_binary`, which loads the app into a disassembler. That is opening it up, so A4 doesn't use
+       them. It uses the operating system's own tools instead: `screencapture` for a window, System Events for the
+       accessibility tree and for pressing a named button, and `adb` (screencap, `uiautomator dump`, `input tap`)
+       for Android. macOS asks the person once for Screen Recording and Accessibility permission; without them,
+       the run stops and says which one is missing.
+     - Linux desktop apps aren't covered yet (no common accessibility tool to rely on).
    - **Opening the app up (decided: allowed only for apps the founder owns or has written permission to
-     inspect, after Lakeba's legal review; phase A5, not started until that review).** This covers decompiling,
+     inspect; phase A5).** The Terms & Conditions set out the user's responsibility for this. This covers decompiling,
      disassembling, unpacking bundles, and reading the code, its strings or its network API. Most apps' licences
      forbid it for anyone else, so the limits are in code, not just in the confirmation:
      - the founder states which applies (their own app, or written permission) and attaches or names the
@@ -229,16 +235,22 @@ A 60–90 second narrated walkthrough, from idea to a running MVP, once the app'
        who write code (`config.REVERSE_TOOL` and `WRITES_CODE` stay as they are);
      - the brief describes what the app does in the team's words, never its code, and the "Don't copy" rules apply.
 
+   No separate legal review is part of the flow (decided 20 October 2026): the user's statements, kept dated with
+   the captures, and the Terms & Conditions carry the responsibility.
+
 3. **The walkthrough video lives on YouTube**, embedded with `youtube-nocookie.com`.
 4. **The hero's main button is "Start your Business Now".**
-5. **The made-up app needs a better idea.** Before B1, we'll come up with a product worth showing: a believable
-   founder's idea with a clear audience, that looks good in screenshots. It's built for real by the team in the demo,
-   so the screens show a genuine run.
+5. **The made-up app needs a better idea.** Proposed (change it freely): **ChairTime**, bookings for one-chair
+   barbers and hairdressers who today take appointments over WhatsApp. Clients pick a free slot from a link, get a
+   reminder the day before, and the barber sees the day at a glance on their phone. It has a clear founder story
+   ("like the big booking tools, but for one chair and no front desk"), a real audience, and screens that read well
+   in screenshots (a week grid, a booking page, a reminder). The Inspire scene explores **Slotbook**, a made-up
+   booking site for salon chains served locally by the capture script (`slotbook.example`), never a real company.
 6. **Use cases as a sub-site of lakeba.github.io** (later): a few worked examples, from idea to MVP, each with its
    own pages. It needs its own plan.
 7. **macOS screenshots only**, for now.
 
 ## 7. Still open
 
-1. **Legal review** of the confirmation statement and of the website's description of Inspire.
-2. **Opening apps up**: Lakeba's legal review, before phase A5 starts.
+1. **The Terms & Conditions** text, with the user's responsibilities for Inspire (looking at other apps, and opening
+   up only apps they own or may inspect), and where the app and the site link to it.
