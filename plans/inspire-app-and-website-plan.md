@@ -1,6 +1,6 @@
 # Inspire in the app, and a website for people who don't code
 
-Status: draft for approval. No code has been written.
+Status: approved on 20 October 2026, with the decisions in section 6. Phase A1 is under way.
 
 Checked against agent-team 0.13.12 (`main` at f839d12) and lakebaos-client `main` at a2850c0, on 20 October 2026.
 
@@ -55,7 +55,8 @@ On top of that:
 
   It isn't one of the `WRITERS`: it only writes under `.team/inspiration/`.
 - **`jobs.start` refuses an unconfirmed app**, with a message that says how to confirm.
-- **Endpoints** (owner only, behind the same client token as everything else):
+- **Endpoints.** Writes need the owner's token (the page's session token, or the client token). Reads follow
+  the dashboard's existing rule: this machine only, Host-checked, no CORS.
 
 | Endpoint | What |
 |---|---|
@@ -168,12 +169,14 @@ A 60–90 second narrated walkthrough, from idea to a running MVP, once the app'
 
 | Phase | Repository | What ships | Size |
 |---|---|---|---|
+| A0 | agent-team, installers | REA installed with agent-team and kept at the pinned version | S |
 | A1 | agent-team | Inspire as a background run, its endpoints and confirmation, the dashboard Inspiration tab, docs | M |
 | A2 | agent-team | The guided setup step, REA in the Ready check, the lead's first tasks and `VISION.md` section from the brief, `init` | M |
 | A3 | lakebaos-client | The Inspiration card, the native confirmation, the brief view and gallery, smoke tests | M |
 | B1 | lakebaos-client | `npm run capture`: screenshots and loops from the real app and a demo project | M |
 | B2 | agent-team | The new page: hero, the four steps with loops, Inspire, For developers | M |
-| B3 | either | The narrated walkthrough (later) | S |
+| A4 | agent-team | Inspire for desktop apps and APKs: run them and watch, never open them up | M |
+| B3 | either | The narrated walkthrough on YouTube (later) | S |
 
 - A1, then A2 and A3. B1, then B2.
 - B can start now with the screens the app already has; the Inspire scene is added once A3 ships.
@@ -198,13 +201,38 @@ A 60–90 second narrated walkthrough, from idea to a running MVP, once the app'
   - all existing checks still pass.
 - **Website:** media sizes within budget; reduced motion shows posters; no sideways scroll at 375 px; dark mode.
 
-## 6. Open questions
+## 6. Decisions (20 October 2026)
 
-1. **Where the walkthrough video lives** (B3): on YouTube, embedded (smaller site, its tracking unless
-   `youtube-nocookie`), or in the repository (no third party, but a larger download).
-2. **The hero's main button:** "Start your MVP" (the program) or "Download the app".
-3. **Legal review** of the confirmation statement and of the website's description of Inspire. This is still open
-   from the first Inspire plan.
-4. **The made-up app** for the Inspire scene: a name and a one-page site, say "Tally, a time tracker". Or would you
-   rather we use one of Lakeba's own products?
-5. **Linux screenshots too, or macOS only** for the website. The app looks nearly the same on both.
+1. **REA is a prerequisite, installed with agent-team and kept up to date.** This is a new phase, A0:
+   - the Lakeba OS installer, the desktop app's first run and `pipx install agent-team` followed by `agent-team init` all
+     install REA (and a supported Node.js, where the installer can);
+   - agent-team pins the REA version its tests passed with, and moves the pin forward in its own releases;
+   - on start, the dashboard and `doctor` update agent-team's REA copy to the pinned version when it's older, in the
+     background, and say so.
+
+   A REA you installed yourself is still used as it is.
+2. **Apps, binaries and APKs, not only websites.** This changes the boundary approved in `plans/inspire-plan.md`
+   ("never decompiling, disassembling, unpacking app bundles"). So it's split in two, and only the first part is
+   planned:
+   - **Running the app and watching it (planned, phase A4).** Inspire opens a desktop app or an APK the way a user
+     does and records its screens and the text a screen reader gets: macOS and Linux apps, Electron apps (their
+     windows only), and Android apps in an emulator. As with websites: no sign-in, nothing beyond what a user sees,
+     and the founder confirms. The founder's own screenshots of an app are also accepted (phase 3 of the first plan).
+   - **Opening the app up (not planned; needs your decision and Lakeba's legal review).** This covers decompiling,
+     disassembling, unpacking bundles, reading the code, its strings or its network API. Most apps' licences forbid
+     it, and it's how a product ends up copying another's code. If it's ever added, it would only be for apps the
+     founder owns or has written permission to inspect, and its output would still never reach members who write
+     code.
+3. **The walkthrough video lives on YouTube**, embedded with `youtube-nocookie.com`.
+4. **The hero's main button is "Start your Business Now".**
+5. **The made-up app needs a better idea.** Before B1, we'll come up with a product worth showing: a believable
+   founder's idea with a clear audience, that looks good in screenshots. It's built for real by the team in the demo,
+   so the screens show a genuine run.
+6. **Use cases as a sub-site of lakeba.github.io** (later): a few worked examples, from idea to MVP, each with its
+   own pages. It needs its own plan.
+7. **macOS screenshots only**, for now.
+
+## 7. Still open
+
+1. **Legal review** of the confirmation statement and of the website's description of Inspire.
+2. **Opening apps up** (decision 2, second part): yes with the limits above, or never.
