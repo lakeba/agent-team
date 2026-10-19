@@ -6,7 +6,8 @@
 
 const wizard = { step: 0, status: null, busy: "", error: "", project: "", ready: null, tasks: null, chosen: [],
   own: "", login: null, pull: {}, repo: "", keyResult: null,
-  form: { name: "", vision: "", owner: "", models: "", ollama_url: "", ollama_model: "", extras: ["qa"], builders: 1, per_day: 5 } };
+  form: { name: "", vision: "", owner: "", models: "", ollama_url: "", ollama_model: "", extras: ["qa"], builders: 1, per_day: 5,
+          folder: "", existing: false } };
 const STEPS = ["Welcome", "Your idea", "Where the AI runs", "Your team", "GitHub", "Ready check", "First version"];
 
 function wizardRoot() { return document.getElementById("setup"); }
@@ -78,14 +79,33 @@ function welcome() {
     h("div", { class: "wiz-four" }, [["1", "Describe", "Tell us your idea in plain words."], ["2", "Build", "The AI team builds a first working version."],
       ["3", "Apply", "Lakeba OS prepares your pitch for Lakeba."], ["4", "Found", "If approved, Lakeba co-founds your company with you."]]
       .map(([n, t, d]) => h("div", { class: "card" }, h("div", { class: "kind" }, `Step ${n}`), h("h3", {}, t), h("p", { class: "secondary small" }, d))))];
+  const here = s.here || {};
+  if (here.usable) {
+    out.push(h("div", { class: "card wiz-box wiz-here" },
+      h("h3", {}, here.has_files ? "Set up this folder" : "Start your idea in this folder"),
+      h("p", { class: "mono small" }, here.path),
+      h("p", { class: "secondary small" }, here.has_files
+        ? `It already has files${here.language && here.language !== "general" ? ` (a ${here.language_label} project)` : ""}. The team works on them as they are: nothing is changed or removed, agent-team only adds its own files.`
+        : "An empty folder: your project starts here."),
+      h("div", { class: "actions" }, h("button", { type: "button", class: "primary", onclick: useHere }, "Use this folder"))));
+  }
   if (s.projects && s.projects.length) {
-    out.push(h("h3", { class: "wiz-sub" }, "Or continue one you’ve started"),
+    out.push(h("h3", { class: "wiz-sub" }, here.usable ? "Or open a project you’ve started" : "Or continue one you’ve started"),
       h("div", { class: "wiz-projects" }, s.projects.map(p => h("button", { type: "button", onclick: () => openProject(p.root) },
         h("strong", {}, p.name), h("span", { class: "muted small" }, p.root)))));
   }
-  out.push(nav("Start a new idea", () => go(1), { noBack: true,
+  out.push(nav(here.usable ? "Start a new idea elsewhere" : "Start a new idea", () => {
+    Object.assign(wizard.form, { folder: "", existing: false }); go(1); }, { noBack: true,
     skip: wizard.fromDashboard ? () => { location.reload(); } : null, skipLabel: "Back to the dashboard" }));
   return out;
+}
+
+function useHere() {
+  const here = (wizard.status || {}).here || {}, f = wizard.form;
+  f.folder = here.path; f.existing = true;
+  if (!f.name) f.name = here.name;
+  if (!f.vision && here.vision) f.vision = here.vision.replace(/^#\s*Vision\s*\n+/i, "").trim();
+  go(1);
 }
 
 async function openProject(root) {
@@ -97,8 +117,10 @@ async function openProject(root) {
 // ---------- 1. Your idea ----------
 function idea() {
   const f = wizard.form;
-  return [h("h2", { class: "wiz-title" }, "Your idea"),
-    h("p", { class: "secondary" }, "Give it a name and describe it the way you’d explain it to a friend. The team plans everything from this, so say who it’s for and what it should do first."),
+  return [h("h2", { class: "wiz-title" }, f.existing ? "About this project" : "Your idea"),
+    h("p", { class: "secondary" }, f.existing
+      ? `The team works in ${f.folder}. Describe what the product is and should become: who it’s for and what it should do next.`
+      : "Give it a name and describe it the way you’d explain it to a friend. The team plans everything from this, so say who it’s for and what it should do first."),
     field("Name", input(f, "name", { placeholder: "e.g. Study Buddy", maxlength: 80 })),
     field("Your idea", area(f, "vision", { rows: 9, placeholder:
       "e.g. A web app for university students to plan their study week. They add their exams and how many hours they have, " +
@@ -241,7 +263,7 @@ function team() {
     h("div", { class: "choices" }, Object.entries(extras).map(([role, x]) => h("label", { class: "choice" }, sw(role), ` ${x.name} (${role}): ${x.about}`))),
     h("div", { class: "form-grid" }, field("Builders", builders, "More builders work on parts of a task at the same time."),
       f.models === "ollama" ? null : field("Spend limit", h("div", {}, limit, " ", limitLabel), "The team stops before it spends more than this in a day. Local models are free.")),
-    nav("Create my project", createProject)];
+    nav(wizard.form.existing ? "Set up my project" : "Create my project", createProject)];
 }
 
 async function createProject() {

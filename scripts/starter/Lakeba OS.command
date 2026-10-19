@@ -9,7 +9,7 @@ echo
 AT="$HOME/.agent-team/venv/bin/agent-team"
 if [ -x "$AT" ]; then
   echo "Opening the dashboard in your browser..."
-  cd "$HOME" && nohup "$AT" ui >/dev/null 2>&1 &
+  cd "$HOME" && nohup "$AT" ui --from-app >/dev/null 2>&1 &
   sleep 3
 else
   echo "Installing agent-team, the engine of Lakeba OS. This takes a few minutes the first time."

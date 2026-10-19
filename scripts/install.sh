@@ -219,7 +219,7 @@ if [ "$SHORTCUT" = 1 ]; then
   if [ "$(uname)" = "Darwin" ] && command -v osacompile >/dev/null 2>&1; then
     mkdir -p "$HOME/Applications"
     rm -rf "$APP"
-    if osacompile -o "$APP" -e "do shell script \"cd ~ && nohup '$VENV/bin/agent-team' ui >/dev/null 2>&1 &\"" >/dev/null 2>&1; then
+    if osacompile -o "$APP" -e "do shell script \"cd ~ && nohup '$VENV/bin/agent-team' ui --from-app >/dev/null 2>&1 &\"" >/dev/null 2>&1; then
       say "Lakeba OS is in your Applications folder: open it any time to get back to the dashboard"
     fi
   elif [ "$(uname)" = "Linux" ]; then
@@ -229,7 +229,7 @@ if [ "$SHORTCUT" = 1 ]; then
 Type=Application
 Name=Lakeba OS
 Comment=Open the agent-team dashboard
-Exec=sh -c 'cd ~ && "$VENV/bin/agent-team" ui'
+Exec=sh -c 'cd ~ && "$VENV/bin/agent-team" ui --from-app'
 Terminal=false
 Categories=Development;
 DESKTOP
@@ -239,7 +239,7 @@ fi
 
 # 7. The first time: open the dashboard, where a short guided setup starts.
 if [ "$UI" = 1 ] && [ "$FIRST_INSTALL" = 1 ] && { [ "$(uname)" = "Darwin" ] || [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; }; then
-  (cd "$HOME" && nohup "$VENV/bin/agent-team" ui >/dev/null 2>&1 &)
+  (cd "$HOME" && nohup "$VENV/bin/agent-team" ui --from-app >/dev/null 2>&1 &)
   say "Opening Lakeba OS in your browser: a short guided setup takes you from your idea to a team at work."
 fi
 

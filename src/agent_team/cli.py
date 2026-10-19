@@ -554,7 +554,7 @@ def cmd_projects(args) -> int:
 def cmd_ui(args) -> int:
     from .dashboard.server import serve as serve_ui
     try:
-        serve_ui(Path(args.project).resolve(), args.port, not args.no_open)
+        serve_ui(Path(args.project).resolve(), args.port, not args.no_open, from_app=args.from_app)
     except config.ConfigError as e:
         raise SystemExit(f"Config error: {e}")
     except OSError as e:
@@ -738,6 +738,7 @@ def build_parser() -> argparse.ArgumentParser:
     s = add("ui", cmd_ui, "open the dashboard: see and edit the team, start runs, follow costs")
     s.add_argument("--port", type=int, default=8790)
     s.add_argument("--no-open", action="store_true", help="don't open a browser")
+    s.add_argument("--from-app", action="store_true", help=argparse.SUPPRESS)   # the Lakeba OS app: open the one project directly
     s = sub.add_parser("serve", help="serve a model on this machine as a remote team member")
     s.add_argument("--provider", required=True, choices=["anthropic", "ollama", "openai"])
     s.add_argument("--model", required=True)

@@ -194,9 +194,10 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def make_handler(root: Path | None, port: int, token: str | None = None):
+def make_handler(root: Path | None, port: int, token: str | None = None, folder: Path | None = None):
     """`root` is the project (None: no project yet, so the page shows the setup wizard; creating
-    or opening a project there switches this dashboard to it)."""
+    or opening a project there switches this dashboard to it). `folder` is where the dashboard was
+    started, which the wizard offers to set up."""
     here = {"root": root}
     allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
     allowed_origins = {f"http://{h}" for h in allowed_hosts}
@@ -235,7 +236,7 @@ def make_handler(root: Path | None, port: int, token: str | None = None):
             try:
                 if path == "/api/setup/status":
                     from .. import setup_wizard
-                    return self._json({**setup_wizard.status(),
+                    return self._json({**setup_wizard.status(), "here": setup_wizard.folder_info(folder),
                                        "project": str(here["root"]) if here["root"] else ""})
                 if path == "/api/setup/pull":
                     from .. import setup_wizard
@@ -524,8 +525,10 @@ def _test_provider(body: dict) -> dict:
     return {"ok": not status.startswith("FAILED"), "status": status, "note": note}
 
 
-def serve(project: Path, port: int = 8790, open_browser: bool = True) -> None:
-    """The dashboard for `project`; without a .team.toml there (or above it), the setup wizard."""
+def serve(project: Path, port: int = 8790, open_browser: bool = True, from_app: bool = False) -> None:
+    """The dashboard for `project`; without a .team.toml there (or above it), the setup wizard, which
+    offers to set up that folder. Started from the Lakeba OS app (`from_app`), the one project there
+    is opens directly."""
     try:
         team = config.load(project)
     except config.ConfigError as e:
@@ -534,12 +537,13 @@ def serve(project: Path, port: int = 8790, open_browser: bool = True) -> None:
         team = None
         from .. import projects
         known = [p for p in projects.registered() if (Path(p) / config.CONFIG_NAME).is_file()]
-        if len(known) == 1:   # one project so far (the usual case when opened from the app): that one
+        if from_app and len(known) == 1:   # opened from the app, not from a folder: the one project there is
             try:
                 team = config.load(Path(known[0]))
             except config.ConfigError:
                 team = None
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(team.root if team else None, port))
+    httpd = ThreadingHTTPServer(("127.0.0.1", port),
+                                make_handler(team.root if team else None, port, folder=None if from_app else project))
     url = f"http://127.0.0.1:{httpd.server_address[1]}/"
     what = f"for {team.project.name}" if team else "(no project here yet: the setup wizard opens)"
     print(f"agent-team dashboard {what}: {url}  (Ctrl-C to stop; runs started here keep going)", flush=True)

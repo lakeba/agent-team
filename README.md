@@ -121,8 +121,10 @@ marketing member's brief and pitch deck) with the link to apply to Lakeba. Every
 what the command line would, so a project set up here works the same in a terminal.
 
 The installer also adds **Lakeba OS** to your Applications folder (on Linux, the app menu) to come
-back to the dashboard later. `agent-team ui` outside a project opens the same setup, or the project
-you've already started.
+back to the dashboard later; it opens your project directly when you have one. `agent-team ui` in a
+folder without a team opens the same setup and offers to set up that folder: code already in it
+stays as it is (agent-team only adds and commits its own files), and the projects you've started
+are listed to open instead.
 
 ### Install
 

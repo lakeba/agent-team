@@ -115,9 +115,31 @@ def _text(form: dict, key: str, limit: int, required: bool = False) -> str:
     return v
 
 
+def folder_info(folder: Path | None) -> dict:
+    """The folder the dashboard was started in, for the wizard to offer: can it become a project
+    (not the home folder or /, no team yet), what's in it, and its VISION.md if it has one."""
+    if folder is None:
+        return {}
+    from . import packs
+    path = Path(folder).expanduser().resolve()
+    usable = (path.is_dir() and path not in (Path.home().resolve(), Path("/"))
+              and not (path / ".team.toml").exists())
+    files = [p for p in path.iterdir() if p.name not in (".DS_Store", ".git")] if path.is_dir() else []
+    vision = path / "VISION.md"
+    return {"path": str(path), "name": path.name, "usable": usable, "has_files": bool(files),
+            "git": (path / ".git").exists(),
+            "language": packs.detect(path).name if usable else "",
+            "language_label": packs.detect(path).about.split(":")[0] if usable and files else "",
+            "vision": vision.read_text(encoding="utf-8", errors="replace")[:20_000] if vision.is_file() else ""}
+
+
 def create_project(form: dict) -> dict:
-    """A new project for an idea: its folder, git, VISION.md, README.md, .team.toml (as `init`
-    writes it), the template for its language, and a first commit. Returns {"root", "notes"}."""
+    """A project for an idea: its folder, git, VISION.md, README.md, .team.toml (as `init` writes it),
+    the template for its language, and a first commit. Returns {"root", "notes"}.
+
+    With `existing`, the project is the folder given, which may already hold code: nothing in it is
+    changed or removed; agent-team adds its own files (and VISION.md and README.md when missing) and
+    commits only those."""
     from . import composition, packs, projects
     from .config import load
     from .workflows import init
@@ -143,13 +165,20 @@ def create_project(form: dict) -> dict:
     if not shutil.which("git"):
         raise SetupError("git isn't installed on this computer; install it (macOS: xcode-select --install) and try again")
     folder = _text(form, "folder", 500)
+    existing = bool(form.get("existing"))
     root = Path(folder).expanduser() if folder else home() / slug(name)
-    if root.exists() and any(p.name != ".DS_Store" for p in root.iterdir()):
+    if existing:
+        info = folder_info(root)
+        if not folder or not info.get("usable"):
+            raise SetupError(f"{root} can't be set up here (it's missing, your home folder, or already has a team)")
+    elif root.exists() and any(p.name != ".DS_Store" for p in root.iterdir()):
         raise SetupError(f"{root} already has files in it; choose another name or folder")
+    created = not root.exists()
     root.mkdir(parents=True, exist_ok=True)
+    added_readme = added_vision = False
     notes = []
     try:
-        if _run(["git", "init", "-q", "-b", "main"], root)[0] != 0:
+        if not (root / ".git").exists() and _run(["git", "init", "-q", "-b", "main"], root)[0] != 0:
             _run(["git", "init", "-q"], root)
         g_name, g_email = git_identity(root)
         if not g_name or not g_email:   # commits need an identity; keep it to this project
@@ -157,7 +186,16 @@ def create_project(form: dict) -> dict:
             _run(["git", "config", "user.email", g_email or "builder@lakeba-os.local"], root)
             notes.append("set a git identity for this project only")
         first = next((l.strip() for l in vision.splitlines() if l.strip() and not l.startswith("#")), name)
-        (root / "README.md").write_text(f"# {name}\n\n{first}\n", encoding="utf-8")
+        if not (root / "README.md").exists():
+            (root / "README.md").write_text(f"# {name}\n\n{first}\n", encoding="utf-8")
+            added_readme = True
+        vision_file = root / "VISION.md"
+        plain = lambda t: re.sub(r"^#\s*Vision\s*\n+", "", t.strip(), flags=re.I).strip()
+        if vision_file.exists() and plain(vision_file.read_text(encoding="utf-8", errors="replace")) != plain(vision):
+            body = vision if vision.lstrip().startswith("#") else f"# Vision\n\n{vision}"
+            vision_file.write_text(body.rstrip() + "\n", encoding="utf-8")   # edited in the wizard
+            added_vision = True
+        added_vision = added_vision or not vision_file.exists()
         try:
             init.run(root, ollama_url=ollama_url, builder_model=ollama_model, models=models,
                      extras=tuple(extras), builders=builders, per_day=float(per_day) or None,
@@ -170,13 +208,18 @@ def create_project(form: dict) -> dict:
                        encoding="utf-8")
         team = load(root)
         packs.apply(team, packs.detect(root), yes=True)
-        _run(["git", "add", "-A"], root)
-        code, out = _run(["git", "commit", "-q", "-m", f"Start {name}"], root)
+        if existing:   # only what agent-team added: the code stays as the owner left it
+            ours = [".team.toml", ".gitignore", "team"] + (["README.md"] if added_readme else []) + \
+                   (["VISION.md"] if added_vision else [])
+            _run(["git", "add", "--", *[p for p in ours if (root / p).exists()]], root)
+        else:
+            _run(["git", "add", "-A"], root)
+        code, out = _run(["git", "commit", "-q", "-m", f"Start {name}" if not existing else f"Add the agent-team for {name}"], root)
         if code != 0:
             notes.append(f"the first commit didn't work: {out[-200:]}")
     except Exception:
-        if not (root / ".team.toml").exists():
-            shutil.rmtree(root, ignore_errors=True)   # nothing half-made left behind
+        if created and not (root / ".team.toml").exists():
+            shutil.rmtree(root, ignore_errors=True)   # nothing half-made left behind (never a folder we didn't make)
         raise
     projects.register(root)
     return {"root": str(root.resolve()), "notes": notes}

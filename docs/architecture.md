@@ -240,8 +240,10 @@ the page's session token and a same-origin request, and are refused if the file 
   background, `gh auth login --web` with its one-time code, a private repository, the readiness
   checklist with the fixes the page can do, and the lead's first tasks from the vision.
 - The dashboard starts without a project (`agent-team ui` outside one): `/api/team` answers
-  `{"setup": true}` and the page shows `setup.js`; creating or opening a project switches the
-  running dashboard to it. With one known project it opens that one.
+  `{"setup": true}` and the page shows `setup.js`, which offers the folder it was started in
+  (`folder_info`; an existing folder keeps its code, and only agent-team's files are committed) and
+  the projects already started; creating or opening a project switches the running dashboard to it.
+  Started from the Lakeba OS app (`--from-app`), it opens the one known project directly.
 - `progress.py` turns a run's output into plain-language steps (`/api/story/<job>`), shown on
   **My MVP** and next to each run's full output.
 - `apprun.py` (**Run my app**) works out how to start the project, runs a web app in the

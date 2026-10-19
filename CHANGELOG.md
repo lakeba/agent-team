@@ -6,6 +6,13 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Changed
+
+- `agent-team ui` in a folder without a team no longer opens another project: the setup offers to
+  set up that folder (its code is kept as it is; agent-team adds its own files and commits only
+  those, and an edited vision) and lists the projects you've started. Only the Lakeba OS app (and
+  the first-install launch) opens the one project directly (`ui --from-app`).
+
 ## [0.13.0] - 2026-10-19
 
 ### Added

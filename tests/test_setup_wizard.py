@@ -59,6 +59,35 @@ class CreateProjectTest(unittest.TestCase):
             setup_wizard.create_project({"name": "Taken", "vision": "x" * 40, "models": "claude"})
         self.assertEqual((self.home / "taken" / "file.txt").read_text(), "mine")
 
+    def test_sets_up_a_folder_with_code_without_touching_it(self):
+        root = self.home / "formApp"
+        (root / "src").mkdir(parents=True)
+        (root / "formApp.csproj").write_text("<Project/>")
+        (root / "src" / "Program.cs").write_text("// mine\n")
+        (root / "VISION.md").write_text("# Vision\n\nForms for clinics.\n")
+        info = setup_wizard.folder_info(root)
+        self.assertTrue(info["usable"] and info["has_files"])
+        self.assertEqual(info["language"], "dotnet")
+        self.assertIn("Forms for clinics", info["vision"])
+        with quiet():
+            made = setup_wizard.create_project({"name": "Form App", "vision": "Forms for clinics.", "models": "claude",
+                                                "folder": str(root), "existing": True})
+        self.assertEqual(Path(made["root"]), root.resolve())
+        self.assertEqual((root / "src" / "Program.cs").read_text(), "// mine\n")
+        self.assertFalse((root / "README.md").exists() and "Form App" not in (root / "README.md").read_text())
+        tracked = subprocess.run(["git", "-C", str(root), "ls-files"], capture_output=True, text=True).stdout.split()
+        self.assertIn(".team.toml", tracked)
+        self.assertNotIn("src/Program.cs", tracked)          # the owner's code isn't committed for them
+        self.assertNotIn("VISION.md", tracked)               # unchanged, so not ours to commit
+        self.assertEqual(load(root).project.name, "Form App")
+        self.assertFalse(setup_wizard.folder_info(root)["usable"])   # it has a team now
+
+    def test_home_folder_is_never_offered(self):
+        self.assertFalse(setup_wizard.folder_info(Path.home())["usable"])
+        with self.assertRaises(setup_wizard.SetupError):
+            setup_wizard.create_project({"name": "X", "vision": "x" * 40, "models": "claude",
+                                         "folder": str(Path.home()), "existing": True})
+
     def test_slug(self):
         self.assertEqual(setup_wizard.slug("Tip Splitter!"), "tip-splitter")
         self.assertEqual(setup_wizard.slug("???"), "my-idea")
@@ -176,7 +205,8 @@ class SetupModeServerTest(unittest.TestCase):
     def setUp(self):
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), None)
         self.port = self.httpd.server_address[1]
-        self.httpd.RequestHandlerClass = dash.make_handler(None, self.port)
+        self.folder = Path(tempfile.mkdtemp())
+        self.httpd.RequestHandlerClass = dash.make_handler(None, self.port, folder=self.folder)
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
 
     def tearDown(self):
@@ -200,6 +230,8 @@ class SetupModeServerTest(unittest.TestCase):
             status, s = self.request("GET", "/api/setup/status")
         self.assertEqual(status, 200)
         self.assertIn("home", s)
+        self.assertEqual(s["here"]["path"], str(self.folder.resolve()))
+        self.assertTrue(s["here"]["usable"])
         token = self.request("GET", "/api/session")[1]["token"]
         self.assertEqual(self.request("POST", "/api/setup/open", {"root": "/nowhere"}, token)[0], 404)
         root = project()
