@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.13.12] - 2026-10-20
+
 ### Added
 
 - `agent-team inspire <url>`: name an app that inspires you. The scout (or the lead) explores it
