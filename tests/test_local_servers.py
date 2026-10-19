@@ -71,7 +71,7 @@ class LocalServerTests(unittest.TestCase):
 
     def test_lan_candidates_cover_private_networks_but_not_this_machine(self):
         with mock.patch.object(readiness, "_own_addresses", return_value={"192.168.1.92", "8.8.4.4"}):
-            urls = readiness.lan_candidates()
+            urls = helpers.REAL_LAN_CANDIDATES()
         self.assertIn("http://192.168.1.20:8080", urls)
         self.assertIn("http://192.168.1.20:11434", urls)
         self.assertNotIn("http://192.168.1.92:8080", urls)              # this machine: localhost covers it
