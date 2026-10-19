@@ -46,7 +46,8 @@ kind = "openai"
 url = "http://localhost:8080"          # mlx_lm's default port; LM Studio uses 1234
 ```
 
-Members on it name the model the server runs, e.g. `model = "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"`.
+`agent-team discover --local` finds such servers here, on a VM's host, and on the other computers of
+this machine's local networks. Members on it name the model the server runs, e.g. `model = "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"`.
 Reviews and devops shifts call tools: use a model that's good at them, or `[project].review = "snapshot"`.
 | `api_key_env` | Name of the environment variable holding a key or token. Never put the value itself here. Set it in your environment or, so every command finds it, with `agent-team keys set NAME` (saved in `~/.config/agent-team/env`). |
 | `options` | Kind-specific table, e.g. `{ num_ctx = 65536 }` for Ollama, `{ stall_seconds = 480 }` for Anthropic. |

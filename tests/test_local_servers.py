@@ -69,6 +69,24 @@ class LocalServerTests(unittest.TestCase):
         for u in ("http://localhost:8080", "http://localhost:1234", "http://10.211.55.2:8080"):
             self.assertIn(u, urls)
 
+    def test_lan_candidates_cover_private_networks_but_not_this_machine(self):
+        with mock.patch.object(readiness, "_own_addresses", return_value={"192.168.1.92", "8.8.4.4"}):
+            urls = readiness.lan_candidates()
+        self.assertIn("http://192.168.1.20:8080", urls)
+        self.assertIn("http://192.168.1.20:11434", urls)
+        self.assertNotIn("http://192.168.1.92:8080", urls)              # this machine: localhost covers it
+        self.assertFalse(any("8.8.4." in u for u in urls))              # public networks are never scanned
+        self.assertEqual(len(urls), 253 * len(readiness.SCAN_PORTS))
+
+    def test_scan_finds_servers_on_other_machines(self):
+        port = self.url.rsplit(":", 1)[1]
+        with mock.patch.object(readiness, "lan_candidates", return_value=[f"http://127.0.0.1:{port}", "http://127.0.0.1:9"]), \
+                mock.patch.object(readiness, "local_candidates", return_value=[]), \
+                mock.patch.object(readiness, "find_ollama", return_value=[]):
+            found = readiness.find_local(scan=True)
+            self.assertEqual([f["url"] for f in found], [self.url])
+            self.assertEqual(readiness.find_local(), [])               # without scan: only the nearby addresses
+
     def test_init_on_an_mlx_server(self):
         root = Path(tempfile.mkdtemp())
         with quiet():

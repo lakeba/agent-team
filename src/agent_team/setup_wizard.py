@@ -80,6 +80,12 @@ def _project_name(root: str) -> str:
         return Path(root).name
 
 
+def scan() -> list[dict]:
+    """Every local model server, including those on other computers of the local networks."""
+    from .readiness import find_local
+    return find_local(scan=True)
+
+
 def status() -> dict:
     """What the wizard needs to know about this machine, in one call."""
     from . import composition, projects

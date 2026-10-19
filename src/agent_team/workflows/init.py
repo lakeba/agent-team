@@ -255,6 +255,8 @@ def find_server(given: str, interactive: bool) -> tuple[str, list[str] | None, s
         found = probe(url, timeout=5)
         return url, (found or {}).get("models"), "", (found or {}).get("kind", "ollama")
     found = find_local()
+    if not found:   # nothing nearby: look at the other computers on the local networks too
+        found = find_local(scan=True)
     if not interactive:
         if found:
             f = found[0]

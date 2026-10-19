@@ -6,6 +6,15 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- Model servers on other computers are found too: `discover --local`, the guided setup (in the
+  background, while you choose), Settings → Find servers, and `init` when nothing answers nearby
+  scan this machine's private local networks (the /24 around each address, at most three) on
+  Ollama's, mlx_lm's and LM Studio's ports, in about five seconds. `discover --local --nearby` skips
+  the scan. A server on another machine must listen on the network (Ollama: OLLAMA_HOST=0.0.0.0;
+  mlx_lm: --host 0.0.0.0).
+
 ## [0.13.2] - 2026-10-19
 
 ### Added

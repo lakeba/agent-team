@@ -586,12 +586,15 @@ def cmd_discover(args) -> int:
     import json as _json
     if args.ollama:   # local model servers: Ollama, mlx_lm, LM Studio, llama.cpp; here, a VM's host, the gateway
         from .readiness import find_local
-        servers = find_local(timeout=args.timeout)
+        if not args.nearby:
+            ui.action("looking here, on this machine's host and gateway, and on the other computers of its local networks")
+        servers = find_local(timeout=args.timeout, scan=not args.nearby)
         if args.json:
             print(_json.dumps(servers))
             return 0
         if not servers:
-            ui.say("No local model server answered on this machine, its host or the gateway. On another machine it "
+            ui.say("No local model server answered here, on this machine's host or gateway, or elsewhere on its local "
+                   "networks. On another machine it "
                    "must listen on the network: Ollama with OLLAMA_HOST=0.0.0.0 (port 11434), mlx_lm with "
                    "mlx_lm.server --host 0.0.0.0 (port 8080), with the port open.")
             return 1
@@ -753,7 +756,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_serve)
     s = sub.add_parser("discover", help="find agent-team nodes on the local network (--local: model servers such as Ollama and mlx_lm)")
     s.add_argument("--ollama", "--local", dest="ollama", action="store_true",
-                   help="find local model servers instead (Ollama, mlx_lm, LM Studio, llama.cpp): here, a VM's host, the gateway")
+                   help="find local model servers instead (Ollama, mlx_lm, LM Studio, llama.cpp): here, a VM's host, the gateway and the other computers of the local networks")
+    s.add_argument("--nearby", action="store_true", help="with --local: skip the scan of the local networks (faster)")
     s.add_argument("--timeout", type=float, default=2.0)
     s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_discover)

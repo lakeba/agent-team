@@ -241,6 +241,9 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
                 if path == "/api/setup/pull":
                     from .. import setup_wizard
                     return self._json(setup_wizard.pull_status(query.get("url", ""), query.get("model", "")))
+                if path == "/api/setup/scan":
+                    from .. import setup_wizard
+                    return self._json({"servers": setup_wizard.scan()})
                 if path == "/api/setup/github":
                     from .. import setup_wizard
                     return self._json({**setup_wizard.github_status(), "login": dict(setup_wizard.LOGIN)})
@@ -444,7 +447,7 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
                     return self._json({"data": data, "preview": config_io.plan_change(root, data)})
                 if path == "/api/ollama/find":
                     from ..readiness import find_local
-                    return self._json({"servers": find_local()})
+                    return self._json({"servers": find_local(scan=True)})
                 if path == "/api/templates/apply":
                     from .. import templates
                     try:

@@ -29,6 +29,20 @@ async function startSetup(fromDashboard) {
   f.models = s.claude_key && s.ollama && s.ollama.length ? "mixed" : s.claude_key ? "claude" : "ollama";
   if (s.git_name) f.owner = s.git_name;
   wizard.busy = ""; renderSetup();
+  scanNetwork();
+}
+
+// The other computers on the network take a few seconds more: look in the background, add what's found.
+async function scanNetwork() {
+  wizard.scanning = true;
+  try {
+    const more = (await getJSON("/api/setup/scan")).servers || [];
+    const s = wizard.status, known = new Set((s.ollama || []).map(x => x.url));
+    s.ollama = [...(s.ollama || []), ...more.filter(x => !known.has(x.url))];
+    if (!wizard.form.ollama_url && s.ollama.length) { wizard.form.ollama_url = s.ollama[0].url; wizard.form.local_kind = s.ollama[0].kind; }
+  } catch (_) {}
+  wizard.scanning = false;
+  if (wizard.step === 2) renderSetup();
 }
 
 function pickModel(models, recommended) {
@@ -181,7 +195,8 @@ function keyBox() {
 
 function ollamaBox(found) {
   const f = wizard.form, s = wizard.status || {};
-  const box = h("div", { class: "card wiz-box" }, h("h3", {}, "Free local models"));
+  const box = h("div", { class: "card wiz-box" }, h("h3", {}, "Free local models"),
+    wizard.scanning ? h("p", { class: "muted small" }, h("span", { class: "spinner", "aria-hidden": "true" }), " Also looking on the other computers on your network…") : null);
   if (!found.length) {
     box.append(status("bad", "No local model server is running on this computer"),
       h("p", { class: "secondary small" }, "Download Ollama from ", h("a", { href: "https://ollama.com/download", target: "_blank", rel: "noopener noreferrer" }, "ollama.com/download"),

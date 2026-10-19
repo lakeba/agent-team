@@ -192,20 +192,68 @@ def local_candidates() -> list[str]:
     return list(dict.fromkeys(ollama + extra))
 
 
-def find_local(timeout: float = 1.5, candidates: list[str] | None = None) -> list[dict]:
+SCAN_PORTS = (11434, *OPENAI_PORTS)
+SCAN_NETWORKS = 3          # at most this many of this machine's networks are scanned
+
+
+def _private(ip: str) -> bool:
+    a, b = (int(x) for x in ip.split(".")[:2])
+    return a == 10 or (a == 172 and 16 <= b <= 31) or (a == 192 and b == 168)
+
+
+def lan_candidates() -> list[str]:
+    """Every address on this machine's local networks (the /24 around each of its private IPv4
+    addresses, not its own) on the model servers' ports: other computers on the network."""
+    mine = _own_addresses()
+    nets = list(dict.fromkeys(ip.rsplit(".", 1)[0] for ip in sorted(mine) if _private(ip)))[:SCAN_NETWORKS]
+    return [f"http://{net}.{n}:{port}" for net in nets for n in range(1, 255)
+            if f"{net}.{n}" not in mine for port in SCAN_PORTS]
+
+
+def _port_open(url: str, timeout: float = 0.4) -> bool:
+    import socket
+    host, port = url.split("://", 1)[1].rsplit(":", 1)
+    try:
+        with socket.create_connection((host, int(port)), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _scan(urls: list[str], timeout: float) -> list[dict]:
+    """probe() the addresses whose port is open: a quick connection test first, so the many
+    addresses with nothing on them cost a fraction of a second each, all at once."""
+    from concurrent.futures import ThreadPoolExecutor
+    if not urls:
+        return []
+    with ThreadPoolExecutor(max_workers=256) as pool:
+        open_urls = [u for u, ok in zip(urls, pool.map(_port_open, urls)) if ok]
+        return [f for f in pool.map(lambda u: probe(u, timeout), open_urls) if f]
+
+
+def find_local(timeout: float = 1.5, candidates: list[str] | None = None, scan: bool = False) -> list[dict]:
     """Every local model server that answers, nearest first: Ollama servers (find_ollama), then
-    OpenAI-compatible ones such as mlx_lm, LM Studio or llama.cpp, as probe() describes them. Tries
-    them all at once."""
+    OpenAI-compatible ones such as mlx_lm, LM Studio or llama.cpp, as probe() describes them. With
+    `scan`, also every other computer on this machine's local networks (a few seconds more).
+    Tries them all at once."""
     from concurrent.futures import ThreadPoolExecutor
     urls = candidates if candidates is not None else local_candidates()
     ollama_urls = [u for u in urls if u.rstrip("/").endswith(":11434")]
     other = [u for u in urls if u not in ollama_urls]
+    lan = [u for u in lan_candidates() if u not in urls] if scan and candidates is None else []
     with ThreadPoolExecutor(max_workers=2) as pool:
         ollama_job = pool.submit(find_ollama, timeout, ollama_urls if candidates is not None else None)
-        with ThreadPoolExecutor(max_workers=max(1, min(64, len(other)))) as inner:
-            found_other = [f for f in inner.map(lambda u: probe(u, timeout=timeout), other) if f]
+        with ThreadPoolExecutor(max_workers=max(1, min(128, len(other) + len(lan)))) as inner:
+            near_jobs = [inner.submit(probe, u, timeout) for u in other]
+            found_other = [f for j in near_jobs if (f := j.result())]
+        found_lan = _scan(lan, timeout)
         ollama = [{"url": u.rstrip("/"), "kind": "ollama", "label": "Ollama", "models": m} for u, m in ollama_job.result()]
-    return ollama + found_other
+    seen, out = set(), []
+    for f in ollama + found_other + found_lan:
+        if f["url"] not in seen:
+            seen.add(f["url"])
+            out.append(f)
+    return out
 
 
 def _identity_check(member) -> Check:
