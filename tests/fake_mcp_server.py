@@ -42,7 +42,8 @@ def browse(args):
     def artifacts(html, url):
         text = " ".join(re.sub(r"<[^>]+>", " ", html).split())
         text += "".join(f'\n- link "{t}":\n  - /url: {h}' for h, t in anchors(html))
-        png = {"sha256": "a" * 64 if "v2" not in html else "b" * 64, "bytes": 4, "media_type": "image/png",
+        sha = os.urandom(32).hex() if "animated" in html else "a" * 64 if "v2" not in html else "b" * 64   # a spinner never settles
+        png = {"sha256": sha, "bytes": 4, "media_type": "image/png",
                "data_base64": "iVBORw=="}
         return {"accessibility": {"state": "captured", "value": {"text": text}},
                 "url": {"state": "captured", "value": {"url": url}},

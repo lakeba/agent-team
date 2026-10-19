@@ -148,10 +148,26 @@ class ExploreTests(unittest.TestCase):
         self.assertEqual([s.problem for s in followed], ["", ""])
         self.assertTrue(followed[0].url.endswith("/pricing"))
         self.assertIn("Pro is $8 a month", followed[0].text)
-        self.assertIn("several links named 'Pricing'; followed the first", " ".join(ex.notes))
+        self.assertIn("went to " + followed[0].url + ", the address of the 'Pricing' link", " ".join(ex.notes))
         self.assertEqual(calls[2][1]["actions"][0]["action"], "goto")   # the run again, with the address
         self.assertIn("robots.txt disallows", admin[-1].problem)      # the address is one robots.txt keeps out
         self.assertIn("lead off the site", partner[-1].problem)
+
+    def test_each_step_waits_until_its_screen_stops_changing(self):
+        pages = dict(PAGES)
+        pages["/demo"] = (200, '<h1>Live demo</h1><div class="animated">loading</div>')
+        pages["/"] = (200, HOME + '<a href="/demo">Demo</a>')
+        ex, calls = self.explore(Site(self, pages), journeys=[['click link "Pricing"'], ['click link "Demo"']], max_pages=1)
+        waits = [a for a in calls[1][1]["actions"] if a["step_id"].startswith("settle-1-")]
+        self.assertEqual([a["duration_ms"] for a in waits], [inspire.SETTLE_MS] * inspire.SETTLE_TRIES)
+        self.assertNotIn("journey 1", " ".join(ex.notes))             # pricing settled at once
+        self.assertIn("journey 2, step 1: the screen was still changing", " ".join(ex.notes))
+        self.assertEqual([len(j) for j in ex.journeys], [1, 1])       # one screen per step, whichever capture it was
+
+    def test_capture_notes_are_not_the_apps_gaps(self):
+        ex = inspire.Exploration(start="https://app.example/", notes=["journey 1, step 1 went to https://app.example/#pricing"])
+        text = " ".join(b.get("text", "") for b in inspire.model_input(ex, []))
+        self.assertIn("about the team's tools, not the app", text)
 
     def test_pricing_features_docs_and_demos_come_first(self):
         ranked = sorted(["/blog/launch", "/login", "/simple-analytics", "/docs/", "/pricing", "/features", "/live-demo"],

@@ -17,7 +17,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
   It reads up to 20 same-site pages, two links deep, after `robots.txt`, pricing, features, docs
   and demos first, with each page's text, address and a screenshot, plus a screen after every step
   of the journeys you give (`--journey 'click link "Pricing"; ...'`), in one browser run each. A
-  link the page repeats is followed by its address. It never signs in, never asks REA for scripts or
+  link the page repeats is followed by its address. Each step's screenshot waits until the screen stops changing
+  (a page still loading, a dashboard filling in), up to six seconds. It never signs in, never asks REA for scripts or
   network traffic, and never uses REA's tools that look inside software. You confirm once per app.
 
   The lead plans from the brief in `discuss`. Members who write code never get it or the captures

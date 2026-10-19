@@ -295,8 +295,36 @@ def _repeated(error: str) -> bool:
     return "strict mode violation" in (error or "")
 
 
-def _screens(evidence: dict, url: str, steps: list[str], j: int) -> list[Look]:
-    """A Look after each journey step REA ran, up to the one that failed."""
+SETTLE_MS = 1500        # after each journey step: wait, capture, and compare...
+SETTLE_TRIES = 4        # ...up to this many times, until two screenshots in a row match
+
+
+def _with_settling(actions: list[dict]) -> list[dict]:
+    """A journey's actions, each followed by SETTLE_TRIES short waits. REA captures after every one,
+    so the step's screen can be the first that stopped changing (a page still loading, a spinner,
+    a dashboard filling in), with no page scripts involved."""
+    out = []
+    for a in actions:
+        out.append(a)
+        if a["step_id"].startswith("step-"):
+            n = a["step_id"].removeprefix("step-")
+            out += [{"step_id": f"settle-{n}-{i}", "action": "wait_for_timeout", "duration_ms": SETTLE_MS}
+                    for i in range(1, SETTLE_TRIES + 1)]
+    return out
+
+
+def _settled(by_id: dict, k: int) -> tuple[dict, bool]:
+    """Step k's capture once the screen stopped changing (or the last one REA took), and whether it did."""
+    chain = [by_id[f"step-{k}"]] + [by_id[i] for i in (f"settle-{k}-{t}" for t in range(1, SETTLE_TRIES + 1)) if i in by_id]
+    sha = [(_artifact(c, "screenshot") or {}).get("sha256") for c in chain]
+    for i in range(1, len(chain)):
+        if sha[i] and sha[i] == sha[i - 1]:
+            return chain[i - 1], True
+    return chain[-1], len(chain) == 1
+
+
+def _screens(evidence: dict, url: str, steps: list[str], j: int, notes: list[str] | None = None) -> list[Look]:
+    """A Look after each journey step REA ran, once its screen settled, up to the one that failed."""
     by_id = {str(s.get("step_id")): s for s in (evidence.get("normalized_result") or {}).get("steps") or []}
     screens = []
     for k, line in enumerate(steps, start=1):
@@ -304,8 +332,13 @@ def _screens(evidence: dict, url: str, steps: list[str], j: int) -> list[Look]:
         if s is None:
             break
         status = s.get("status") or "completed"
-        shot = _artifact(s, "screenshot") or {}
         problem = "" if status == "completed" else f"step {k} ({line}) {status}: {str(s.get('error') or '')[:400]}"
+        if not problem:
+            s, still = _settled(by_id, k)
+            if not still and notes is not None:
+                notes.append(f"journey {j}, step {k}: the screen was still changing {SETTLE_MS * SETTLE_TRIES // 1000} seconds "
+                             "later (a slow load or an animation); its last screenshot is shown")
+        shot = _artifact(s, "screenshot") or {}
         screens.append(Look((_artifact(s, "url") or {}).get("url", "") or url, text=(_artifact(s, "accessibility") or {}).get("text", ""),
                             png=shot.get("data_base64", ""), problem=problem, label=f"journey {j}, step {k}"))
         if problem:
@@ -315,35 +348,41 @@ def _screens(evidence: dict, url: str, steps: list[str], j: int) -> list[Look]:
 
 def journey(client: mcp.Client, browser: str, start: str, steps: list[str], j: int, robots: Robots,
             notes: list[str]) -> list[Look]:
-    """One journey in one browser run, with a screenshot after every step. A click on a link whose
-    name the page repeats (a header and a footer "Pricing") follows that link's address instead,
-    when it stays on the site and robots.txt allows it."""
-    actions = _actions(start, steps)
+    """One journey in one browser run, with a screenshot after every step once its screen settled.
+    A click on a link whose name the page repeats (a header and a footer "Pricing") goes to that
+    link's address instead, when it stays on the site and robots.txt allows it."""
+    actions = _actions(start, steps)[:-1]   # the settling waits replace the final pause
     origin = urllib.parse.urlsplit(start)[:2]
     for _ in range(len(steps) + 1):
-        evidence, problem = _scenario(client, capture_input(browser, start, actions, each_step=True))
+        evidence, problem = _scenario(client, capture_input(browser, start, _with_settling(actions), each_step=True))
         if evidence is None:
             return [Look(start, problem=problem, label=f"journey {j}, step 1")]
-        screens = _screens(evidence, start, steps, j)
-        if not screens and not problem:   # REA stopped before the first step
-            screens = [Look(start, problem="not observed: no step was run", label=f"journey {j}, step 1")]
+        found_notes: list[str] = []
+        screens = _screens(evidence, start, steps, j, found_notes)
+        if not screens:   # REA stopped before the first step
+            return [Look(start, problem="not observed: no step was run", label=f"journey {j}, step 1")]
         last = screens[-1]
         k = len(screens)
         a = actions[k - 1]
         loc = a.get("locator") or {}
         failed = next((s for s in (evidence.get("normalized_result") or {}).get("steps") or [] if s.get("step_id") == f"step-{k}"), {})
         if not (last.problem and a["action"] == "click" and loc.get("role") == "link" and _repeated(str(failed.get("error")))):
+            notes += found_notes
             return screens
         before = screens[-2].text if k > 1 else (_artifact((evidence["normalized_result"]["steps"] or [{}])[0], "accessibility") or {}).get("text", "")
         found = link_addresses(before, loc.get("name", "")) or re.findall(r'<a [^>]*href="([^"]+)"', str(failed.get("error")))
         href = urllib.parse.urljoin(last.url or start, found[0]) if found else ""
         if not href or urllib.parse.urlsplit(href)[:2] != origin:
             last.problem += f" (the links named {loc.get('name')!r} lead off the site, so they weren't followed)" if href else ""
+            notes += found_notes
             return screens
         if not robots.allowed(href):
             last.problem += f" (robots.txt disallows {href}, where the link leads)"
+            notes += found_notes
             return screens
-        notes.append(f"journey {j}, step {k}: the page has several links named {loc.get('name')!r}; followed the first, to {href}")
+        notes.append(f"journey {j}, step {k} went to {href}, the address of the {loc.get('name')!r} link: the capture "
+                     "tool can only click a link whose name appears once on a page (this one appears more than once, "
+                     "as is common in a header and footer)")
         actions[k - 1] = {"step_id": a["step_id"], "action": "goto", "destination": {"url": href}, "wait_until": "load",
                           "timeout_ms": STEP_MS}
     return screens
@@ -432,8 +471,9 @@ def model_input(ex: Exploration, journeys: list[list[str]]) -> list[dict]:
                 images += 1
     if ex.skipped:
         blocks.append({"type": "text", "text": "\nNot visited (robots.txt): " + ", ".join(ex.skipped[:20])})
-    for n in ex.notes:
-        blocks.append({"type": "text", "text": f"\nNote: {n}"})
+    if ex.notes:   # about the capture, not the app: never gaps or friction
+        blocks.append({"type": "text", "text": "\nHow the capture went (about the team's tools, not the app: never list "
+                                               "these as the app's gaps or friction):\n" + "\n".join(f"- {n}" for n in ex.notes)})
     blocks.append({"type": "text", "text": "\nWrite the inspiration brief."})
     return blocks
 

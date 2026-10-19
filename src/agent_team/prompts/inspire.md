@@ -30,7 +30,9 @@ Plans, prices and any free tier, as shown. "Not shown" when the pages don't say.
 What users there seem to get, each with the observation it rests on.
 
 ## Gaps and friction
-What's missing, awkward or confusing, each with the observation it rests on.
+What's missing, awkward or confusing, each with the observation it rests on. Only what a visitor
+to the app would meet: how the capture went (a link followed by its address, a screen that was
+still loading) is about the team's tools, not the app.
 
 ## Ways to be different
 Three directions for the founder's product, each tied to its audience and to a gap above.

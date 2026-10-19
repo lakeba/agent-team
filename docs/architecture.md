@@ -198,7 +198,9 @@ the page's session token and a same-origin request, and are refused if the file 
   - `robots.txt` first (RFC 9309);
   - same-site pages, two links deep, found from `<a href>` only, the likeliest useful first
     (`score`: pricing, then features, docs and demos; blog posts, sign-ins and legal pages last);
-  - each journey in one REA run, with the capture taken after every step (`after_each_step`);
+  - each journey in one REA run, with the capture taken after every step (`after_each_step`)
+    and a few short waits after each, keeping the first screenshot that matches the next one, so a
+    page still loading isn't what the scout sees (`_with_settling`, `_settled`);
     a click on a link the page repeats (Playwright's strict mode refuses it) follows that link's
     address from the previous step's accessibility text, when it stays on the site and
     `robots.txt` allows it;
