@@ -11,6 +11,10 @@ import os
 
 # Tests never touch the real ~/.config/agent-team (keys file, project list).
 os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp(prefix="agent-team-test-config-")
+# This computer's own REA (agent-team's copy, or one registered with Claude Code) must not change
+# what the tests see: they get an empty data folder and Claude Code config of their own.
+os.environ["XDG_DATA_HOME"] = tempfile.mkdtemp(prefix="agent-team-test-data-")
+os.environ["CLAUDE_CONFIG_DIR"] = tempfile.mkdtemp(prefix="agent-team-test-claude-")
 
 from agent_team import config  # noqa: E402
 from agent_team import readiness  # noqa: E402
