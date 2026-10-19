@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.13.8] - 2026-10-19
+
 ### Security
 
 - A coding agent using `agent-team mcp` could approve a proposed release: `team_start_run` passed every
