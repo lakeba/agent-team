@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.13.13] - 2026-10-20
+
 ### Added
 
 - Inspire without a terminal. The dashboard has an **Inspiration** tab: add an app you like (its address,
