@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.13.4] - 2026-10-19
+
 ### Added
 
 - In a VM, finding model servers also covers the host's home network: the usual ones (192.168.0.x,
