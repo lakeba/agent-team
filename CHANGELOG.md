@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.13.5] - 2026-10-19
+
 ### Added
 
 - Add a machine finds the model servers on the network ("Find servers on this network": Ollama,
