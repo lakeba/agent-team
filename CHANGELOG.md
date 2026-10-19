@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.13.10] - 2026-10-19
+
 ### Added
 
 - `POST /api/release/approve {version}`: the dashboard's "Approve and release" now has its own route,
