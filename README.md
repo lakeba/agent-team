@@ -325,7 +325,9 @@ agent-team mcp config                      # the snippets, to add by hand
 The tools: `team_status`, `team_ready`, `team_start_run` (build, fix, discuss, ship, autopilot,
 market, doctor, in the background), `team_run_output`, `team_runs`, `team_stop_run` and
 `team_behaviour`. Runs keep the same spend limits and guardrails. Approving pull requests and
-releases isn't offered: that stays with you.
+releases isn't offered, and a run can't carry an approval (ship's `release` is refused): that stays
+with you. `agent-team mcp --no-merge` also leaves out ship and autopilot, the runs that merge and
+release, for a client that should do neither.
 
 #### Use it from Claude Code
 

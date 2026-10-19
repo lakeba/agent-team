@@ -811,6 +811,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--client", default="claude", choices=["claude", "codex", "cursor"], help="for install")
     s.add_argument("--scope", default="user", choices=["user", "project", "local"], help="for install with Claude Code")
     s.add_argument("--yes", action="store_true", help="for install: don't ask first")
+    s.add_argument("--no-merge", action="store_true", help="for serve: leave out the runs that merge and release (ship, autopilot)")
     s = sub.add_parser("completion", help="Tab completion for bash and zsh: print the script, or install it")
     s.add_argument("action", nargs="?", default="install", choices=["install", "bash", "zsh"],
                    help="install (for your shell), or print the bash or zsh script")
@@ -891,7 +892,7 @@ def cmd_behaviour(args) -> int:
 def cmd_mcp(args) -> int:
     if args.action == "serve":
         from . import mcp_server
-        return mcp_server.serve(Path(args.project))
+        return mcp_server.serve(Path(args.project), no_merge=args.no_merge)
     from . import mcp_install
     if args.action == "config":
         ui.say(mcp_install.snippets())

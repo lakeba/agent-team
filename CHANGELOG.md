@@ -6,6 +6,24 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Security
+
+- A coding agent using `agent-team mcp` could approve a proposed release: `team_start_run` passed every
+  argument on to the run, so `workflow: "ship", release: "1.2.3"` did what the dashboard's "Approve and
+  release" button does. `team_start_run` now takes only the parameters in its schema and refuses
+  `release` with the command the owner runs instead.
+
+### Added
+
+- `agent-team mcp --no-merge` leaves out ship and autopilot, the runs that merge approved pull requests
+  and release when the project releases on its own, for a client (such as a desktop app's chat) that
+  should do neither.
+
+### Fixed
+
+- `agent-team ui --port 0` picked a free port but then refused every request, because it checked the
+  Host header against port 0. It now checks against the port it got.
+
 ## [0.13.7] - 2026-10-19
 
 ### Fixed

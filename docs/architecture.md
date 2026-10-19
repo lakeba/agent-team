@@ -206,7 +206,8 @@ the page's session token and a same-origin request, and are refused if the file 
 
 - `mcp_server.py`: `agent-team mcp` answers MCP over stdio. Its tools wrap `cli.status_data`,
   `readiness`, `jobs` (start, output, list, stop) and the behaviour evidence; approvals aren't
-  offered. Playbooks are served as MCP prompts. `mcp_install.py`
+  offered, `team_start_run` takes only its schema's parameters (never ship's `release`), and
+  `--no-merge` drops ship and autopilot. Playbooks are served as MCP prompts. `mcp_install.py`
   registers the server with Claude Code, Codex or Cursor.
 - `workflows/try_demo.py`: `agent-team try` copies the sample in `demo/tipsplit/` to a temporary
   folder and runs `build` with Claude, Ollama or the `replay` provider.

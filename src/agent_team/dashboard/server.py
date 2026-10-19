@@ -556,8 +556,10 @@ def serve(project: Path, port: int = 8790, open_browser: bool = True, from_app: 
                 team = config.load(Path(known[0]))
             except config.ConfigError:
                 team = None
-    httpd = ThreadingHTTPServer(("127.0.0.1", port),
-                                make_handler(team.root if team else None, port, folder=None if from_app else project))
+    httpd = ThreadingHTTPServer(("127.0.0.1", port), None)
+    # The port it's actually on (port 0 picks a free one): requests are checked against that Host.
+    httpd.RequestHandlerClass = make_handler(team.root if team else None, httpd.server_address[1],
+                                             folder=None if from_app else project)
     url = f"http://127.0.0.1:{httpd.server_address[1]}/"
     what = f"for {team.project.name}" if team else "(no project here yet: the setup wizard opens)"
     print(f"agent-team dashboard {what}: {url}  (Ctrl-C to stop; runs started here keep going)", flush=True)

@@ -3,7 +3,9 @@ import http.client
 import json
 import os
 import threading
+import time
 import unittest
+from unittest import mock
 from http.server import ThreadingHTTPServer
 
 from agent_team import logs, usage
@@ -108,6 +110,34 @@ class MixedLogTests(unittest.TestCase):
         runs = logs.parse(root)
         self.assertEqual(sorted(r["title"] for r in runs), ["Build: new task", "old task one"])
         self.assertTrue(all(r["outcome"].startswith("approved") for r in runs))
+
+
+class DashboardPortZeroTests(unittest.TestCase):
+    def test_port_0_serves_on_the_port_it_got(self):
+        started = []
+
+        class Recording(ThreadingHTTPServer):
+            def __init__(self, *a, **k):
+                super().__init__(*a, **k)
+                started.append(self)
+
+        root = project()
+        with mock.patch.object(dash, "ThreadingHTTPServer", Recording), quiet():
+            t = threading.Thread(target=dash.serve, args=(root, 0, False), daemon=True)
+            t.start()
+            for _ in range(100):
+                if started:
+                    break
+                time.sleep(0.05)
+            httpd = started[0]
+            port = httpd.server_address[1]
+            try:
+                c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+                c.request("GET", "/api/team", headers={"Host": f"127.0.0.1:{port}"})
+                self.assertEqual(c.getresponse().status, 200)
+            finally:
+                httpd.shutdown()
+                t.join(5)
 
 
 class DashboardServerTests(unittest.TestCase):

@@ -44,6 +44,40 @@ class McpServerTest(unittest.TestCase):
         bad = self.ask("tools/call", {"name": "team_start_run", "arguments": {"workflow": "approve"}}, root)["result"]
         self.assertTrue(bad["isError"])
 
+    def start(self, root, no_merge=False, **args):
+        message = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                   "params": {"name": "team_start_run", "arguments": args}}
+        return mcp_server.handle(message, root, no_merge)["result"]
+
+    def test_a_run_cant_carry_a_release_approval(self):
+        root = project()
+        with mock.patch("agent_team.jobs.start") as start:
+            refused = self.start(root, workflow="ship", release="1.2.3")
+            self.assertTrue(refused["isError"])
+            self.assertIn("owner's", refused["content"][0]["text"])
+            extra = self.start(root, workflow="build", task="x", max_steps=5)
+            self.assertTrue(extra["isError"])
+            self.assertIn("max_steps", extra["content"][0]["text"])
+            start.assert_not_called()
+
+    def test_no_merge_leaves_out_ship_and_autopilot(self):
+        root = project()
+        listed = mcp_server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, root, True)["result"]["tools"]
+        run = next(t for t in listed if t["name"] == "team_start_run")
+        self.assertNotIn("ship", run["inputSchema"]["properties"]["workflow"]["enum"])
+        self.assertNotIn("autopilot", run["inputSchema"]["properties"]["workflow"]["enum"])
+        self.assertNotIn("ship:", run["description"])
+        with mock.patch("agent_team.jobs.start") as start:
+            for workflow in ("ship", "autopilot"):
+                refused = self.start(root, True, workflow=workflow)
+                self.assertTrue(refused["isError"])
+                self.assertIn("doesn't offer", refused["content"][0]["text"])
+            start.assert_not_called()
+            start.return_value = {"id": "j1", "status": "running", "argv": ["build", "x"]}
+            self.assertFalse(self.start(root, True, workflow="build", task="x").get("isError"))
+        full = {t["name"]: t for t in mcp_server.tools()}["team_start_run"]
+        self.assertIn("ship", full["inputSchema"]["properties"]["workflow"]["enum"])   # the default is unchanged
+
     def test_behaviour(self):
         result = self.ask("tools/call", {"name": "team_behaviour", "arguments": {}}, project())["result"]
         self.assertEqual(result["structuredContent"]["journeys"], [])

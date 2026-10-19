@@ -9,7 +9,9 @@ command as a PR", and the agent calls team_start_run, follows team_run_output, a
 
 Runs go through the same background jobs as the dashboard (.team/jobs/), with the same spend
 limits, shift lock and guardrails. What stays with you: approving pull requests and releases.
-Those tools aren't offered, so no agent can approve on your behalf.
+Those tools aren't offered, and a run can't carry an approval either (ship's `release` is refused),
+so no agent can approve on your behalf. `agent-team mcp --no-merge` also leaves out the runs that
+merge and release (ship, autopilot), for a client that shouldn't do either.
 
 The built-in playbooks are offered as MCP prompts too, so an agent's own prompt menu lists them
 (code-review, plan-feature, fix-bug, ...).
@@ -25,6 +27,16 @@ from . import __version__
 PROTOCOL = "2025-06-18"
 OUTPUT_LIMIT = 20_000
 WORKFLOWS = ["build", "fix", "discuss", "ship", "autopilot", "market", "doctor"]
+MERGING = ("ship", "autopilot")   # they merge what the owner approved, and release when the project releases on its own
+WORKFLOW_HELP = {
+    "build": "build: plan, implement, test, review a task (task; with branch and pr: true it opens a pull request).",
+    "fix": "fix: apply review feedback on a PR (number).",
+    "discuss": "discuss: agree a roadmap (topic).",
+    "ship": "ship: one devops shift (merges what the owner approved; releases only if the project releases on its own).",
+    "autopilot": "autopilot: work through a milestone.",
+    "market": "market: brief, site and deck.",
+    "doctor": "doctor: check the team.",
+}
 
 INSTRUCTIONS = """agent-team runs a small AI dev team on a project: a lead plans and reviews, builders write the
 code, tests and behaviour checks run, and a devops member reviews, merges and releases through
@@ -46,11 +58,8 @@ TOOLS = [
                     "models, tool servers), each with the command that fixes it.",
      "inputSchema": {"type": "object", "properties": {"project": PROJECT}}},
     {"name": "team_start_run",
-     "description": "Start a team run in the background and return its id at once. build: plan, implement, test, "
-                    "review a task (task; with branch and pr: true it opens a pull request). fix: apply review "
-                    "feedback on a PR (number). discuss: agree a roadmap (topic). ship: one devops shift (merge, "
-                    "release). autopilot: work through a milestone. market: brief, site and deck. doctor: check the "
-                    "team. Follow it with team_run_output.",
+     "description": "Start a team run in the background and return its id at once. "
+                    + " ".join(WORKFLOW_HELP[w] for w in WORKFLOWS) + " Follow it with team_run_output.",
      "inputSchema": {"type": "object", "required": ["workflow"], "properties": {
          "project": PROJECT,
          "workflow": {"type": "string", "enum": WORKFLOWS},
@@ -84,6 +93,23 @@ class ToolError(Exception):
     pass
 
 
+def tools(no_merge: bool = False) -> list:
+    """The tools offered; with no_merge, team_start_run without the runs that merge and release."""
+    if not no_merge:
+        return TOOLS
+    allowed = [w for w in WORKFLOWS if w not in MERGING]
+    out = []
+    for t in TOOLS:
+        if t["name"] == "team_start_run":
+            props = dict(t["inputSchema"]["properties"], workflow={"type": "string", "enum": allowed})
+            props.pop("milestone", None)   # autopilot's
+            t = {**t, "description": "Start a team run in the background and return its id at once. "
+                                     + " ".join(WORKFLOW_HELP[w] for w in allowed) + " Follow it with team_run_output.",
+                 "inputSchema": {**t["inputSchema"], "properties": props}}
+        out.append(t)
+    return out
+
+
 def _root(args: dict, default: Path) -> Path:
     from .config import ConfigError, find_config
     start = Path(args.get("project") or default).expanduser().resolve()
@@ -93,7 +119,7 @@ def _root(args: dict, default: Path) -> Path:
         raise ToolError(f"no agent-team in {start}: run `agent-team init` there first (or pass project)") from None
 
 
-def call(name: str, args: dict, default: Path) -> dict:
+def call(name: str, args: dict, default: Path, no_merge: bool = False) -> dict:
     """One tool call: plain JSON-able data, or ToolError."""
     from . import jobs
     if name == "team_ready":
@@ -107,8 +133,19 @@ def call(name: str, args: dict, default: Path) -> dict:
         return status_data(load(root), bool(args.get("health")))
     if name == "team_start_run":
         workflow = args.get("workflow")
-        if workflow not in WORKFLOWS:
-            raise ToolError(f"workflow is one of {', '.join(WORKFLOWS)}")
+        offered = [w for w in WORKFLOWS if not (no_merge and w in MERGING)]
+        if no_merge and workflow in MERGING:
+            raise ToolError(f"{workflow} merges and releases, which this server doesn't offer; "
+                            f"the owner starts it from the dashboard or with `agent-team {workflow}`")
+        if workflow not in offered:
+            raise ToolError(f"workflow is one of {', '.join(offered)}")
+        if "release" in args:   # releasing a proposed version is the owner's approval, never an agent's
+            raise ToolError("approving a release is the owner's: tell the user to run "
+                            "`agent-team ship --release <version>` or use the dashboard")
+        known = set(next(t for t in TOOLS if t["name"] == "team_start_run")["inputSchema"]["properties"])
+        unknown = sorted(set(args) - known)
+        if unknown:
+            raise ToolError(f"team_start_run doesn't take {', '.join(unknown)}")
         params = {k: v for k, v in args.items() if k not in ("project", "workflow")}
         try:
             job = jobs.start(root, workflow, params)
@@ -157,7 +194,7 @@ def _playbooks(default: Path) -> list:
     return playbook.catalog(root)
 
 
-def handle(message: dict, default: Path) -> dict | None:
+def handle(message: dict, default: Path, no_merge: bool = False) -> dict | None:
     """The reply to one JSON-RPC message (None for notifications)."""
     method, rid = message.get("method"), message.get("id")
     if rid is None:
@@ -168,7 +205,7 @@ def handle(message: dict, default: Path) -> dict | None:
     elif method == "ping":
         result = {}
     elif method == "tools/list":
-        result = {"tools": TOOLS}
+        result = {"tools": tools(no_merge)}
     elif method == "prompts/list":
         result = {"prompts": [{"name": e.name, "description": e.description[:300],
                                "arguments": [{"name": "what", "description": "what it's for this time", "required": False}]}
@@ -186,7 +223,7 @@ def handle(message: dict, default: Path) -> dict | None:
     elif method == "tools/call":
         params = message.get("params") or {}
         try:
-            data = call(str(params.get("name")), params.get("arguments") or {}, default)
+            data = call(str(params.get("name")), params.get("arguments") or {}, default, no_merge)
             result = {"content": [{"type": "text", "text": json.dumps(data, default=str, indent=1)}],
                       "structuredContent": data}
         except ToolError as e:
@@ -198,7 +235,7 @@ def handle(message: dict, default: Path) -> dict | None:
     return {"jsonrpc": "2.0", "id": rid, "result": result}
 
 
-def serve(default: Path | None = None) -> int:
+def serve(default: Path | None = None, no_merge: bool = False) -> int:
     """Answer MCP messages on stdin/stdout until stdin closes. Nothing else may print to stdout."""
     default = (default or Path.cwd()).resolve()
     out = sys.stdout
@@ -212,7 +249,7 @@ def serve(default: Path | None = None) -> int:
         except ValueError:
             reply = {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "not JSON"}}
         else:
-            reply = handle(message, default)
+            reply = handle(message, default, no_merge)
         if reply is not None:
             out.write(json.dumps(reply, default=str) + "\n")
             out.flush()
