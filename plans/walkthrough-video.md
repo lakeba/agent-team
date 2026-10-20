@@ -271,13 +271,16 @@ a minute and a half, with QuickTime. The terminal part is already filmed from a 
 1. In Safari, type `lakeba.github.io/agent-team` and press Return. Let the hero video play for 2 seconds.
 2. Click **Start your Business Now**. On the "Get started" section, click **Download for Mac**.
 3. Open the Downloads stack in the Dock (or Finder > Downloads) and double-click `Lakeba-OS-mac.zip`.
-4. **Right-click** the **Lakeba OS** app > **Open**, then **Open** again in the dialog. macOS asks only the first time,
-   because the app is downloaded and unsigned.
+4. Double-click **Lakeba OS**; macOS says it can't check it: click **Done**. Apple menu > **System Settings**, search
+   "Privacy" > **Security settings**, then **Open Anyway** next to Lakeba OS, **Open Anyway** again, and the Mac's
+   password. macOS asks only the first time, because the file is downloaded and unsigned (right-click > Open no
+   longer gets past it on current macOS).
 5. Terminal opens and installs (a minute or two). Let it run; don't type anything.
 6. When the browser opens on **Let's set up your project**, wait 3 seconds and stop the recording
    (the menu bar's stop button). I film the guided setup itself.
 7. *Optional, if you want the desktop app in this chapter:* back on the site, **Get the desktop app** >
-   **macOS, Apple silicon**; open the `.dmg`, drag **LakebaOS Client** to Applications, then right-click > Open it once.
+   **macOS, Apple silicon**; open the `.dmg`, drag **LakebaOS Client** to Applications, open it, then allow it once under System Settings > Privacy &
+   Security > **Open Anyway**.
 
 **After**
 - Save the recording as `mac-install.mov` in the narration folder.

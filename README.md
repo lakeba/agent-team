@@ -98,7 +98,8 @@ for you, or autopilot stops.
 ### Without a terminal: the guided setup
 
 On a Mac, download [Lakeba OS](https://lakeba.github.io/agent-team/downloads/Lakeba-OS-mac.zip), unzip
-it and double-click **Lakeba OS** (the first time, right-click it and choose **Open**). It installs
+it and double-click **Lakeba OS**. The first time, macOS says it can't check it: click **Done**, then in
+System Settings › Privacy & Security choose **Open Anyway** next to Lakeba OS and enter your Mac's password. It installs
 agent-team and opens the dashboard in your browser, where a guided setup walks through eight short
 steps:
 

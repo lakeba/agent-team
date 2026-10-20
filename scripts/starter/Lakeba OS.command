@@ -1,8 +1,8 @@
 #!/bin/bash
 # Lakeba OS for macOS: double-click to install agent-team (the first time) and open the dashboard,
 # where a short guided setup takes you from your idea to an AI team at work.
-# From https://github.com/lakeba/agent-team (MIT licence). Downloaded files need a right-click > Open
-# the first time, because macOS checks files from the internet.
+# From https://github.com/lakeba/agent-team (MIT licence). macOS blocks it the first time, because it
+# checks files from the internet: System Settings > Privacy & Security > Open Anyway, then your password.
 clear
 echo "Lakeba OS"
 echo
