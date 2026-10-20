@@ -194,7 +194,7 @@ def ensure(install_missing: bool = False) -> str:
     """Keep agent-team's REA copy at the pinned version: update it when it's older or newer, re-pin a
     Node.js that went away, and install it when it's missing and `install_missing`. Never touches a
     REA you installed yourself. Returns what it did, or ""."""
-    if os.environ.get("AGENT_TEAM_NO_REA_UPDATE"):
+    if os.environ.get("AGENT_TEAM_NO_REA_UPDATE"):   # also stops init offering to install it
         return ""
     have = own_version()
     if not have and not install_missing:

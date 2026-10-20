@@ -15,6 +15,8 @@ os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp(prefix="agent-team-test-config-
 # what the tests see: they get an empty data folder and Claude Code config of their own.
 os.environ["XDG_DATA_HOME"] = tempfile.mkdtemp(prefix="agent-team-test-data-")
 os.environ["CLAUDE_CONFIG_DIR"] = tempfile.mkdtemp(prefix="agent-team-test-claude-")
+# Never install or update REA from a test, whatever Node.js this machine has (tests that need it clear this).
+os.environ["AGENT_TEAM_NO_REA_UPDATE"] = "1"
 
 from agent_team import config  # noqa: E402
 from agent_team import readiness  # noqa: E402

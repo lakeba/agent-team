@@ -99,6 +99,21 @@ class InspirationQuestionTests(unittest.TestCase):
         self.assertEqual(inspire.apps(other), [])
 
 
+class ReaOfferTests(unittest.TestCase):
+    def test_init_offers_to_install_rea_when_node_can_run_it(self):
+        from agent_team import rea
+        root = Path(tempfile.mkdtemp())
+        env = {k: val for k, val in os.environ.items() if k != "AGENT_TEAM_NO_REA_UPDATE"}
+        answers = iter(["", "", "3", "none", "1", "n", "y", "y"])   # ... write, then yes to REA
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch("builtins.input", lambda prompt="": next(answers)), \
+                mock.patch.object(rea, "find", side_effect=[("", [], ""), ("/opt/rea", ["--mcp"], "agent-team's copy")]), \
+                mock.patch.object(rea, "node_ok", return_value=(True, "Node.js v24.11.0")), \
+                mock.patch.object(rea, "install") as install, quiet():
+            init.run(root, interactive=True)
+        install.assert_called_once_with(yes=True)
+        self.assertEqual(config.load(root).mcp["rea"].command, "/opt/rea")
+
+
 class VisionTests(unittest.TestCase):
     def setUp(self):
         helpers.reset()

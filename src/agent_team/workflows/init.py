@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -313,7 +314,8 @@ def setup_rea(root: Path, use_rea: bool | None, interactive: bool) -> str:
         return ""
     from .. import rea
     command, args, where = rea.find()
-    if not command and interactive and use_rea is not False and rea.node_ok()[0] and \
+    if not command and interactive and use_rea is not False and not os.environ.get("AGENT_TEAM_NO_REA_UPDATE") and \
+            rea.node_ok()[0] and \
             ask_yes(f"Install REA {rea.VERSION}? Behaviour checks and Inspire use it (a minute or two)"):
         try:
             rea.install(yes=True)
