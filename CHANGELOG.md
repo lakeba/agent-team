@@ -21,6 +21,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - The guided setup's "Install REA" commits the change to `.team.toml`, so the first build on a branch
   isn't refused for uncommitted changes.
 - Inspire treats `/index.html` and `/` as one page.
+- A release accepts `## Unreleased` as well as `## [Unreleased]`: the team's own changelog used the first,
+  and v0.1.0 of a real project was refused for it.
 
 ### Added
 

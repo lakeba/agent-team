@@ -81,3 +81,14 @@ class LabelTests(unittest.TestCase):
         self.assertEqual(created, ["changes-requested"])
         self.assertEqual([c[:3] for c in calls], [("label", "create", "changes-requested")])
         self.assertEqual(ship.ensure_labels("acme/app", []), [])
+
+
+class UnreleasedHeadingTests(unittest.TestCase):
+    def test_both_ways_of_writing_unreleased(self):
+        from agent_team.workflows import ship
+        for heading in ("## [Unreleased]", "## Unreleased", "## unreleased  "):
+            with self.subTest(heading=heading):
+                self.assertTrue(ship.UNRELEASED_RE.search(f"# Changelog\n\n{heading}\n\n- Booking page\n"))
+                self.assertTrue(ship.is_changelog_rename([f"-{heading}", "+## [0.1.0] - 2026-10-20"], ["CHANGELOG.md"], "0.1.0"))
+        self.assertIsNone(ship.UNRELEASED_RE.search("## Unreleased changes we might make\n"))
+        self.assertFalse(ship.is_changelog_rename(["-## Unreleased", "+## [0.1.0] - 2026-10-20", "+evil"], ["CHANGELOG.md"], "0.1.0"))

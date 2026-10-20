@@ -44,9 +44,15 @@ def merge_blockers(team: Team, number: int, sha: str, paths: list[str], ci_green
     return ""
 
 
+# The heading of changes not released yet: `## [Unreleased]` (Keep a Changelog), or `## Unreleased` as
+# teams often write it.
+UNRELEASED_RE = re.compile(r"^## \[?Unreleased\]?[ \t]*$", re.M | re.I)
+
+
 def is_changelog_rename(changed_lines: list[str], paths: list[str], version: str) -> bool:
     """True only for a PR whose entire change is `## [Unreleased]` -> `## [X.Y.Z] - YYYY-MM-DD`."""
-    return (paths == ["CHANGELOG.md"] and len(changed_lines) == 2 and changed_lines[0] == "-## [Unreleased]"
+    return (paths == ["CHANGELOG.md"] and len(changed_lines) == 2 and changed_lines[0].startswith("-")
+            and UNRELEASED_RE.fullmatch(changed_lines[0][1:]) is not None
             and re.fullmatch(rf"\+## \[{re.escape(version)}\] - \d{{4}}-\d{{2}}-\d{{2}}", changed_lines[1]) is not None)
 
 
@@ -436,7 +442,7 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
         changelog = github.gh("api", f"repos/{repo}/contents/CHANGELOG.md", "-H",
                               "Accept: application/vnd.github.raw", check=False)
         if not re.search(rf"^## \[{re.escape(version)}\] - \d{{4}}-\d{{2}}-\d{{2}}$", changelog, re.M):
-            if not re.search(r"^## \[Unreleased\]$", changelog, re.M):
+            if not UNRELEASED_RE.search(changelog):
                 return f"REFUSED: CHANGELOG.md has neither '## [{version}] - <date>' nor '## [Unreleased]'."
             result = _date_changelog(version, changelog, head)
             if result.startswith("REFUSED"):
@@ -470,7 +476,7 @@ def run(team: Team, max_steps: int = 30, approved_release: str = "") -> None:
             act(f"resuming release PR #{number}")
         else:
             date = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
-            updated = re.sub(r"^## \[Unreleased\]$", f"## [{version}] - {date}", changelog, count=1, flags=re.M)
+            updated = UNRELEASED_RE.sub(f"## [{version}] - {date}", changelog, count=1)
             github.gh("api", "-X", "POST", f"repos/{repo}/git/refs", "-f", f"ref=refs/heads/{branch}", "-f", f"sha={base_sha}")
             file_sha = github.gh_json("api", f"repos/{repo}/contents/CHANGELOG.md?ref={branch}")["sha"]
             payload = json.dumps({"message": f"Release v{version}: date the changelog", "branch": branch,
