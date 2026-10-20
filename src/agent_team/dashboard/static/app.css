@@ -255,7 +255,7 @@ button.big, .button.big { padding: 9px 18px; font-size: 15px; }
 button.primary, a.button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 a.button { display: inline-block; border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
 a.button:hover { text-decoration: none; filter: brightness(1.05); }
-.wiz textarea, .wiz input[type=text], .wiz input[type=url], .wiz input[type=password], .wiz select, .row input[type=text], #mvp textarea { width: 100%; font: inherit; padding: 8px 10px;
+.wiz textarea, .wiz input[type=text], .wiz input[type=url], .wiz input[type=password], .wiz select, .row input[type=text], .row input[type=password], #mvp textarea { width: 100%; font: inherit; padding: 8px 10px;
   border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); color: var(--text-primary); }
 .row { display: flex; gap: 8px; align-items: center; }
 .row input { flex: 1; }

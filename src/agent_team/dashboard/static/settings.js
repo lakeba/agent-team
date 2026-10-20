@@ -38,6 +38,31 @@ function setting(title, about, control) {
   return h("div", { class: "setting" }, h("div", {}, h("div", { class: "setting-title" }, title), h("div", { class: "hint" }, about)), control);
 }
 
+// The Anthropic key, for members on Claude: saved in agent-team's keys file (the guided setup's key step).
+function claudeKeyCard() {
+  const k = settings.key || (settings.key = { set: null, result: null });
+  if (k.set === null && !k.loading) {
+    k.loading = true;
+    getJSON("/api/setup/key").then(r => { k.set = !!r.set; }, () => { k.set = false; }).finally(() => { k.loading = false; renderSettings(); });
+  }
+  const card = h("div", { class: "card" }, h("h2", {}, "Claude key"),
+    h("p", { class: "secondary small" }, "Members on Claude use your own Anthropic key. Create one at ",
+      h("a", { href: "https://console.anthropic.com/settings/keys", target: "_blank", rel: "noopener noreferrer" }, "console.anthropic.com"),
+      ", then paste it here. It’s saved only on this computer, readable only by you, and never shown again."));
+  if (k.set) card.append(h("p", {}, status("good", "A key is saved on this computer"), k.result ? h("span", { class: "muted small" }, ` ${k.result}`) : null));
+  else if (k.set === false) card.append(h("p", {}, status("warn", "No key yet")));
+  const key = h("input", { type: "password", autocomplete: "off", spellcheck: "false", placeholder: "sk-ant-…" });
+  card.append(h("div", { class: "row" }, key, h("button", { type: "button", class: k.set ? null : "primary", onclick: async () => {
+    try {
+      const r = await postJSON("/api/setup/key", { value: key.value });
+      k.set = true; k.result = r.status;
+      toast(r.ok ? "Key saved and checked." : `The key was saved, but Anthropic said: ${r.status}`);
+    } catch (e) { toast(e.message); }
+    key.value = ""; renderSettings();
+  } }, k.set ? "Replace the key" : "Save and check")));
+  return card;
+}
+
 function renderSettings() {
   const el = document.getElementById("settings");
   if (!el) return;
@@ -53,6 +78,7 @@ function renderSettings() {
     h("p", { class: "secondary small" }, "The guided setup: start another idea as a new project, or open one you started before."),
     h("div", { class: "actions" }, h("button", { type: "button", onclick: () => startSetup(true) }, "Run setup again"))));
 
+  el.append(claudeKeyCard());
   const ccard = compositionCard();
 
   // Templates
@@ -155,12 +181,12 @@ function compositionCard() {
     const pick = found && found.length ? h("div", { class: "inline" }, found.map(s =>
       h("label", { class: "choice" }, (() => { const r = h("input", { type: "radio", name: "ollama-server", checked: s.url === c.ollama_url ? true : null });
         r.addEventListener("change", () => { c.local_kind = s.kind; choose("ollama_url", s.url); }); return r; })(), ` ${s.label} at ${s.url} (${s.models.length} models)`)))
-      : found ? h("p", { class: "hint" }, "No local model server (Ollama, mlx_lm, LM Studio) answered on this machine, its host or the gateway. Type its address.") : null;
+      : found ? h("p", { class: "hint" }, "No local AI app (Ollama, LM Studio, llama.cpp, vLLM, Jan...) answered on this machine, its host or the gateway. Start its server, or type its address.") : null;
     const modelEl = server && server.models.length
       ? (() => { const m = h("select", {}, server.models.map(n => h("option", { value: n, selected: n === c.ollama_model ? true : null }, n)));
           m.addEventListener("change", () => { c.ollama_model = m.value; }); return m; })()
       : (() => { const m = h("input", { type: "text", value: c.ollama_model }); m.addEventListener("input", () => { c.ollama_model = m.value.trim(); }); return m; })();
-    card.append(setting("Local models", "The server the local members use (Ollama, or mlx_lm, LM Studio and other OpenAI-compatible servers), and their model.",
+    card.append(setting("Local models", "The server the local members use (Ollama, or LM Studio, llama.cpp, vLLM, Jan and other OpenAI-compatible servers), and their model.",
       h("div", {}, h("div", { class: "inline" }, url, find), pick,
         h("label", { class: "field" }, h("span", { class: "field-label" }, "Model"), modelEl))));
   }

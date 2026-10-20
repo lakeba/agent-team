@@ -314,6 +314,9 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
                 if path == "/api/setup/pull":
                     from .. import setup_wizard
                     return self._json(setup_wizard.pull_status(query.get("url", ""), query.get("model", "")))
+                if path == "/api/setup/key":
+                    from .. import setup_wizard
+                    return self._json({"set": setup_wizard.claude_key_set()})
                 if path == "/api/setup/scan":
                     from .. import setup_wizard
                     return self._json({"servers": setup_wizard.scan()})

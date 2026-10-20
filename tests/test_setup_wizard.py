@@ -48,6 +48,22 @@ class CreateProjectTest(unittest.TestCase):
         self.assertIn("Start Study Buddy", log)
         self.assertIn(str(root), projects.registered())
 
+    def test_no_key_and_no_local_ai_still_makes_a_project(self):
+        # "Skip for now" in "Where the AI runs": the page sends models=claude with no key saved
+        with mock.patch.dict(os.environ, {}, clear=False), mock.patch("agent_team.keys.load_into_env"):
+            os.environ.pop("ANTHROPIC_API_KEY", None)
+            with quiet():
+                made = setup_wizard.create_project({"name": "Later", "models": "claude", "ollama_url": "", "ollama_model": "",
+                                                    "later": True, "vision": "A web app that waits for its AI to be chosen later on."})
+            team = load(Path(made["root"]))
+            self.assertEqual({team.providers[a.provider].kind for a in team.agents.values()}, {"anthropic"})
+            self.assertTrue(mvp.summary(team)["needs_key"])   # My MVP says where to add it
+            key = [c for c in setup_wizard.ready(Path(made["root"])) if c["action"] == "key"]
+            self.assertEqual(len(key), 1)                       # the ready check offers the key box
+            os.environ["ANTHROPIC_API_KEY"] = "sk-ant-" + "a" * 40
+            self.assertFalse(mvp.needs_key(team))
+            self.assertFalse(any(c["action"] == "key" for c in setup_wizard.ready(Path(made["root"]))))
+
     def test_refuses_bad_input_and_busy_folders(self):
         with self.assertRaises(setup_wizard.SetupError):
             setup_wizard.create_project({"name": "", "vision": "x" * 40})
@@ -325,6 +341,12 @@ class SetupModeServerTest(unittest.TestCase):
         self.assertEqual(self.request("POST", "/api/setup/open", {"root": str(root.resolve())}, token)[0], 200)
         self.assertEqual(self.request("GET", "/api/team")[1]["project"]["name"], "demo")
         self.assertEqual(self.request("POST", "/api/setup/key", {"value": "x"}, token="wrong")[0], 403)
+
+    def test_whether_a_key_is_saved_without_the_key(self):
+        with mock.patch.object(setup_wizard, "claude_key_set", return_value=False):
+            self.assertEqual(self.request("GET", "/api/setup/key"), (200, {"set": False}))
+        with mock.patch.object(setup_wizard, "claude_key_set", return_value=True):
+            self.assertEqual(self.request("GET", "/api/setup/key"), (200, {"set": True}))
 
 
 if __name__ == "__main__":

@@ -77,7 +77,7 @@ function renderSetup() {
   if (wizard.error) card.append(h("div", { class: "card notice bad wiz-msg", role: "alert" }, wizard.error));
   if (wizard.busy) card.append(h("p", { class: "wiz-busy", role: "status" }, h("span", { class: "spinner", "aria-hidden": "true" }), wizard.busy));
   const body = [welcome, idea, inspiration, models, team, github, readyCheck, firstVersion][wizard.step]();
-  card.append(...[body].flat());
+  card.append(...[body].flat().filter(x => x != null));
   root.append(card);
 }
 
@@ -176,6 +176,11 @@ function inspiration() {
 }
 
 // ---------- 2. Where the AI runs ----------
+// "Skip for now": the team is written for Claude (it works the moment a key is added) and the rest of
+// the setup goes on without an AI; Settings and My MVP say where to add one.
+const noAI = () => wizard.form.later && !(wizard.status || {}).claude_key;
+const LATER_HOW = "Add one later in Settings: paste a Claude key under “Claude key”, or pick a local AI app under “Team composition”.";
+
 function models() {
   const f = wizard.form, s = wizard.status || {};
   const found = (s.ollama || []);
@@ -184,18 +189,27 @@ function models() {
     h("div", {}, h("h3", {}, title), h("p", { class: "secondary small" }, cost), h("p", { class: "muted small" }, needs)));
   const out = [h("h2", { class: "wiz-title" }, "Where should the AI run?"),
     h("div", { class: "wiz-choices" },
-      choice("ollama", "Free, on this computer", "No per-use cost: models run on your own machine with Ollama (or mlx_lm on a Mac).", "Needs Ollama (or mlx_lm) and a model download (a few GB). Slower on small laptops."),
+      choice("ollama", "Free, on this computer", "No per-use cost: models run on your own machine with Ollama, LM Studio or another local AI app.", "Needs a local AI app and a model download (a few GB). Slower on small laptops."),
       choice("claude", "Claude, best quality", "Pay per use with your own Anthropic account; a small first version usually costs a few dollars.", "Needs an Anthropic API key."),
-      choice("mixed", "Both (recommended)", "Claude plans and reviews; the builders run free on this computer.", "Needs both: an Anthropic key and Ollama."))];
+      choice("mixed", "Both (recommended)", "Claude plans and reviews; the builders run free on this computer.", "Needs both: an Anthropic key and a local AI app."))];
   if (f.models !== "ollama") out.push(keyBox());
   if (f.models !== "claude") out.push(ollamaBox(found));
+  if (!s.claude_key && !found.length) out.push(h("div", { class: "card wiz-box wiz-later" }, h("h3", {}, "No key and no local AI yet?"),
+    h("p", { class: "secondary small" }, "You can skip this step. Your project and team are still set up; the team just can’t start building " +
+      "until it has an AI to use. " + LATER_HOW)));
   out.push(nav("Next", () => {
-    if (f.models !== "ollama" && !s.claude_key) return fail("Add your Anthropic key first, or choose “Free, on this computer”.");
-    if (f.models !== "claude" && !f.ollama_url) return fail("No local model server was found. Install Ollama and press “Check again”, or choose Claude.");
+    if (f.models !== "ollama" && !s.claude_key) return fail("Add your Anthropic key first, choose “Free, on this computer”, or press “Skip for now”.");
+    if (f.models !== "claude" && !f.ollama_url) return fail("No local AI app was found. Install Ollama (or start LM Studio’s server) and press “Check again”, choose Claude, or press “Skip for now”.");
     if (f.models !== "claude" && !f.ollama_model) return fail("Say which model the local server runs.");
+    f.later = false;
     go(4);
-  }));
+  }, { skip: skipModels }));
   return out;
+}
+
+function skipModels() {
+  Object.assign(wizard.form, { later: true, models: "claude", ollama_url: "", ollama_model: "", local_kind: "" });
+  go(4);
 }
 
 function keyBox() {
@@ -224,9 +238,10 @@ function ollamaBox(found) {
   const box = h("div", { class: "card wiz-box" }, h("h3", {}, "Free local models"),
     wizard.scanning ? h("p", { class: "muted small" }, h("span", { class: "spinner", "aria-hidden": "true" }), " Also looking on the other computers on your network…") : null);
   if (!found.length) {
-    box.append(status("bad", "No local model server is running on this computer"),
+    box.append(status("bad", "No local AI app is running on this computer"),
       h("p", { class: "secondary small" }, "Download Ollama from ", h("a", { href: "https://ollama.com/download", target: "_blank", rel: "noopener noreferrer" }, "ollama.com/download"),
-        ", install it, open it once, then come back here. (Already running mlx_lm or LM Studio? Start its server, then check again.)"),
+        ", install it, open it once, then come back here. Already have LM Studio, Jan, llama.cpp, vLLM or another local AI app? " +
+        "Load a model, start its server (in LM Studio: the Developer tab), then press Check again."),
       h("div", { class: "actions" }, h("button", { type: "button", onclick: recheck }, "Check again")));
     return box;
   }
@@ -250,12 +265,13 @@ function ollamaBox(found) {
   sel.addEventListener("change", () => { f.ollama_model = sel.value; renderSetup(); });
   if (!isOllama && !have.length) {   // mlx_lm lists only the models it has downloaded
     if (f.ollama_model === undefined || f.ollama_model === "undefined") f.ollama_model = "";
-    box.append(field("Model the builders use", input(f, "ollama_model", { placeholder: "e.g. mlx-community/Qwen2.5-Coder-7B-Instruct-4bit" }),
-      "The model the server runs (the name you gave mlx_lm.server --model)."));
+    box.append(field("Model the builders use", input(f, "ollama_model", { placeholder: "e.g. qwen2.5-coder-7b-instruct" }),
+      `${server.label} lists no model yet: load one in it, then press Check again, or type the model’s name.`),
+      h("div", { class: "actions" }, h("button", { type: "button", onclick: recheck }, "Check again")));
     return box;
   }
   box.append(field("Model the builders use", sel, pulled ? "Already on this computer." :
-    isOllama ? "Not downloaded yet." : "Start the server with a model first (mlx_lm.server --model …)."));
+    isOllama ? "Not downloaded yet." : `Load this model in ${server.label} first.`));
   if (!pulled && isOllama) box.append(pullControl(server.url, model));
   return box;
 }
@@ -289,7 +305,7 @@ async function startPull(url, model) {
 }
 
 async function recheck() {
-  wizard.busy = "Looking for Ollama…"; renderSetup();
+  wizard.busy = "Looking for local AI apps…"; renderSetup();
   try { wizard.status = await getJSON("/api/setup/status"); } catch (e) { wizard.error = e.message; }
   const found = wizard.status.ollama || [];
   if (found.length && !wizard.form.ollama_url) { wizard.form.ollama_url = found[0].url; wizard.form.local_kind = found[0].kind; }
@@ -300,7 +316,7 @@ async function recheck() {
 function team() {
   const f = wizard.form, s = wizard.status || {};
   const onClaude = role => f.models === "claude" || (f.models === "mixed" && role !== "builder");
-  const where = role => onClaude(role) ? "Claude" : `${f.ollama_model || "a local model"}, on this computer`;
+  const where = role => noAI() ? "Where it runs: not chosen yet" : onClaude(role) ? "Claude" : `${f.ollama_model || "a local model"}, on this computer`;
   const people = [["Atlas", "lead", "Plans the work and reviews every change."],
     ...Array.from({ length: f.builders }, (_, i) => [["Forge", "Anvil", "Kiln", "Smith"][i], "builder", "Writes the code."]),
     ["Spark", "marketing", "Writes your positioning brief, website and pitch deck."],
@@ -315,6 +331,7 @@ function team() {
   builders.addEventListener("change", () => { f.builders = Number(builders.value); renderSetup(); });
   return [h("h2", { class: "wiz-title" }, "Meet your team"),
     h("p", { class: "secondary" }, "Each member has one job. You can change the team later under Team."),
+    noAI() ? h("div", { class: "card notice wiz-msg" }, "You skipped choosing where the AI runs, so the team is set up for Claude and waits for a key. " + LATER_HOW) : null,
     h("div", { class: "grid cards" }, people.map(([n, role, job]) => h("div", { class: "card member" },
       h("h3", {}, n, h("span", { class: "muted" }, ` · ${role}`)), h("p", { class: "secondary small" }, job), h("p", { class: "muted small" }, where(role))))),
     h("h3", { class: "wiz-sub" }, "Extra help (optional)"),
@@ -389,11 +406,13 @@ async function makeRepo(existing) {
 function readyCheck() {
   if (!wizard.ready && !wizard.busy) { loadReady(); return [h("h2", { class: "wiz-title" }, "Checking everything is ready")]; }
   const checks = (wizard.ready || []);
-  const missing = checks.filter(c => !c.ok && !c.optional);
-  const out = [h("h2", { class: "wiz-title" }, missing.length ? "Almost there" : "Everything’s ready"),
+  const later = c => noAI() && c.action === "key";   // skipped on purpose: it waits, it doesn't block
+  const missing = checks.filter(c => !c.ok && !c.optional && !later(c));
+  const waiting = checks.some(c => !c.ok && later(c));
+  const out = [h("h2", { class: "wiz-title" }, missing.length ? "Almost there" : waiting ? "Ready, except the AI" : "Everything’s ready"),
     h("ul", { class: "wiz-checks" }, checks.map(c => h("li", {},
-      c.ok ? status("good", c.name) : c.optional ? status("warn", c.name) : status("bad", c.name),
-      h("span", { class: "muted small" }, ` ${c.detail}`),
+      c.ok ? status("good", c.name) : c.optional || later(c) ? status("warn", c.name) : status("bad", c.name),
+      h("span", { class: "muted small" }, later(c) ? " You skipped this: add the key here now, or later in Settings." : ` ${c.detail}`),
       !c.ok ? fixFor(c) : null)))];
   out.push(nav(missing.length ? "Continue anyway" : "Next", () => go(7),
     { skip: () => { wizard.ready = null; renderSetup(); }, skipLabel: "Check again" }));
@@ -493,6 +512,17 @@ function inspiredBox() {
 
 function firstVersion() {
   const out = [h("h2", { class: "wiz-title" }, "What should the first version do?")];
+  if (noAI()) {   // nothing can plan or build yet: keep the first task for My MVP
+    out.push(h("p", { class: "secondary" }, "The team needs an AI before it can plan or build (you skipped that step). " +
+      "Write what to build first: it waits in My MVP, and you start it there once the AI is set up. " + LATER_HOW));
+    if (wizard.form.inspire.url.trim()) out.push(h("p", { class: "muted small" }, "Exploring the app you like waits too: start it from the Inspiration tab."));
+    out.push(field("What should the team build first? (optional)", area(wizard, "own", { rows: 3, placeholder: "e.g. A page where students add their exams and see them in a list" })),
+      nav("Open my project", () => {
+        saveNextTasks(wizard.project, wizard.own.trim() ? [wizard.own.trim()] : []);
+        location.hash = "#mvp"; location.reload();
+      }));
+    return out;
+  }
   const ex = exploreBox();
   if (ex) out.push(ex);
   if (ex && wizard.explore?.status === "running") return out;   // the tasks wait for the brief

@@ -6,6 +6,18 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- The guided setup's "Where the AI runs" step has **Skip for now**, for people with no Claude key and no
+  local AI yet. Before, it wouldn't let them go on. The project and team are still made (set up for
+  Claude, so they work as soon as a key is added); the Ready check shows the key as waiting rather than
+  missing, and the last step keeps the first task for My MVP instead of asking an AI to plan it. My MVP
+  then says the team can't start yet and opens Settings, which now has a **Claude key** card to paste
+  the key (or pick a local AI app under Team composition).
+- More local AI apps are found and named: vLLM (port 8000), Jan (1337), text-generation-webui (5000),
+  KoboldCpp (5001), GPT4All (4891), llamafile and LocalAI (8080), alongside Ollama, LM Studio, llama.cpp
+  and mlx_lm. The guided setup, `init`, Settings and `discover --local` offer them by name.
+
 ### Changed
 
 - On a machine without a Node.js that REA supports, the installer gets its own Node.js 24 from nodejs.org

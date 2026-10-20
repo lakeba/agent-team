@@ -297,7 +297,7 @@ def find_server(given: str, interactive: bool) -> tuple[str, list[str] | None, s
                                         "its address later with agent-team init --ollama-url http://HOST:PORT"), "ollama"
     options = [(f["url"], f"{f['url']}  ({f['label']}, {len(f['models'])} models)") for f in found] + [("other", "Another address")]
     if not found:
-        ui.say("No local model server (Ollama, mlx_lm, LM Studio...) answered on this machine, its host or the gateway.")
+        ui.say("No local model server (Ollama, LM Studio, llama.cpp, vLLM, Jan...) answered on this machine, its host or the gateway.")
     choice = ask_choice("Which local model server should the team use?", options, options[0][0]) if found else "other"
     if choice != "other":
         f = next(x for x in found if x["url"] == choice)

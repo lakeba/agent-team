@@ -1,4 +1,4 @@
-"""Local model servers besides Ollama: mlx_lm, LM Studio, llama.cpp (the OpenAI API)."""
+"""Local model servers besides Ollama: mlx_lm, LM Studio, llama.cpp, vLLM, Jan... (the OpenAI API)."""
 import json
 import tempfile
 import threading
@@ -20,7 +20,8 @@ class FakeMlx(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/v1/models":
-            body = json.dumps({"object": "list", "data": [{"id": m, "object": "model"} for m in self.models]}).encode()
+            owner = {"owned_by": self.owner} if getattr(self, "owner", "") else {}
+            body = json.dumps({"object": "list", "data": [{"id": m, "object": "model", **owner} for m in self.models]}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -58,6 +59,28 @@ class LocalServerTests(unittest.TestCase):
         self.assertEqual(readiness.server_label("http://h:8080", ["mlx-community/x"], ""), "mlx_lm")
         self.assertEqual(readiness.server_label("http://h:9000", ["m"], "nginx"), "OpenAI-compatible server")
 
+    def test_other_local_ai_apps_by_name(self):
+        label = readiness.server_label
+        self.assertEqual(label("http://h:8000", ["Qwen/Qwen2.5-7B"], "uvicorn", ("vllm",)), "vLLM")
+        self.assertEqual(label("http://h:8000", ["m"], "uvicorn"), "vLLM")
+        self.assertEqual(label("http://h:1337", ["m"], "", ("llamacpp",)), "Jan")       # Jan runs llama.cpp inside
+        self.assertEqual(label("http://h:1234", ["m"], "", ("organization_owner",)), "LM Studio")
+        self.assertEqual(label("http://h:5000", ["m"], "uvicorn"), "text-generation-webui")
+        self.assertEqual(label("http://h:5001", ["m"], "", ("koboldcpp",)), "KoboldCpp")
+        self.assertEqual(label("http://h:4891", ["m"], ""), "GPT4All")
+        self.assertEqual(label("http://h:8080", ["m"], "llamafile", ("llamafile",)), "llamafile")
+        self.assertEqual(label("http://h:8080", ["m"], "", ("llamacpp",)), "llama.cpp")
+        self.assertEqual(label("http://h:8080", ["gpt-4"], ""), "LocalAI")
+        self.assertEqual(label("http://h:9000", ["m"], "", ("localai",)), "LocalAI")
+
+    def test_probe_names_the_server_from_what_it_says(self):
+        FakeMlx.owner = "vllm"
+        try:
+            found = readiness.probe(self.url)
+        finally:
+            del FakeMlx.owner
+        self.assertEqual((found["kind"], found["label"]), ("openai", "vLLM"))
+
     def test_find_local_lists_ollama_then_others(self):
         with mock.patch.object(readiness, "find_ollama", return_value=[("http://localhost:11434", ["q"])]):
             found = readiness.find_local(candidates=["http://localhost:11434", self.url])
@@ -66,7 +89,8 @@ class LocalServerTests(unittest.TestCase):
     def test_candidates_cover_the_openai_ports(self):
         with mock.patch.object(readiness, "ollama_candidates", return_value=["http://localhost:11434", "http://10.211.55.2:11434"]):
             urls = readiness.local_candidates()
-        for u in ("http://localhost:8080", "http://localhost:1234", "http://10.211.55.2:8080"):
+        for u in ("http://localhost:8080", "http://localhost:1234", "http://localhost:8000", "http://localhost:1337",
+                  "http://localhost:5000", "http://localhost:5001", "http://localhost:4891", "http://10.211.55.2:8080"):
             self.assertIn(u, urls)
 
     def test_lan_candidates_cover_private_networks_but_not_this_machine(self):

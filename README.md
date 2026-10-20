@@ -107,8 +107,11 @@ steps:
 1. **Your idea**: a name and a few sentences; it becomes the project's `VISION.md`.
 2. **Inspiration** (optional): an app you like, a few things to try there, and your confirmation that
    you may look at it from the outside.
-3. **Where the AI runs**: free on this computer (Ollama, found for you, with a one-click model
-   download), Claude (paste your key: it's saved only on this computer and checked at once), or both.
+3. **Where the AI runs**: free on this computer (Ollama, LM Studio, Jan, llama.cpp, vLLM or another
+   local AI app, found for you by name, with a one-click model download for Ollama), Claude (paste your
+   key: it's saved only on this computer and checked at once), or both. No key and no local AI yet?
+   **Skip for now**: the rest of the setup goes on, and the team waits until you add a Claude key or
+   pick a local AI app in **Settings** (My MVP says so, and keeps your first task until then).
 4. **Your team**: the members and what each does, optional QA, security and docs members, the
    number of builders and a daily spend limit.
 5. The project is created for you in `~/LakebaOS/<name>`: git, `VISION.md`, `README.md`,
@@ -187,8 +190,8 @@ agent-team keys set ANTHROPIC_API_KEY    # only if members use Claude: asks for 
 agent-team doctor     # the checklist again, then checks every member can be reached
 ```
 
-`init` finds Ollama on this machine, at `OLLAMA_HOST`, or on the machine a VM or container runs
-on, and offers what it finds. To set up without questions (scripts, CI), give the choices as flags;
+`init` finds Ollama and the OpenAI-compatible local servers (LM Studio, llama.cpp, vLLM, Jan...) on
+this machine, at `OLLAMA_HOST`, or on the machine a VM or container runs on, and offers what it finds. To set up without questions (scripts, CI), give the choices as flags;
 `--yes` takes the defaults for the rest:
 
 ```bash
@@ -294,7 +297,7 @@ tools can be given to members (`mcp = ["rea"]`). See [configuration](docs/config
 | `agent-team jobs [start <workflow> \| stop <id> \| log <id>]` | Runs in the background, as the dashboard and the Claude panel start them. |
 | `agent-team schedule --every 6h` | Run devops shifts on a schedule (launchd on macOS, cron elsewhere); `--remove` to stop. |
 | `agent-team serve ...` | Serve a model on this machine as a team member for a team elsewhere. |
-| `agent-team discover [--local]` | Find agent-team nodes on the local network; `--local` finds model servers instead: Ollama, mlx_lm, LM Studio and llama.cpp, here, on a VM's host or gateway, and on the other computers of the local networks (`--nearby` skips that scan). |
+| `agent-team discover [--local]` | Find agent-team nodes on the local network; `--local` finds model servers instead: Ollama, LM Studio, llama.cpp, llamafile, LocalAI, vLLM, Jan, text-generation-webui, KoboldCpp, GPT4All and mlx_lm, here, on a VM's host or gateway, and on the other computers of the local networks (`--nearby` skips that scan). |
 | `agent-team ready [--json]` | What this machine and project still need (git, GitHub, keys, Ollama, models), each with its fix. |
 | `agent-team keys [set NAME \| remove NAME]` | API keys and tokens in agent-team's own keys file; values are never shown. |
 | `agent-team issues [sync --milestone M2 --yes]` | The team's to-do list: `team:build` issues, created from the roadmap by the lead (shown first, created with `--yes`). Autopilot builds them and its PRs close them. |

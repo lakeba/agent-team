@@ -29,6 +29,12 @@ function renderMvp() {
     d.vision ? h("p", { class: "secondary" }, d.vision.length > 600 ? d.vision.slice(0, 600) + "…" : d.vision) : h("p", { class: "muted" }, "No VISION.md yet."),
     h("p", { class: "muted small" }, `Spent so far: ${fmtUsd(d.cost)}${d.repo ? " · on GitHub: " + d.repo : " · not on GitHub yet"}`)));
 
+  if (d.needs_key) el.append(h("div", { class: "card notice" }, h("h2", {}, "The team can’t start yet"),
+    h("p", { class: "secondary" }, "It has no AI to use. Paste your Claude key in Settings under “Claude key”, " +
+      "or choose a local AI app (Ollama, LM Studio…) there under “Team composition”. Your tasks wait here until then."),
+    h("div", { class: "actions" }, h("button", { type: "button", class: "primary",
+      onclick: () => document.querySelector('[role=tab][data-tab="settings"]')?.click() }, "Open Settings"))));
+
   // Right now
   const now = h("div", { class: "card" }, h("h2", {}, mvpView.job && mvpView.job.status === "running" ? "The team is working" : "Latest run"));
   if (!mvpView.job) now.append(h("p", { class: "muted" }, "Nothing has run yet. Build your first feature below."));

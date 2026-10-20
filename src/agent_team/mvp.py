@@ -7,6 +7,7 @@ application to Lakeba (the marketing run's brief and deck).
 """
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -63,7 +64,18 @@ def summary(team: Team) -> dict:
         "cost": total.get("cost", 0.0),
         "repo": team.project.repo or github_repo(root),
         "application": {"brief": has_brief, "deck": deck, "apply_url": APPLY_URL},
+        "needs_key": needs_key(team),
     }
+
+
+def needs_key(team: Team) -> bool:
+    """Whether a member runs on Claude and no Anthropic key is saved: the team can't start until
+    one is (the guided setup lets people skip choosing where the AI runs)."""
+    from . import keys
+    keys.load_into_env()
+    used = {a.provider for a in team.agents.values()}
+    return any(p.kind == "anthropic" and not os.environ.get(p.api_key_env or "ANTHROPIC_API_KEY")
+               for name, p in team.providers.items() if name in used)
 
 
 def keep_version(team: Team, message: str = "") -> dict:

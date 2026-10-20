@@ -46,8 +46,25 @@ kind = "openai"
 url = "http://localhost:8080"          # mlx_lm's default port; LM Studio uses 1234
 ```
 
+So are the other local AI apps that speak the OpenAI API. They're found on their usual ports:
+
+| App | Port |
+|---|---|
+| llama.cpp's `llama-server`, llamafile, LocalAI, mlx_lm | 8080 |
+| LM Studio (Developer tab, Start server) | 1234 |
+| vLLM | 8000 |
+| Jan (Local API Server) | 1337 |
+| text-generation-webui (`--api`) | 5000 |
+| KoboldCpp | 5001 |
+| GPT4All (API server) | 4891 |
+
+Each is named by what it says about itself (its models' `owned_by`, its `Server` header), else by its
+port. On a non-default port, give the address yourself (`init --ollama-url http://localhost:PORT`, or
+the dashboard's Settings → Team composition).
+
 `agent-team discover --local` finds such servers here, on a VM's host, and on the other computers of
-this machine's local networks; in a VM, also on the host's home network (192.168.0.x, 192.168.1.x or
+this machine's local networks (there on 11434, 8080, 1234 and 8000: the others listen on their own
+computer unless told otherwise); in a VM, also on the host's home network (192.168.0.x, 192.168.1.x or
 10.0.0.x, about 20 seconds more). Members on it name the model the server runs, e.g. `model = "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"`.
 Reviews and devops shifts call tools: use a model that's good at them, or `[project].review = "snapshot"`.
 | `api_key_env` | Name of the environment variable holding a key or token. Never put the value itself here. Set it in your environment or, so every command finds it, with `agent-team keys set NAME` (saved in `~/.config/agent-team/env`). |

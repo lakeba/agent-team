@@ -132,33 +132,54 @@ def find_ollama(timeout: float = 1.5, candidates: list[str] | None = None) -> li
     return [(u, m) for u, m in zip(urls, found) if m is not None]
 
 
-# Local model servers that speak the OpenAI API: mlx_lm.server (port 8080), LM Studio (1234),
-# llama.cpp's server (8080). They're used through a provider of kind "openai".
-OPENAI_PORTS = (8080, 1234)
+# Local model servers that speak the OpenAI API, on the ports they use out of the box: llama.cpp's
+# server, llamafile, LocalAI and mlx_lm.server (8080), LM Studio (1234), vLLM (8000), Jan (1337),
+# text-generation-webui (5000), KoboldCpp (5001) and GPT4All (4891). They're used through a provider
+# of kind "openai".
+OPENAI_PORTS = (8080, 1234, 8000, 1337, 5000, 5001, 4891)
+# The name each port suggests when the server doesn't say what it is.
+PORT_NAMES = {1234: "LM Studio", 8000: "vLLM", 1337: "Jan", 5000: "text-generation-webui",
+              5001: "KoboldCpp", 4891: "GPT4All"}
 
 
-def openai_models(url: str, timeout: float = 5.0) -> tuple[list[str] | None, str]:
-    """(the models an OpenAI-compatible server lists, its Server header), or (None, "")."""
+def _openai_listing(url: str, timeout: float) -> tuple[list[dict] | None, str]:
+    """(the entries of an OpenAI-compatible server's /v1/models, its Server header), or (None, "")."""
     try:
         with urllib.request.urlopen(f"{url.rstrip('/')}/v1/models", timeout=timeout) as r:
             data = json.load(r)
             server = r.headers.get("Server", "")
         if not isinstance(data, dict) or not isinstance(data.get("data"), list):
             return None, ""
-        return [m.get("id", "") for m in data["data"] if isinstance(m, dict) and m.get("id")], server
+        return [m for m in data["data"] if isinstance(m, dict) and m.get("id")], server
     except Exception:
         return None, ""
 
 
-def server_label(url: str, models: list[str], server: str) -> str:
-    """What an OpenAI-compatible server probably is, for people to recognise it."""
-    s = server.lower()
-    if "llama" in s:
+def openai_models(url: str, timeout: float = 5.0) -> tuple[list[str] | None, str]:
+    """(the models an OpenAI-compatible server lists, its Server header), or (None, "")."""
+    entries, server = _openai_listing(url, timeout)
+    return (None, "") if entries is None else ([m["id"] for m in entries], server)
+
+
+def server_label(url: str, models: list[str], server: str, owners: tuple[str, ...] = ()) -> str:
+    """What an OpenAI-compatible server probably is, for people to recognise it: from what it says
+    (the owned_by of its models, its Server header), else from its port."""
+    s, o = server.lower(), {x.lower() for x in owners if isinstance(x, str)}
+    port = url.rstrip("/").rsplit(":", 1)[-1]
+    port = int(port) if port.isdigit() else 0
+    for owner, name in (("vllm", "vLLM"), ("koboldcpp", "KoboldCpp"), ("llamafile", "llamafile"), ("localai", "LocalAI")):
+        if owner in o or owner in s:
+            return name
+    if port in (1234, 1337, 5000, 4891):   # their own apps, whatever engine they run inside
+        return PORT_NAMES[port]
+    if "llama" in s or "llamacpp" in o:
         return "llama.cpp"
     if any("mlx" in m.lower() for m in models) or s.startswith("basehttp"):
         return "mlx_lm"            # mlx_lm.server is Python's http.server, serving MLX models
-    if url.rstrip("/").endswith(":1234"):
-        return "LM Studio"
+    if port in PORT_NAMES:
+        return PORT_NAMES[port]
+    if port == 8080 and not o:
+        return "LocalAI"           # llama.cpp says owned_by "llamacpp"; LocalAI says nothing
     return "OpenAI-compatible server"
 
 
@@ -173,17 +194,19 @@ def probe(url: str, timeout: float = 1.5) -> dict | None:
             return {"url": url, "kind": "ollama", "label": "Ollama", "models": models}
         if port == "11434":
             return None
-    models, server = openai_models(url, timeout=timeout)
-    if models is not None:
+    entries, server = _openai_listing(url, timeout)
+    if entries is not None:
+        models = [m["id"] for m in entries]
+        owners = tuple(str(m.get("owned_by", "")) for m in entries if m.get("owned_by"))
         # mlx_lm also lists models by their cache folder; people pick by name, so leave the paths out
         named = [m for m in models if not m.startswith(("/", "~", "./")) and "\\" not in m]
-        return {"url": url, "kind": "openai", "label": server_label(url, models, server), "models": named}
+        return {"url": url, "kind": "openai", "label": server_label(url, models, server, owners), "models": named}
     return None
 
 
 def local_candidates() -> list[str]:
     """Where to look for local model servers: the Ollama addresses, and the same hosts on the
-    ports OpenAI-compatible servers use (mlx_lm, LM Studio)."""
+    ports OpenAI-compatible servers use (OPENAI_PORTS: LM Studio, llama.cpp, vLLM, Jan...)."""
     ollama = ollama_candidates()
     hosts = [u.rsplit(":", 1)[0] for u in ollama]
     extra = [f"{h}:{p}" for h in dict.fromkeys(hosts) for p in OPENAI_PORTS]
@@ -194,7 +217,9 @@ def local_candidates() -> list[str]:
     return list(dict.fromkeys(ollama + extra))
 
 
-SCAN_PORTS = (11434, *OPENAI_PORTS)
+# On the other computers of the network, only the ports of servers people share on it (Jan,
+# text-generation-webui, KoboldCpp and GPT4All listen on this computer only, unless told otherwise).
+SCAN_PORTS = (11434, 8080, 1234, 8000)
 SCAN_NETWORKS = 3          # at most this many of this machine's networks are scanned
 # In a VM, the computers of the home network aren't on the VM's own network: try the usual ones.
 HOME_NETWORKS = ("192.168.0", "192.168.1", "10.0.0")
@@ -306,7 +331,7 @@ def find_local(timeout: float = 1.5, candidates: list[str] | None = None, scan: 
     lan = [u for u in lan_candidates() if u not in urls] if scan and candidates is None else []
     with ThreadPoolExecutor(max_workers=2) as pool:
         ollama_job = pool.submit(find_ollama, timeout, ollama_urls if candidates is not None else None)
-        with ThreadPoolExecutor(max_workers=max(1, min(128, len(other) + len(lan)))) as inner:
+        with ThreadPoolExecutor(max_workers=max(1, min(256, len(other) + len(lan)))) as inner:
             near_jobs = [inner.submit(probe, u, timeout) for u in other]
             found_other = [f for j in near_jobs if (f := j.result())]
         found_lan = _scan(lan, timeout)
