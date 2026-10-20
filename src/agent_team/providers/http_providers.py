@@ -125,6 +125,8 @@ class OllamaProvider(Provider):
             names = [m["name"] for m in _get_json(f"{self.url}/api/tags")["models"]]
         except Exception as e:
             return f"FAILED: can't reach Ollama at {self.url} ({e})"
+        if not model:   # nothing chosen yet: say what there is to choose from
+            return f"ok (Ollama at {self.url}; pulled: {', '.join(names)[:200] or 'nothing yet'})"
         if model in names:
             return f"ok (Ollama at {self.url}, model {model} is pulled)"
         near = closest_model(model, names)
@@ -215,6 +217,9 @@ class OpenAICompatProvider(Provider):
             ids = [m.get("id") for m in data.get("data", [])]
         except Exception as e:
             return f"FAILED: can't reach {self.cfg.url} ({e})"
+        if not model:   # nothing chosen yet: say what there is to choose from
+            named = [i for i in ids if isinstance(i, str) and not i.startswith('/')]
+            return f"ok ({self.cfg.url}; serves: {', '.join(named)[:200] or 'no models listed'})"
         if not ids or model in ids:
             return f"ok ({self.cfg.url})"
         near = closest_model(model, ids)

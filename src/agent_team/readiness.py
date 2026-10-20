@@ -137,6 +137,9 @@ def find_ollama(timeout: float = 1.5, candidates: list[str] | None = None) -> li
 # text-generation-webui (5000), KoboldCpp (5001) and GPT4All (4891). They're used through a provider
 # of kind "openai".
 OPENAI_PORTS = (8080, 1234, 8000, 1337, 5000, 5001, 4891)
+# mlx_lm.server reads its model cache on every /v1/models, which takes a couple of seconds: longer
+# than the quick timeout used to sweep many addresses. Once something listens on the port, it gets this long.
+LISTING_TIMEOUT = 8.0
 # The name each port suggests when the server doesn't say what it is.
 PORT_NAMES = {1234: "LM Studio", 8000: "vLLM", 1337: "Jan", 5000: "text-generation-webui",
               5001: "KoboldCpp", 4891: "GPT4All"}
@@ -194,7 +197,8 @@ def probe(url: str, timeout: float = 1.5) -> dict | None:
             return {"url": url, "kind": "ollama", "label": "Ollama", "models": models}
         if port == "11434":
             return None
-    entries, server = _openai_listing(url, timeout)
+    wait = max(timeout, LISTING_TIMEOUT) if _port_open(url, timeout) else timeout
+    entries, server = _openai_listing(url, wait)
     if entries is not None:
         models = [m["id"] for m in entries]
         owners = tuple(str(m.get("owned_by", "")) for m in entries if m.get("owned_by"))
@@ -259,11 +263,11 @@ def lan_candidates() -> list[str]:
 
 def _port_open(url: str, timeout: float = 0.4) -> bool:
     import socket
-    host, port = url.split("://", 1)[1].rsplit(":", 1)
     try:
-        with socket.create_connection((host, int(port)), timeout=timeout):
+        host, port = url.split("://", 1)[1].split("/", 1)[0].rsplit(":", 1)
+        with socket.create_connection((host.strip("[]"), int(port)), timeout=timeout):
             return True
-    except OSError:
+    except (OSError, ValueError):   # nothing there, or an address without a port
         return False
 
 

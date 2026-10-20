@@ -711,7 +711,11 @@ def _test_provider(body: dict) -> dict:
     status = providers.build(cfg, secret).check(str(body.get("model", "")))
     note = ("" if not cfg.api_key_env or secret else
             f"{cfg.api_key_env} isn't set in the environment this dashboard was started from.")
-    return {"ok": not status.startswith("FAILED"), "status": status, "note": note}
+    models = []
+    if kind in ("ollama", "openai") and not status.startswith("FAILED: can't reach"):
+        from ..readiness import probe   # what the server offers, for the page's model list
+        models = (probe(cfg.url, timeout=4) or {}).get("models", [])
+    return {"ok": not status.startswith("FAILED"), "status": status, "note": note, "models": models}
 
 
 def serve(project: Path, port: int = 8790, open_browser: bool = True, from_app: bool = False,

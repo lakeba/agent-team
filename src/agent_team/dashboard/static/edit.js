@@ -286,10 +286,11 @@ function renderWizard() {
   const nameIn = h("input", { type: "text", value: w.name, placeholder: "e.g. studio" });
   nameIn.addEventListener("input", () => { w.name = nameIn.value.trim(); envIn.placeholder = suggestedEnv(); });
   const urlIn = h("input", { type: "text", value: w.url, placeholder: w.kind === "ollama" ? "http://studio.local:11434" : w.kind === "openai" ? "http://gpu-01:8000" : "http://studio.tailnet:8765" });
-  urlIn.addEventListener("input", () => { w.url = urlIn.value.trim(); });
+  urlIn.addEventListener("input", () => { w.url = urlIn.value.trim(); w.tested = null; });
   const modelIn = h("input", { type: "text", value: w.model, list: "wizard-models",
     placeholder: w.kind === "agent-http" ? "the node chooses" : w.kind === "openai" ? "e.g. mlx-community/Qwen2.5-Coder-7B-Instruct-4bit" : "e.g. qwen3.8:27b-mlx" });
   modelIn.addEventListener("input", () => { w.model = modelIn.value.trim(); });
+  const modelList = h("datalist", { id: "wizard-models" });
   const envIn = h("input", { type: "text", value: w.env });
   function suggestedEnv() { return ((w.name || "machine").toUpperCase().replace(/[^A-Z0-9]+/g, "_") + (w.kind === "agent-http" ? "_NODE_TOKEN" : "_API_KEY")); }
   envIn.placeholder = suggestedEnv();
@@ -301,7 +302,8 @@ function renderWizard() {
 
   if (w.kind !== "agent-http") {   // model servers already running somewhere on the network
     const picked = (w.servers || []).find(s => s.url === w.url);
-    box.append(h("datalist", { id: "wizard-models" }, (picked ? picked.models : []).map(m => h("option", { value: m }))));
+    modelList.replaceChildren(...(picked ? picked.models : (w.tested || [])).map(m => h("option", { value: m })));
+    box.append(modelList);
     const found = h("div", { class: "found" });
     if (w.servers === null) found.append(status("pending", "looking here, on this machine's host and on the network… (up to half a minute)"));
     else if (w.servers && !w.servers.length) found.append(h("p", { class: "muted small" }, "No model server answered. On another computer it must listen on the network: Ollama with OLLAMA_HOST=0.0.0.0, mlx_lm with --host 0.0.0.0."));
@@ -360,6 +362,11 @@ function renderWizard() {
       if (bad) return result.replaceChildren(status("bad", bad));
       result.replaceChildren(status("pending", "testing…"));
       try { const r = await postJSON("/api/test-provider", { provider: wizardProvider(), model: w.model });
+            if (r.models && r.models.length) {   // what the server offers becomes the Model list; with none chosen, a likely one
+              w.tested = r.models;
+              modelList.replaceChildren(...r.models.map(m => h("option", { value: m })));
+              if (!w.model) { w.model = r.models.find(m => /instruct|chat/i.test(m)) || r.models[0]; modelIn.value = w.model; }
+            }
             result.replaceChildren(status(r.ok ? "good" : "bad", r.status), r.note ? h("span", { class: "muted small" }, " " + r.note) : "");
       } catch (e) { result.replaceChildren(status("bad", e.message)); }
     } }, "Test connection"), result,

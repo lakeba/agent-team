@@ -34,6 +34,14 @@ class FakeMlx(BaseHTTPRequestHandler):
         pass
 
 
+class SlowMlx(FakeMlx):
+    """mlx_lm reads its model cache on every /v1/models: a couple of seconds before it answers."""
+    def do_GET(self):
+        import time
+        time.sleep(1.2)
+        super().do_GET()
+
+
 class LocalServerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -52,6 +60,19 @@ class LocalServerTests(unittest.TestCase):
         self.assertEqual(found["label"], "mlx_lm")
         self.assertEqual(found["models"], FakeMlx.models)
         self.assertIsNone(readiness.probe("http://127.0.0.1:9", timeout=0.5))
+
+    def test_a_slow_listing_is_still_found(self):
+        httpd = HTTPServer(("127.0.0.1", 0), SlowMlx)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            url = f"http://127.0.0.1:{httpd.server_address[1]}"
+            found = readiness.probe(url, timeout=0.5)   # the sweep's quick timeout: the open port earns a longer wait
+            self.assertEqual(found and found["models"], SlowMlx.models)
+            self.assertEqual(readiness._scan([url], 0.5)[0]["url"], url)
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+        self.assertFalse(readiness._port_open("http://127.0.0.1"))   # no port: no crash
 
     def test_labels(self):
         self.assertEqual(readiness.server_label("http://h:1234", ["qwen"], "uvicorn"), "LM Studio")
@@ -158,6 +179,19 @@ class LocalServerTests(unittest.TestCase):
         self.assertEqual(closest_model("qwen3", ["qwen3:latest"]), "qwen3:latest")
         status = build(config.ProviderConfig(name="m", kind="openai", url=self.url), "").check("Qwen2.5-Coder-7B-Instruct-4bit")
         self.assertIn("did you mean 'mlx-community/Qwen2.5-Coder-7B-Instruct-4bit'", status)
+
+    def test_a_test_without_a_model_lists_what_is_served(self):
+        from agent_team.dashboard.server import _test_provider
+        from agent_team.providers import build
+        status = build(config.ProviderConfig(name="m", kind="openai", url=self.url), "").check("")
+        self.assertTrue(status.startswith("ok ("), status)
+        self.assertIn("serves: mlx-community/Qwen2.5-Coder-7B-Instruct-4bit", status)
+        r = _test_provider({"provider": {"kind": "openai", "url": self.url}, "model": ""})
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["models"], FakeMlx.models)   # the page fills its Model list with these
+        r = _test_provider({"provider": {"kind": "openai", "url": "http://127.0.0.1:9"}, "model": ""})
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["models"], [])
 
     def test_test_folder_keeps_its_real_name(self):
         for names, expected in ((["Tests"], "Tests/"), (["tests"], "tests/"), (["App", "App.Tests"], "App.Tests/"), (["src"], "tests/")):

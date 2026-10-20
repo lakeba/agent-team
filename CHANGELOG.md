@@ -30,6 +30,14 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
   people starting from the double-click lost the thread. If the window is closed or Cancel is clicked, it
   says so and what to do (from the starter: double-click Lakeba OS again).
 
+### Fixed
+
+- "Find servers on this network" missed mlx_lm: it takes a couple of seconds to list its models (it reads
+  its model cache each time), longer than the scan waited. A server whose port is open now gets up to 8
+  seconds to answer.
+- "Test connection" in Add a machine, with no model chosen yet, failed with "'' not served by...". It now
+  says what the server offers, fills the Model list with it, and picks a likely chat model.
+
 ## [0.13.14] - 2026-10-20
 
 ### Added
