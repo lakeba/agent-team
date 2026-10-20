@@ -1,0 +1,181 @@
+# The walkthrough video: from installing Lakeba OS to ChairTime running on your server
+
+Status: approved on 20 October 2026. The script is ready for recording (section 5); nothing has been filmed yet.
+
+## 1. What it is
+
+One video of about 6½ minutes, for YouTube (`youtube-nocookie.com` on the site), with chapters. It follows
+ChairTime, the made-up founder's idea from the website, from installing Lakeba OS to the app running on a server.
+
+Everything on screen is real and recorded, never mocked up:
+- the installs, the builds and the release are real runs;
+- waits are sped up, and say so on screen ("sped up 8×");
+- keys, tokens and personal folders never appear: the key is pasted off camera, and paths show as `~`.
+
+## 2. Decisions (20 October 2026)
+
+| Topic | Decision |
+|---|---|
+| Repository | [lakeba/chairtime](https://github.com/lakeba/chairtime), created **private**; make it public before the video is published if viewers should see the code |
+| Narration | Your voice, recorded from the script in section 5 |
+| Budget | Approved: the ChairTime builds on Claude, about $10–20 in all, within the project's daily limit |
+| Assembly | ffmpeg, installed with Homebrew on this Mac |
+| Upload | You upload to YouTube; I hand over the MP4, the chapter list, the description and a thumbnail |
+
+### What "deploy" means here, honestly
+
+agent-team doesn't deploy to hosting. Its devops shift merges approved pull requests and publishes a GitHub
+release, and My MVP can run the app on the machine the project is on. So the deploy chapter shows:
+1. the v0.1.0 release of ChairTime on GitHub;
+2. your own server running it: the Ubuntu VM, added in the desktop app as another machine over SSH, with ChairTime
+   opened and started there, and the booking page opened from the Mac.
+
+To check in the dry run: the app must listen on the VM's network address, not only `127.0.0.1`, for the Mac's
+browser to reach it. If it doesn't, the team adds a `HOST` setting as a task, which the video can show.
+
+## 3. How it's made
+
+| Scene | Source |
+|---|---|
+| Terminal (install) | Real runs on a clean machine (the Ubuntu VM, and a fresh macOS user for the Mac app), replayed in a clean terminal frame at the original pace or sped up |
+| Guided setup, project window, approvals, remote machine | `npm run capture` in lakebaos-client, extended with these scenes; 1920×1200 at 2× |
+| GitHub release, the running app | The browser pane, recorded the same way |
+| Titles, captions, chapter cards, the "sped up" labels | Drawn by the assembly script |
+| Assembly | ffmpeg: each chapter's picture cut to the length of its narration, joined with short fades, plus a subtitle file (`.srt`) made from the script |
+
+Order of work:
+1. **Dry run** on the VM and a fresh macOS user: install, set up, one build, release, run on the server. This fixes
+   anything in the flow before filming, and anything found becomes a task first.
+2. **You record the narration** (section 4 and 5), one file per chapter.
+3. **Filming**: the real run again, captured scene by scene.
+4. **Assembly**, then you review a draft and I adjust timing.
+5. **Hand-over**: the MP4 (1080p), the chapters, the description, the thumbnail and the `.srt`.
+
+## 4. Recording the narration
+
+- A quiet room, a headset or a USB mic if you have one. QuickTime Player > File > New Audio Recording is enough.
+- **One file per chapter**, named `01-install.m4a`, `02-idea.m4a` and so on, as in section 5.
+- Read at a relaxed pace (about 140 words a minute). Leave a second of silence at the start and the end.
+- If you stumble, pause and say the sentence again: I cut the retakes. Don't restart the whole chapter.
+- The timings in section 5 are targets. The picture is cut to your recording, not the other way round.
+- Words in *[brackets]* are what's on screen, for you to picture; don't read them.
+
+## 5. The script
+
+Total: about 900 words, 6½ minutes.
+
+### 00 · Opening (about 15 s)
+
+*[The ChairTime booking page on a phone-sized browser: free slots for the week; a client picks one.]*
+
+> This is ChairTime: online booking for barbers who work alone. A client opens a link, picks a free slot, and
+> that's it. Nobody wrote this code by hand. An AI team built it, with Lakeba OS. Let me show you how, from the
+> very beginning.
+
+### 01 · Install (about 45 s) · `01-install.m4a`
+
+*[lakeba.github.io; the download buttons; the Lakeba OS app on a Mac, double-clicked. Then a terminal on Linux:
+the install command, sped up.]*
+
+> Start at lakeba.github.io and download Lakeba OS. On a Mac, you open the app and it installs everything it needs:
+> the engine, called agent-team, and REA, the tool the team uses to try your app like a real user would.
+>
+> On Linux, or if you like a terminal, it's one command. You paste it, and a minute later it's done. Nothing else to
+> install by hand, and you can uninstall it just as easily.
+
+### 02 · Your idea (about 60 s) · `02-idea.m4a`
+
+*[The guided setup: typing the idea; naming Slotbook; ticking the confirmation; choosing where the AI runs; the team;
+connecting GitHub; the ready check turning green.]*
+
+> The guided setup asks for your idea in plain words. Here's mine: booking for one-chair barbers, who today take
+> appointments over WhatsApp.
+>
+> Then, if you like, an app that inspires you. I'm naming Slotbook, a booking tool for salon chains. The team will
+> look at it the way a visitor does, from the outside, and nothing is copied.
+>
+> Next, where the AI runs: Claude for the best results, a free model on your own computer, or both. Then your team: a
+> lead who plans and reviews, builders, QA, marketing and devops. I set a daily spend limit of five dollars.
+>
+> I connect the project to GitHub, so the code lives online, and a last check makes sure everything is ready.
+
+### 03 · The brief (about 30 s) · `03-brief.m4a`
+
+*[The team exploring Slotbook; the brief appearing: features, prices, gaps, ways to be different.]*
+
+> While I wait, the team reads Slotbook's pages and writes a brief: what it does, what it costs, what's missing, and
+> how ChairTime can be different. Slotbook charges per location and has no free plan. That's exactly the gap for a
+> barber with one chair.
+
+### 04 · The team builds (about 75 s) · `04-build.m4a`
+
+*[The lead suggesting the first tasks; ticking the booking page; Build it. The run in plain words, sped up: the plan,
+the tests written first, the code, the tests passing, the lead's review.]*
+
+> Atlas, the lead, reads my idea and the brief, and suggests the first tasks. I pick the booking page and press Build.
+>
+> Now the team works. You can follow it in plain words: the lead writes a plan, QA writes the tests first, the builder
+> writes the code. Then the tests run, for real, and the lead reviews everything against the plan.
+>
+> If something isn't right, the lead sends it back with exactly what to fix, and the team goes another round. Nothing
+> is approved until the tests have actually run and pass. This part is sped up: it takes a few minutes.
+
+### 05 · You approve (about 35 s) · `05-approve.m4a`
+
+*[The pull request on GitHub; the Approvals tab in the desktop app; the confirmation dialog; approved.]*
+
+> When the lead is happy, the change arrives as a pull request, and it waits for me. I can read what changed, comment
+> on a line, or approve it. Approving is always mine: the app asks me to confirm, and no AI can do it for me.
+
+### 06 · Ship it (about 40 s) · `06-ship.m4a`
+
+*[The devops shift merging; the release proposal; approving v0.1.0; the release on GitHub.]*
+
+> Harbor, the devops member, works in shifts. It merges what I approved, once the checks are green, and proposes a
+> release with notes written for humans. I approve version 0.1.0, and it's published on GitHub.
+
+### 07 · On your server (about 60 s) · `07-server.m4a`
+
+*[The Projects window: adding a machine, the Ubuntu server, by its SSH address; opening ChairTime there; Run my app; the
+booking page opening in the browser; a booking made.]*
+
+> Now let's put it on a server. In the desktop app I add another machine: my Ubuntu server, by its SSH address. The
+> app uses my own SSH keys, and never asks for a password.
+>
+> Lakeba OS is installed there too, so I open ChairTime on the server, and in My MVP I press Run my app. And here
+> it is, running, from my browser. A client picks Thursday at ten, leaves a name and a number, and the booking is saved.
+
+### 08 · Costs and schedule (about 25 s) · `08-spend.m4a`
+
+*[The Spend tab: today against the limit, by member; the schedule card.]*
+
+> Everything the team spends is on one screen, against the limit I set. And I can schedule the devops shift, say every
+> six hours, so approved work ships on its own.
+
+### 09 · Close (about 20 s) · `09-close.m4a`
+
+*[The website hero; "Start your Business Now".]*
+
+> That's the whole journey: an idea in plain words, a team that builds it, and you deciding what ships. When it's
+> working, Lakeba can help you build a company around it. Start at lakeba.github.io.
+
+## 6. YouTube chapters (from the script; the times are set from the final cut)
+
+```
+0:00 ChairTime, built by an AI team
+0:15 Install Lakeba OS
+1:00 Your idea, in plain words
+2:00 The inspiration brief
+2:30 The team builds it
+3:45 You approve
+4:20 Ship it
+5:00 On your own server
+6:00 Costs and schedule
+6:25 Start your business
+```
+
+## 7. Still to settle
+
+1. The repository's visibility when the video goes out (private now).
+2. Whether the opening shows ChairTime on a phone-sized browser (it's a web page, not a native app).
+3. The thumbnail: a frame from chapter 7 (the booking page) with the title, unless you have a brand template.
