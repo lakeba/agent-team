@@ -216,3 +216,41 @@ on Claude (one build, one fix run, four devops shifts, the Slotbook brief).
 - Chapter 7 needs the barber's hours set first (`/barber`, with the barber token from the server's environment) so
   slots show. The script can add one sentence for it.
 - The app keeps running on the VM at `http://10.211.55.4:5055` until stopped (Run my app's Stop, or `apprun.stop`).
+
+## 9. Filming plan (from agent-team 0.13.14)
+
+Everything the dry run broke is fixed in 0.13.14, so filming is one clean run, captured as it happens.
+
+### What you prepare
+
+1. **A clean Mac account**, for chapter 1's Mac install: System Settings > Users & Groups > Add User (it needs your
+   admin password, so it's yours to do). Log in to it once, then I take it from there over SSH or you sign in
+   for the recording.
+2. **A clean Ubuntu machine**, for the terminal install and the server chapter: a clone of the VM taken *before*
+   anything was installed, or a new VM. The current VM has REA installed globally, so the installer would skip
+   installing its own (that's correct, but it wouldn't show).
+3. **The narration**: the ten files from section 5, in one folder (say `~/LakebaOS-video/narration/`).
+4. **The repository's visibility on the day**: [lakeba/chairtime](https://github.com/lakeba/chairtime) is private.
+   If it stays private, the GitHub scenes are shown from inside the desktop app (Approvals, Review a pull request),
+   never github.com. If you make it public before filming, github.com pages can appear too.
+
+### What I do
+
+| Step | What | Cost / time |
+|---|---|---|
+| 1 | **Reset the demo repository**: delete the dry run's history in `lakeba/chairtime` (a force push to an empty `main`, its two PRs closed and the v0.1.0 release removed), with your OK on the day, so filming starts from nothing | — |
+| 2 | **Terminal recording**: record the installs as real terminal sessions (asciinema in a virtualenv on the machines) and render them to video. This needs two downloads, asciinema and its renderer `agg`, which I'll name, with sizes, before installing | ~1 h |
+| 3 | **Extend `npm run capture`** with the scenes the dry run didn't film: the Projects window, adding the server, the remote project, Approvals with the v0.1.0 release, My MVP's Run my app, Spend and the schedule | ~half a day |
+| 4 | **The filming run**: the whole flow once more on the clean machines, captured scene by scene; long waits are recorded in full and sped up later | ~$3–5 on Claude, ~1½ h |
+| 5 | **Assembly with ffmpeg**: each chapter cut to your narration's length, title cards, "sped up" labels, captions (`.srt`), chapters | ~half a day |
+| 6 | **Draft for your review**, then the final 1080p MP4, thumbnail, description and chapter list for YouTube | — |
+
+### The order
+
+1. You: a clean Mac account, a clean Ubuntu VM, and the narration. They can happen in parallel.
+2. Me: steps 2 and 3, which don't need anything from you. Then step 1 with your OK, then 4 to 6.
+
+### Still open
+
+1. Private repository and in-app GitHub scenes, or public and github.com.
+2. Background music: none, or a royalty-free track you choose.
