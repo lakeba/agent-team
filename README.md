@@ -268,8 +268,10 @@ agent-team rea setup          # installs REA (https://rea.tools) if needed and s
 agent-team behaviour suggest  # the lead writes the first journeys from VISION.md
 ```
 
-The installer (and the Lakeba OS app) installs REA along with agent-team, offering Node.js 24 through
-Homebrew on a Mac that has no supported Node.js; `--no-rea` skips it. agent-team keeps its own REA
+The installer (and the Lakeba OS app) installs REA along with agent-team. When the machine has no
+Node.js REA supports, it gets its own Node.js 24 from nodejs.org into `~/.agent-team/node`, checked
+against nodejs.org's published checksums, as it gets its own Python with uv: no administrator password,
+nothing system-wide, and `--uninstall` removes it with REA. `--no-rea` skips all of it. agent-team keeps its own REA
 copy at the version it was tried with: the dashboard, `doctor` and `rea setup` update it when it's
 older, and it runs with the Node.js it was installed with, so a newer default `node` doesn't break it.
 

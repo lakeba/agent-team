@@ -6,6 +6,14 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Changed
+
+- On a machine without a Node.js that REA supports, the installer gets its own Node.js 24 from nodejs.org
+  into `~/.agent-team/node`, checked against nodejs.org's SHA-256 checksums, and pins REA to it. Before, a
+  Mac without Homebrew (or with one belonging to another account) was asked a Homebrew question that
+  couldn't succeed, and REA was skipped, so Inspire and behaviour checks didn't work.
+- `--uninstall` also removes that Node.js and agent-team's REA copy.
+
 ## [0.13.14] - 2026-10-20
 
 ### Added

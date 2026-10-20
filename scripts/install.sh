@@ -12,7 +12,7 @@
 #   --no-ui              don't open the dashboard at the end of a first install
 #   --no-shortcut        don't add the Lakeba OS app/launcher (macOS: ~/Applications; Linux: the app menu)
 #   --force              replace an `agent-team` command this script didn't create
-#   --uninstall          remove the CLI, its environment, its source copy and the plugin
+#   --uninstall          remove the CLI, its environment, its source copy, its own Node.js and REA, and the plugin
 #                        (your saved keys and project list are kept)
 #   --purge              with --uninstall: also delete your saved keys and project list
 #                        (~/.config/agent-team); asks first unless --yes
@@ -85,7 +85,10 @@ if [ "$UNINSTALL" = 1 ]; then
     claude plugin marketplace remove lakeba-agent-team >/dev/null 2>&1 || true
   fi
   if ours; then rm "$BIN_DIR/agent-team"; say "removed $BIN_DIR/agent-team"; fi
-  rm -rf "$VENV" "$SRC"
+  rm -rf "$VENV" "$SRC" "$HOME_DIR/node"
+  REA_COPY="${XDG_DATA_HOME:-$HOME/.local/share}/agent-team/rea"
+  if [ -d "$REA_COPY" ]; then rm -rf "$REA_COPY"; say "removed agent-team's REA copy"; fi
+  rmdir "${XDG_DATA_HOME:-$HOME/.local/share}/agent-team" 2>/dev/null || true
   rmdir "$HOME_DIR" 2>/dev/null || true
   if [ -d "$HOME/Applications/Lakeba OS.app" ]; then rm -rf "$HOME/Applications/Lakeba OS.app"; say "removed the Lakeba OS app"; fi
   LAUNCHER="${XDG_DATA_HOME:-$HOME/.local/share}/applications/lakeba-os.desktop"
@@ -205,21 +208,42 @@ case "${SHELL:-}" in
 esac
 
 # 4b. REA, which behaviour checks and Inspire use: agent-team's own copy, at the version agent-team was
-#     tried with (brought up to date each time this script runs). It needs Node.js 22.19+, 24.11+ or 26+;
-#     on a Mac with Homebrew, Node.js 24 is offered when there's none of those.
+#     tried with (brought up to date each time this script runs). It needs Node.js 22.19+, 24.11+ or 26+.
+#     Without one, agent-team gets its own Node.js 24 from nodejs.org into $HOME_DIR/node, checked against
+#     nodejs.org's published SHA-256 checksums, the way it gets its own Python with uv: nothing system-wide,
+#     no administrator password, no question.
 node_ok() {
   "$1" -e 'const [a, b] = process.versions.node.split(".").map(Number); process.exit((a === 22 && b >= 19) || (a === 24 && b >= 11) || a >= 26 ? 0 : 1)' 2>/dev/null
+}
+sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
+private_node() {
+  local os arch dist sums file want tmp
+  case "$(uname -s)" in Darwin) os=darwin ;; Linux) os=linux ;; *) return 1 ;; esac
+  case "$(uname -m)" in arm64|aarch64) arch=arm64 ;; x86_64|amd64) arch=x64 ;; *) return 1 ;; esac
+  dist="https://nodejs.org/dist/latest-v24.x"
+  sums="$(curl -fsSL "$dist/SHASUMS256.txt")" || return 1
+  file="$(printf '%s\n' "$sums" | awk -v s="-$os-$arch.tar.gz" '$2 ~ s"$" && $2 ~ /^node-v24\./ {print $2; exit}')"
+  want="$(printf '%s\n' "$sums" | awk -v f="$file" '$2 == f {print $1; exit}')"
+  [ -n "$file" ] && [ -n "$want" ] || return 1
+  tmp="$(mktemp -d)"
+  if curl -fsSL "$dist/$file" -o "$tmp/$file" && [ "$(sha256 "$tmp/$file")" = "$want" ]; then
+    rm -rf "$HOME_DIR/node" && mkdir -p "$HOME_DIR/node" && tar -xzf "$tmp/$file" -C "$HOME_DIR/node" --strip-components 1
+  else
+    warn "the Node.js download didn't match nodejs.org's checksum, so it wasn't used"
+    rm -rf "$tmp"; return 1
+  fi
+  rm -rf "$tmp"
+  node_ok "$HOME_DIR/node/bin/node"
 }
 if [ "$REA" = 1 ]; then
   NODE_BIN=""
   if command -v node >/dev/null 2>&1 && node_ok "$(command -v node)"; then
     NODE_BIN="$(dirname "$(command -v node)")"
-  elif [ "$(uname -s)" = Darwin ] && command -v brew >/dev/null 2>&1; then
-    if [ -x "$(brew --prefix node@24 2>/dev/null)/bin/node" ]; then
-      NODE_BIN="$(brew --prefix node@24)/bin"
-    elif confirm "REA needs Node.js 22.19+, 24.11+ or 26+. Install Node.js 24 with Homebrew?"; then
-      brew install node@24 >/dev/null 2>&1 && NODE_BIN="$(brew --prefix node@24)/bin"
-    fi
+  elif [ -x "$HOME_DIR/node/bin/node" ] && node_ok "$HOME_DIR/node/bin/node"; then
+    NODE_BIN="$HOME_DIR/node/bin"
+  else
+    say "no Node.js 22.19+, 24.11+ or 26+ here: getting a private Node.js 24 for REA from nodejs.org (about 50 MB)"
+    private_node && NODE_BIN="$HOME_DIR/node/bin"
   fi
   if [ -n "$NODE_BIN" ]; then
     say "installing REA for behaviour checks and Inspire (a minute or two)"
@@ -229,7 +253,7 @@ if [ "$REA" = 1 ]; then
       warn "REA couldn't be installed now; later: agent-team rea setup"
     fi
   else
-    warn "REA needs Node.js 22.19+, 24.11+ or 26+ (https://nodejs.org); then run: agent-team rea setup"
+    warn "REA needs Node.js 22.19+, 24.11+ or 26+, and it couldn't be downloaded (https://nodejs.org); then run: agent-team rea setup"
   fi
 fi
 
