@@ -119,6 +119,23 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.call("POST", "/api/inspiration/forget", {"app": "app-example"})[1], {"forgotten": True})
         self.assertEqual(self.call("GET", "/api/inspiration")[1]["apps"], [])
 
+    def test_the_latest_run_and_why_it_failed(self):
+        url = "https://app.example/"
+        inspire.confirm(self.root, url)
+        folder = jobs._dir(self.root)
+        for job_id, started, code, log in (
+                ("inspire-20261020T100000-aaaaaa", "2026-10-20T10:00:00Z", 1, "$ agent-team inspire x\nold problem\n"),
+                ("inspire-20261020T111333-4dbc2a", "2026-10-20T11:13:33Z", 1,
+                 "$ agent-team inspire https://app.example/\n[mcp.rea] isn't set up: run agent-team rea setup\n")):
+            (folder / f"{job_id}.json").write_text(json.dumps({"id": job_id, "workflow": "inspire", "argv": [], "params": {"url": url},
+                                                               "started": started, "pid": 1, "exit_code": code}))
+            (folder / f"{job_id}.log").write_text(log)
+        (app,) = self.call("GET", "/api/inspiration")[1]["apps"]
+        self.assertEqual(app["run"]["id"], "inspire-20261020T111333-4dbc2a")   # the newest one
+        self.assertEqual((app["run"]["status"], app["run"]["problem"]), ("failed", "[mcp.rea] isn't set up: run agent-team rea setup"))
+        status, js = self.call("GET", "/inspire.js")
+        self.assertIn(b"exploring", js)
+
     def test_the_tab_is_served(self):
         status, page = self.call("GET", "/")
         self.assertIn(b'data-tab="inspire"', page)

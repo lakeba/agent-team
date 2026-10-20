@@ -367,7 +367,9 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
                     return self._send(200, png.read_bytes(), "image/png")
                 if path == "/api/inspiration":
                     from .. import inspire
-                    return self._json({"apps": inspire.apps(team.root), "statement": inspire.CONFIRMATION})
+                    runs = inspire.last_runs(team.root)
+                    apps = [{**a, "run": runs.get(a["url"])} for a in inspire.apps(team.root)]
+                    return self._json({"apps": apps, "statement": inspire.CONFIRMATION})
                 if path.startswith("/api/inspiration/"):
                     from .. import inspire
                     rest = urllib.parse.unquote(path.removeprefix("/api/inspiration/"))

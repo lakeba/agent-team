@@ -157,6 +157,14 @@ def cmd_inspire(args) -> int:
         if not args.yes and (not sys.stdin.isatty() or input("Is that right? [y/N] ").strip().lower() != "y"):
             raise SystemExit("Not explored: the confirmation is needed first (or --yes).")
         inspire.confirm(team.root, args.url)
+    if team.behaviour.server == "rea" and "rea" not in team.mcp:   # e.g. the guided setup's Inspiration step was skipped
+        from .setup_wizard import SetupError, install_rea
+        ui.say("Setting REA up for this project first: it's what visits the app.")
+        try:
+            install_rea(team.root)
+        except SetupError as e:
+            raise SystemExit(str(e))
+        team = _team(args)
     try:
         brief = inspire.run(team, args.url, journeys, args.max_pages)
     except inspire.InspireError as e:

@@ -346,6 +346,39 @@ class BoundaryTests(unittest.TestCase):
         self.assertIn("confirmation is needed", str(e.exception))
         self.assertFalse(inspire.confirmed(team.root, "https://tempo.example/"))
 
+    def test_rea_is_set_up_when_the_setup_skipped_it(self):
+        from helpers import project
+        from agent_team import rea, setup_wizard
+        root = project()   # made without [mcp.rea], as when the guided setup's Inspiration step is skipped
+        url = "https://tempo.example/"
+        inspire.confirm(root, url)
+        seen = {}
+
+        def install(r):
+            rea.configure(Path(r), "/opt/rea/bin/rea", [])
+            return {"command": "/opt/rea/bin/rea", "where": "here"}
+
+        def run(team, *a):
+            seen["mcp"] = sorted(team.mcp)
+            return Path(team.root) / ".team" / "inspiration" / "tempo-example" / "brief.md"
+
+        with mock.patch.object(setup_wizard, "install_rea", side_effect=install) as inst, \
+                mock.patch.object(inspire, "run", side_effect=run), quiet():
+            cli.main(["inspire", url, "-C", str(root)])
+        inst.assert_called_once()
+        self.assertIn("rea", seen["mcp"])
+        with mock.patch.object(setup_wizard, "install_rea", side_effect=setup_wizard.SetupError("REA needs Node.js 22.19+")), \
+                mock.patch.object(inspire, "run") as never, self.assertRaises(SystemExit) as e, quiet():
+            cli.main(["inspire", url, "-C", str(project())])
+        self.assertIn("confirmation", str(e.exception))   # a fresh project: not confirmed, so nothing is set up
+        root2 = project()
+        inspire.confirm(root2, url)
+        with mock.patch.object(setup_wizard, "install_rea", side_effect=setup_wizard.SetupError("REA needs Node.js 22.19+")), \
+                mock.patch.object(inspire, "run") as never, self.assertRaises(SystemExit) as e, quiet():
+            cli.main(["inspire", url, "-C", str(root2)])
+        self.assertIn("REA needs Node.js", str(e.exception))
+        never.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

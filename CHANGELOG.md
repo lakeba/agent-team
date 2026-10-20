@@ -32,6 +32,12 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ### Fixed
 
+- Exploring an app from the Inspiration tab did nothing visible when the project had no REA set up (the
+  guided setup's Inspiration step was skipped): the run stopped at once on "[mcp.rea] isn't set up". It now
+  sets REA up for the project first (as that step does), then explores. The tab shows each app's latest
+  run: "exploring…" while it goes (it looks again every few seconds), or "failed" with the reason.
+- Without Chrome or Chromium, Inspire says to install Chrome, in plain words.
+
 - macOS asked whether to allow "applet" to find devices on local networks when the dashboard, started
   from the Lakeba OS app, scanned for model servers. The installer now names the app Lakeba OS (bundle
   id `com.lakeba.lakebaos-starter`), adds a line saying why it looks on the network, and re-signs it.

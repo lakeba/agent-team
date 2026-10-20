@@ -104,6 +104,15 @@ function addForm() {
       onclick: () => explore(f.url.trim(), parse(), f.pages, needsConfirm) }, inspireView.busy ? "Starting…" : "Explore")));
 }
 
+// What the Brief column says: the latest explore run while it goes, or why it failed, else the brief's state.
+function runCell(a) {
+  const run = a.run;
+  if (run && run.status === "running") return status("pending", "exploring…");
+  if (run && (run.status === "failed" || run.status === "lost") && (!a.updated || run.started > a.updated))
+    return h("span", {}, status("bad", "failed"), h("span", { class: "muted small" }, " " + run.problem));
+  return a.brief ? status("good", "written") : status("pending", a.pages ? "not written" : "not explored yet");
+}
+
 function renderInspire() {
   const el = document.getElementById("inspire");
   if (!el) return;
@@ -111,12 +120,17 @@ function renderInspire() {
   if (inspireView.error) return el.append(errorCard("inspiration", inspireView.error));
   const d = inspireView.data;
   if (!d) { el.append(h("div", { class: "card empty" }, "Loading…")); loadInspire(); return; }
+  clearTimeout(inspireView.poll);   // while a run goes, look again every few seconds
+  if (d.apps.some(a => a.run && a.run.status === "running"))
+    inspireView.poll = setTimeout(function tick() {
+      if (document.getElementById("inspire")?.offsetParent) loadInspire(); else inspireView.poll = setTimeout(tick, 4000);
+    }, 4000);
   if (d.apps.length) {
     el.append(h("div", { class: "card" }, h("h2", {}, "Apps you like"),
       table(["App", "Brief", "Seen", "When"], d.apps.map(a => [
         h("button", { type: "button", class: a.app === inspireView.selected ? "link selected" : "link",
           onclick: () => { inspireView.selected = a.app; loadInspire(); } }, a.url || a.app),
-        a.brief ? status("good", "written") : status("pending", a.pages ? "not written" : "not explored yet"),
+        runCell(a),
         `${a.pages} pages · ${a.journeys} journeys`,
         a.updated ? fmtWhen(a.updated) : "",
       ]))));

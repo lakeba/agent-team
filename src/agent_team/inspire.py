@@ -524,7 +524,9 @@ def run(team: Team, url: str, journeys: list[list[str]] | None = None, max_pages
         raise InspireError(f"[mcp.{server}] isn't set up: run agent-team rea setup")
     browser = behaviour.browser_path(team)
     if not browser:
-        raise InspireError("no Chrome or Chromium found; set [behaviour].browser to its path")
+        raise InspireError("Inspire visits the app with Google Chrome (or Chromium), and there's none on this computer: "
+                           "install Chrome from https://www.google.com/chrome, then explore again "
+                           "(or set [behaviour].browser to a Chromium-based browser's path)")
     cfg = writer(team)
     provider = team.providers.get(cfg.provider)
     if provider and provider.kind == "anthropic" and not (team.secret(provider) or os.environ.get("ANTHROPIC_API_KEY")):
@@ -568,6 +570,24 @@ def apps(root: Path | str) -> list[dict]:
                     "confirmed": (f / "confirmed.json").is_file(),
                     "pages": len(info.get("pages", [])), "journeys": len(info.get("journeys", [])),
                     "updated": datetime.fromtimestamp(when, timezone.utc).isoformat(timespec="seconds") if when else None})
+    return out
+
+
+def last_runs(root: Path | str) -> dict[str, dict]:
+    """The latest explore run of each address, from the dashboard's background runs: {url: {id, status,
+    started, problem}}, where problem is the last line it printed when it failed."""
+    from . import jobs
+    out: dict[str, dict] = {}
+    for job in jobs.list_jobs(Path(root), 200):   # newest first
+        url = (job.get("params") or {}).get("url", "")
+        if job.get("workflow") != "inspire" or not url or url in out:
+            continue
+        problem = ""
+        if job["status"] in ("failed", "lost"):
+            text = jobs.output(Path(root), job["id"])["text"]
+            lines = [ln.strip() for ln in text.splitlines() if ln.strip() and not ln.startswith("$ ")]
+            problem = lines[-1] if lines else "it stopped without saying why"
+        out[url] = {"id": job["id"], "status": job["status"], "started": job.get("started", ""), "problem": problem[:300]}
     return out
 
 
