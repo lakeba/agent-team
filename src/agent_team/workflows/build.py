@@ -18,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 from .. import agent, behaviour, context, files, github, guards, memory, quality, review_tools, routing, sessions, ui
-from ..config import AgentConfig, Team
+from ..config import SCENARIOS_FILE, AgentConfig, Team
 
 TEST_PREFIXES = ("tests/", "test/", "spec/", "__tests__/", "test_", "Tests/", "Test/")
 DOC_PREFIXES = ("README", "docs/", "CHANGELOG.md", "CONTRIBUTING.md")
@@ -171,6 +171,12 @@ def run(team: Team, task: str, rounds: int = 3, lead: str = "", builder: str = "
         if tests:
             ui.say(tests)
             log.record(f"Tests: round {rnd}", tests)
+        if SCENARIOS_FILE in round_written:   # the journeys changed this round: check the new ones, not the old
+            from ..config import ConfigError, load
+            try:
+                team.behaviour.scenarios = load(team.root).behaviour.scenarios
+            except ConfigError as e:
+                ui.warn(f"{SCENARIOS_FILE} couldn't be read again, so the earlier journeys are checked: {e}")
         checks = behaviour.run(team, base)
         if checks:
             evidence = behaviour.report(checks)

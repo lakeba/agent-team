@@ -78,6 +78,25 @@ class PatchEditTests(unittest.TestCase):
         self.assertEqual(list(written), [])
         self.assertEqual((root / "docs/x.md").read_text(), "1\n")
 
+    def test_journeys_changed_in_a_round_are_the_ones_checked(self):
+        from agent_team import behaviour
+        from test_mcp import project_with
+        root = project_with('\n[behaviour]\nserver = "fake"\n')
+        (root / "app.py").write_text("A = 1\n")
+        journeys = '[[scenarios]]\nname = "book a slot"\nkind = "terminal"\nrun = "python3 app.py"\n'
+        SCRIPTS["Atlas"].extend(['<file path="PLAN.md">\n# Plan\n</file>', "Good.\nVERDICT: APPROVED"])
+        SCRIPTS["Forge"].append(f'<file path="team/behaviour.toml">\n{journeys}</file>')
+        seen = []
+
+        def checks(team, base, *a, **kw):
+            seen.append([sc.name for sc in team.behaviour.scenarios])
+            return []
+
+        team = load(root)
+        with mock.patch.object(behaviour, "run", checks), quiet():
+            self.assertTrue(build.run(team, "add booking", rounds=1, skip=("journeys",)))
+        self.assertEqual(seen, [["book a slot"]])   # read again after the round, not the journeys from the start
+
     def test_failed_edits_reach_the_lead_and_the_next_round(self):
         root = project(files={"app.py": "A = 1\n"})
         SCRIPTS["Atlas"].extend(['<file path="PLAN.md">\n# Plan\n</file>', "Edit didn't apply.\nVERDICT: CHANGES",
