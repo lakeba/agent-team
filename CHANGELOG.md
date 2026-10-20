@@ -6,6 +6,16 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Added
+
+- CI for the projects the team builds. When the guided setup connects GitHub (or `agent-team ci setup`), a
+  project with no workflow of its own gets `.github/workflows/agent-team-tests.yml` and a small script that
+  runs its test command, or finds its tests (Python in a `.venv` with `requirements.txt`, or `npm test`), and
+  passes before there are any. Without CI the devops shift could never merge anything. The Ready check
+  names a missing workflow, with an "Add CI" button.
+- The guided setup's GitHub step can use an empty repository you already have (`owner/name`), as well as
+  create a new one.
+
 ### Fixed
 
 - A member could save an invalid `team/behaviour.toml` through an ordinary file block (seen in a real
@@ -21,6 +31,15 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 - The guided setup's "Install REA" commits the change to `.team.toml`, so the first build on a branch
   isn't refused for uncommitted changes.
 - Inspire treats `/index.html` and `/` as one page.
+- CI test counts are read in the usual formats (pytest, unittest, jest, vitest, cargo, dotnet) when the
+  project's `test_count_pattern` finds nothing, and the report says which format it read.
+- QA never tests the wording of the changelog or README: a test that the changelog says "Unreleased" blocked
+  a real release.
+- Members are told how the tests will run in a project that started empty, instead of "(none configured)".
+- Run my app finds a Flask or FastAPI app that lives in a package (`flask --app chairtime`, `shop.main:app`),
+  and creates the project's `.venv` with its requirements first when there's none.
+- The installer tells Ubuntu users to open a new terminal when `~/.local/bin` isn't on the PATH yet, instead
+  of asking them to edit their profile.
 - A release accepts `## Unreleased` as well as `## [Unreleased]`: the team's own changelog used the first,
   and v0.1.0 of a real project was refused for it.
 

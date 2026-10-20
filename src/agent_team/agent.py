@@ -110,7 +110,7 @@ def make(team: Team, cfg: AgentConfig, prompt_name: str | None = None, label_suf
         "name": cfg.name, "role": cfg.role, "project": team.project.name, "repo": team.project.repo,
         "roster": team_roster(team), "owns": ", ".join(cfg.owns) or "nothing",
         "guarantees": "\n".join(f"- {g}" for g in team.project.guarantees) or "- (none listed)",
-        "test_command": team.project.test_command or "(none configured)",
+        "test_command": _test_command(team),
         **fields,
     }
     system = _fill(template, values)
@@ -143,3 +143,12 @@ def _fill(template: str, values: dict) -> str:
 
 def prompt_path(team: Team, agent: AgentConfig) -> Path | None:
     return team.root / agent.prompt if agent.prompt else None
+
+
+def _test_command(team: Team) -> str:
+    """What members are told runs the tests: the configured command, else what agent-team will run
+    once the tests exist (a project that started empty)."""
+    from .workflows.init import test_command_for
+    return test_command_for(team.root, team.project.test_command, ignore_venv=False) or (
+        "not set yet: agent-team finds the tests once you write them (Python tests run with pytest in the "
+        "project's .venv, with requirements.txt installed)")

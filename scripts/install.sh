@@ -188,7 +188,13 @@ fi
 [ -e "$BIN_DIR/agent-team" ] || ln -s "$VENV/bin/agent-team" "$BIN_DIR/agent-team"
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
-  *) warn "$BIN_DIR is not on your PATH. Add this to your shell profile: export PATH=\"$BIN_DIR:\$PATH\"" ;;
+  *)
+    # Ubuntu and Debian's ~/.profile add ~/.local/bin for new logins once it exists: a new terminal is enough.
+    if [ "$BIN_DIR" = "$HOME/.local/bin" ] && grep -qs '\.local/bin' "$HOME/.profile"; then
+      say "open a new terminal (or log in again) to use agent-team: $BIN_DIR goes on your PATH then"
+    else
+      warn "$BIN_DIR is not on your PATH. Add this to your shell profile: export PATH=\"$BIN_DIR:\$PATH\""
+    fi ;;
 esac
 say "installed $("$VENV/bin/agent-team" --version)"
 if "$VENV/bin/agent-team" completion install --shell bash >/dev/null 2>&1; then

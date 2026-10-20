@@ -285,6 +285,7 @@ tools can be given to members (`mcp = ["rea"]`). See [configuration](docs/config
 | Command | What it does |
 |---|---|
 | `agent-team status [--json] [--health]` | The team, spend per member and today, recent and background runs, the schedule. |
+| `agent-team ci setup` | Adds a GitHub workflow that runs the project's tests on every pull request and on main, so the devops shift can merge what's green. Only for a project with no workflow of its own; the guided setup adds it when it connects GitHub. |
 | `agent-team ui` | The dashboard: see and edit the team, start runs, follow costs. `--client` runs it for a program such as the desktop app (see the [Dashboard API](docs/api.md)). |
 | `agent-team jobs [start <workflow> \| stop <id> \| log <id>]` | Runs in the background, as the dashboard and the Claude panel start them. |
 | `agent-team schedule --every 6h` | Run devops shifts on a schedule (launchd on macOS, cron elsewhere); `--remove` to stop. |

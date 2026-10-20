@@ -712,6 +712,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--json", action="store_true")
     s.add_argument("--strict", action="store_true", help="exit 1 if anything is missing")
     add("agents", cmd_agents, "list the team")
+    s = add("ci", cmd_ci, "add a GitHub workflow that runs the project's tests, so the devops shift can merge what's green")
+    s.add_argument("action", nargs="?", default="setup", choices=["setup"], help="setup: add the workflow (the default)")
+    s.add_argument("--no-commit", action="store_true", help="write the files but don't commit them")
     s = add("inspire", cmd_inspire, "explore an app that inspires you, from the outside, and write a brief to plan from")
     s.add_argument("url", nargs="?", default="", help="the app's web address")
     s.add_argument("--journey", action="append", default=[], metavar="STEPS",
@@ -891,6 +894,19 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--yes", action="store_true", help="for install: add the line to ~/.zshrc without asking")
     s.set_defaults(fn=cmd_completion)
     return p
+
+
+def cmd_ci(args) -> int:
+    from . import ci
+    root = Path(args.project).resolve()
+    if ci.has_workflow(root):
+        ui.say("This project already has a GitHub workflow: nothing was added (agent-team never overwrites one).")
+        return 0
+    written = ci.setup(root, commit=not args.no_commit)
+    for rel in written:
+        ui.action(f"added {rel}")
+    ui.say("Push it (git push) and the tests run on GitHub for every pull request and on main.")
+    return 0
 
 
 def cmd_rea(args) -> int:

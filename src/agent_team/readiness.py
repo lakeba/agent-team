@@ -399,6 +399,12 @@ def check(root: Path, ollama_url: str = "") -> list[Check]:
         out.append(Check("GitHub repo", False, "no GitHub repository yet",
                          f"gh repo create {name} --private --source . --push" + ("" if git_ok else " (after git init)"),
                          "build --pr, ship, plan"))
+    if team and (repo or on_github):   # the devops shift merges only what CI shows green
+        from . import ci
+        has = ci.has_workflow(root)
+        out.append(Check("CI", has, "a GitHub workflow runs on pull requests" if has
+                         else "no GitHub workflow runs the tests, so the devops shift can't merge anything",
+                         "" if has else "agent-team ci setup (then push)", "ship"))
 
     # Keys: every variable a provider names, and the Anthropic key when a member uses Claude.
     needed: dict[str, str] = {}

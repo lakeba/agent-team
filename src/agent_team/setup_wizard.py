@@ -359,15 +359,41 @@ def github_login() -> dict:
     return LOGIN
 
 
-def create_repo(root: Path, private: bool = True) -> dict:
-    """A GitHub repository for the project (private unless asked), with the code pushed."""
+REPO_RE = re.compile(r"^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$")
+
+
+def create_repo(root: Path, private: bool = True, existing: str = "") -> dict:
+    """The project on GitHub, with its code pushed and CI to run its tests (ci.py): a new repository
+    (private unless asked), or `existing` ("owner/name"), which must be empty or this project's own."""
+    from . import ci
     from .workflows.init import github_repo
     root = Path(root)
-    if github_repo(root):
-        return {"repo": github_repo(root), "created": False}
     gh = github_status()
     if not gh["signed_in"]:
         raise SetupError("sign in to GitHub first")
+    if github_repo(root):
+        repo, created = github_repo(root), False
+        ci.setup(root)
+        code, out = _run(["git", "push", "-q", "-u", "origin", "HEAD"], root, timeout=180)
+        if code != 0:
+            raise SetupError(f"the code couldn't be pushed to {repo}: {out[-300:]}")
+        return {"repo": repo, "created": created}
+    ci.setup(root)   # committed first, so the first push carries it
+    if existing:
+        existing = existing.strip().removeprefix("https://github.com/").removesuffix(".git").strip("/")
+        if not REPO_RE.match(existing):
+            raise SetupError("write the repository as owner/name, for example lakeba/chairtime")
+        code, out = _run(["gh", "repo", "view", existing, "--json", "name,isEmpty", "--jq", ".isEmpty"], root, timeout=30)
+        if code != 0:
+            raise SetupError(f"{existing} isn't a repository you can reach on GitHub: {out[-200:]}")
+        _run(["git", "remote", "add", "origin", f"https://github.com/{existing}.git"], root)
+        _run(["gh", "auth", "setup-git"], root)
+        code, out = _run(["git", "push", "-q", "-u", "origin", "HEAD"], root, timeout=180)
+        if code != 0:
+            _run(["git", "remote", "remove", "origin"], root)
+            hint = " It already has commits that aren't this project's: use an empty one." if ("rejected" in out or "fetch first" in out) else ""
+            raise SetupError(f"the code couldn't be pushed to {existing}: {out[-300:]}{hint}")
+        return {"repo": existing, "created": False}
     code, out = _run(["gh", "repo", "create", root.name, "--private" if private else "--public",
                       "--source", str(root), "--remote", "origin", "--push"], root, timeout=180)
     if code != 0:
@@ -395,6 +421,8 @@ def ready(root: Path) -> list[dict]:
             continue
         seen.add(name)
         short = name.split(":")[0]
+        if short == "CI" and not c["ok"]:
+            action = "ci"
         if short == "REA (behaviour checks)":   # listed only while this team doesn't use it: the page sets it up
             c = {**c, "ok": False}
             action = "rea"
@@ -531,3 +559,14 @@ def add_to_vision(root: Path, text: str) -> dict:
     _run(["git", "add", "--", "VISION.md"], Path(root))
     _run(["git", "commit", "-q", "-m", "Vision: inspired by, and different from"], Path(root))
     return {"ok": True}
+
+
+def add_ci(root: Path) -> dict:
+    """The CI workflow (ci.py), committed and pushed. Returns the files added."""
+    from . import ci
+    written = ci.setup(Path(root))
+    if written:
+        code, out = _run(["git", "push", "-q"], Path(root), timeout=180)
+        if code != 0:
+            raise SetupError(f"the workflow was added but couldn't be pushed: {out[-300:]}")
+    return {"written": written}

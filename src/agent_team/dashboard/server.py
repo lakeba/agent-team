@@ -485,7 +485,8 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
                     if here["root"] is None:
                         return self._json({"error": "create the project first"}, 409)
                     if path == "/api/setup/github/repo":
-                        return self._json(setup_wizard.create_repo(here["root"], bool(body.get("private", True))))
+                        return self._json(setup_wizard.create_repo(here["root"], bool(body.get("private", True)),
+                                                                   str(body.get("existing", ""))[:200]))
                     if path == "/api/setup/identity":
                         name = str(body.get("name", "")).strip()[:80]
                         email = str(body.get("email", "")).strip()[:120]
@@ -496,6 +497,8 @@ def make_handler(root: Path | None, port: int, token: str | None = None, folder:
                         return self._json({"ok": True})
                     if path == "/api/setup/tasks":
                         return self._json({"tasks": setup_wizard.suggest_tasks(here["root"])})
+                    if path == "/api/setup/ci":
+                        return self._json(setup_wizard.add_ci(here["root"]))
                     if path == "/api/setup/rea":
                         return self._json(setup_wizard.install_rea(here["root"]))
                     if path == "/api/setup/inspired":

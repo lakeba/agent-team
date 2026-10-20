@@ -352,9 +352,17 @@ function github() {
       h("p", { class: "muted small" }, "This page notices when you’ve signed in."));
     else box.append(h("p", { class: "secondary small" }, "You’ll sign in on GitHub’s own page; this computer never sees your password."),
       h("div", { class: "actions" }, h("button", { type: "button", class: "primary", onclick: githubLogin }, "Sign in to GitHub")));
-  } else box.append(status("good", `Signed in to GitHub as ${g.user}`),
-    h("p", { class: "secondary small" }, "Create a private repository for this project and upload the code."),
-    h("div", { class: "actions" }, h("button", { type: "button", class: "primary", onclick: makeRepo }, "Create my private repository")));
+  } else {
+    const own = { name: wizard.existingRepo || "" };
+    box.append(status("good", `Signed in to GitHub as ${g.user}`),
+      h("p", { class: "secondary small" }, "Create a private repository for this project and upload the code. Its tests then run on GitHub " +
+        "for every change, so the team only ships what passes."),
+      h("div", { class: "actions" }, h("button", { type: "button", class: "primary", onclick: () => makeRepo("") }, "Create my private repository")),
+      h("p", { class: "secondary small" }, "Or use an empty repository you already have:"),
+      h("div", { class: "row" }, input(own, "name", { placeholder: "owner/name, e.g. lakeba/chairtime", maxlength: 140,
+        oninput: e => { wizard.existingRepo = e.target.value; } }),
+        h("button", { type: "button", onclick: () => makeRepo(own.name) }, "Use this repository")));
+  }
   out.push(box, nav("Next", () => go(6), { skip: () => go(6) }));
   return out;
 }
@@ -370,9 +378,10 @@ async function githubLogin() {
   };
   poll();
 }
-async function makeRepo() {
-  wizard.busy = "Creating the repository and uploading your code…"; renderSetup();
-  try { wizard.repo = (await postJSON("/api/setup/github/repo", { private: true })).repo; } catch (e) { wizard.error = e.message; }
+async function makeRepo(existing) {
+  existing = (existing || "").trim();
+  wizard.busy = existing ? `Uploading your code to ${existing}…` : "Creating the repository and uploading your code…"; renderSetup();
+  try { wizard.repo = (await postJSON("/api/setup/github/repo", { private: true, existing })).repo; } catch (e) { wizard.error = e.message; }
   wizard.busy = ""; renderSetup();
 }
 
@@ -406,6 +415,11 @@ function fixFor(c) {
   if (a.startsWith("pull:")) return h("div", { class: "wiz-fix" }, pullControl(wizard.form.ollama_url || "http://localhost:11434", a.slice(5)));
   if (a === "github") return h("button", { type: "button", onclick: () => go(5) }, "Connect GitHub");
   if (a === "rea") return h("button", { type: "button", onclick: installRea }, "Install REA");
+  if (a === "ci") return h("button", { type: "button", onclick: async () => {
+    wizard.busy = "Adding the tests workflow and uploading it…"; renderSetup();
+    try { await postJSON("/api/setup/ci", {}); } catch (e) { wizard.error = e.message; }
+    wizard.busy = ""; wizard.ready = null; renderSetup();
+  } }, "Add CI");
   if (a === "identity") {
     const who = { name: wizard.form.owner || "", email: "" };
     return h("div", { class: "wiz-fix row" }, input(who, "name", { placeholder: "Your name" }), input(who, "email", { placeholder: "Email (optional)" }),

@@ -100,7 +100,7 @@ def python_tests(root: Path) -> tuple[str, str]:
     return "python3 -m unittest -v", UNITTEST_COUNT
 
 
-def test_command_for(root: Path, configured: str = "") -> str:
+def test_command_for(root: Path, configured: str = "", ignore_venv: bool = True) -> str:
     """The command that runs a project's tests: the configured one, else what the project now holds
     (a project that started empty has tests once the team writes them). A Python project with a
     requirements.txt runs them in its own .venv, with its dependencies installed, because the
@@ -112,7 +112,7 @@ def test_command_for(root: Path, configured: str = "") -> str:
     if cmd.startswith("python3 -m ") and (root / "requirements.txt").is_file():
         ignore = root / ".gitignore"
         lines = ignore.read_text(encoding="utf-8").splitlines() if ignore.exists() else []
-        if not any(l.strip().strip("/") == ".venv" for l in lines):
+        if ignore_venv and not any(l.strip().strip("/") == ".venv" for l in lines):
             ignore.write_text("\n".join(lines + ["", "# the project's own Python environment, for its tests", ".venv/"]).lstrip() + "\n",
                               encoding="utf-8")
         return ("test -x .venv/bin/python || python3 -m venv .venv; .venv/bin/python -m pip install -q -r requirements.txt"

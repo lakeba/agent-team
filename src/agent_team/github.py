@@ -95,20 +95,41 @@ def wait_for_commit_ci(repo: str, sha: str, minutes: float = 15) -> tuple[bool, 
         time.sleep(15)
 
 
+# Test counts as the usual runners print them, tried when the project's own pattern finds nothing
+# (a project that started empty keeps the default pattern, whatever its tests turn out to be).
+KNOWN_COUNTS = (("pytest", r"(\d+) passed"), ("unittest", r"Ran (\d+) tests?"), ("jest", r"Tests:\s+(\d+) passed"),
+                ("vitest", r"Tests\s+(\d+) passed"), ("cargo", r"test result: ok\. (\d+) passed"),
+                ("dotnet", r"Passed:\s+(\d+)"))
+
+
+def counts_in(log: str, pattern: str) -> tuple[dict, str]:
+    """({job: count}, the format that found them) for one CI log: the project's pattern first, then
+    KNOWN_COUNTS. Lines of `gh run view --log` start with the job's name."""
+    tries = ([("the project's pattern", pattern)] if pattern else []) + [(n, rx) for n, rx in KNOWN_COUNTS if rx != pattern]
+    for name, rx in tries:
+        found = {}
+        compiled = re.compile(rx)
+        for line in log.splitlines():
+            job, _, text = line.partition("\t")
+            m = compiled.search(text if _ else line)
+            if m:
+                found[job] = m.group(1)
+        if found:
+            return found, name
+    return {}, ""
+
+
 def ci_test_counts(repo: str, sha: str, pattern: str) -> str:
-    """Test counts per CI job for one commit, read from the CI log with the project's regex."""
-    if not pattern:
-        return "no test_count_pattern configured"
+    """Test counts per CI job for one commit, read from the CI log."""
     run = run_for_commit(repo, sha)
     if not run:
         return "no CI run found for this commit"
     log = gh("run", "view", str(run["databaseId"]), "-R", repo, "--log", check=False)
-    rx, found = re.compile(pattern), {}
-    for line in log.splitlines():
-        m = rx.search(line)
-        if m:
-            found[line.split("\t", 1)[0]] = m.group(1)    # gh log lines start with the job name
-    return "; ".join(f"{job}: {n}" for job, n in sorted(found.items())) or "no test count found in the CI log"
+    found, how = counts_in(log, pattern)
+    if not found:
+        return "no test count found in the CI log"
+    note = "" if how == "the project's pattern" else f" (read as {how} output)"
+    return "; ".join(f"{job}: {n}" for job, n in sorted(found.items())) + note
 
 
 def release_test_counts(repo: str, pattern: str, limit: int = 3) -> str:

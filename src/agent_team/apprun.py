@@ -106,6 +106,14 @@ def detect(root: Path, configured: str = "") -> dict:
             if "Flask(" in text:
                 return {"kind": "web", "command": f"{py} -m flask --app {mod} run", "why": f"{name} is a Flask app"}
             return {"kind": "cli", "command": f"{py} {name}", "why": f"{name}"}
+    web = _web_package(root)
+    if web:
+        prepare = ("" if venv or not (root / "requirements.txt").is_file() else
+                   "python3 -m venv .venv && .venv/bin/python -m pip install -q -r requirements.txt && ")
+        run_py = ".venv/bin/python" if prepare else py
+        kind, module, why = web
+        command = (f"{run_py} -m flask --app {module} run" if kind == "flask" else f"{run_py} -m uvicorn {module}:app")
+        return {"kind": "web", "command": prepare + command, "why": why}
     if (root / "pyproject.toml").is_file() or (root / "setup.py").is_file():
         mod = _python_module(root)
         if mod:
@@ -216,3 +224,23 @@ def run_cli(root: Path, args: str, configured: str = "", timeout: int = 60) -> d
         return {"command": command, "exit_code": r.returncode, "output": (r.stdout + r.stderr)[-8000:]}
     except subprocess.TimeoutExpired:
         return {"command": command, "exit_code": None, "output": f"(still running after {timeout} seconds; stopped)"}
+
+
+def _web_package(root: Path) -> tuple[str, str, str] | None:
+    """("flask"|"fastapi", the module to run, why) for a web app that lives in a package rather than a
+    top-level file: a Flask app or factory in <pkg>/__init__.py (`flask --app <pkg>` finds create_app),
+    or `app = FastAPI(...)` in <pkg>/main.py, app.py or __init__.py."""
+    skip = {"tests", "test", ".venv", "venv", "node_modules", "build", "dist", "docs", "team"}
+    for pkg in sorted(d for d in root.iterdir() if d.is_dir() and d.name not in skip and not d.name.startswith(".")):
+        init = pkg / "__init__.py"
+        if not init.is_file():
+            continue
+        text = init.read_text(encoding="utf-8", errors="replace")
+        if "Flask(" in text or ("def create_app" in text and "flask" in text.lower()):
+            return "flask", pkg.name, f"the Flask app in {pkg.name}/"
+        for name in ("main.py", "app.py", "__init__.py"):
+            f = pkg / name
+            if f.is_file() and re.search(r"(?m)^app\s*=\s*FastAPI\(", f.read_text(encoding="utf-8", errors="replace")):
+                module = pkg.name if name == "__init__.py" else f"{pkg.name}.{f.stem}"
+                return "fastapi", module, f"the FastAPI app in {pkg.name}/{name}"
+    return None

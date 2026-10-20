@@ -202,13 +202,13 @@ on Claude (one build, one fix run, four devops shifts, the Slotbook brief).
 | 2 | "Install REA" left `.team.toml` uncommitted, so the first build on a branch refused to start | **Fixed** (b7be9f8): the setup commits it |
 | 3 | Inspire read `/` and `/index.html` as two pages | **Fixed** (b7be9f8) |
 | 4 | The release refused `## Unreleased` (without brackets), which the team itself wrote | **Fixed** (f97b984) |
-| 5 | **A new project has no CI**, so the devops shift can never merge or release (it rightly wants a green CI run with test counts) | To do: when the setup connects GitHub, add a CI workflow that runs the project's tests. Worked around by hand for the dry run |
-| 6 | `test_count_pattern` stays at the unittest default when the tests turn out to be pytest, so CI counts are never read | To do: set it with the detected test command, and try the common formats when the configured one doesn't match |
-| 7 | QA wrote a test asserting the CHANGELOG says "Unreleased", which fails as soon as a release dates it | To do: QA's guidance says to test what the product does, never the wording of the changelog or README |
-| 8 | The guided setup's GitHub step can only create a new repository, not connect an existing one | To do: offer "use an existing repository" |
-| 9 | Run my app doesn't recognise a Flask (or FastAPI) app that is a package with an app factory (`flask --app chairtime run`) | To do: detect packages, not only top-level files. `run_command` was set by hand for the dry run |
+| 5 | **A new project has no CI**, so the devops shift can never merge or release (it rightly wants a green CI run with test counts) | **Fixed**: the setup's GitHub step (and `agent-team ci setup`) adds a CI workflow; the Ready check names a missing one |
+| 6 | `test_count_pattern` stays at the unittest default when the tests turn out to be pytest, so CI counts are never read | **Fixed**: counts are read in the usual formats when the configured pattern finds nothing |
+| 7 | QA wrote a test asserting the CHANGELOG says "Unreleased", which fails as soon as a release dates it | **Fixed**: QA's prompt says never to test document wording |
+| 8 | The guided setup's GitHub step can only create a new repository, not connect an existing one | **Fixed**: "Use this repository" (an empty `owner/name`) |
+| 9 | Run my app doesn't recognise a Flask (or FastAPI) app that is a package with an app factory (`flask --app chairtime run`) | **Fixed**: packages with a Flask app or factory, or `app = FastAPI()`; a `.venv` is made first when missing |
 | 10 | Run my app starts Flask's development server ("do not use in production"), on `127.0.0.1` unless told otherwise | For the video, chapter 7 says "running on my server", which is true. A real deployment (gunicorn and a service) is a task for the team, and it touches deployment files, which need your approval |
-| 11 | The installer's "not on your PATH" warning on a brand-new account | Minor: say "open a new terminal" first |
+| 11 | The installer's "not on your PATH" warning on a brand-new account | **Fixed**: "open a new terminal" where `~/.profile` adds `~/.local/bin` |
 
 **Notes for filming:**
 - This VM already has REA 6.7.0 installed globally, so the installer used it (by design). On a truly new machine it

@@ -9,7 +9,9 @@ PLAN.md; before anyone builds it, you write the tests that will show it works.
 
 Write tests that check the behaviour PLAN.md asks for, including edge cases and failure paths,
 in the project's existing test style and framework. They will fail until the builders finish;
-that is expected. Test behaviour, not implementation details, so any correct build passes. The
+that is expected. Test behaviour, not implementation details, so any correct build passes. Never
+test the wording of the changelog, the README or other documents: releases date the changelog and
+the docs member rewrites the rest, so such a test fails for no fault in the product. The
 tests run with: {test_command}
 
 You may only write files under: {test_paths}. {file_format}
