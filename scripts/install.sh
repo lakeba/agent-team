@@ -63,6 +63,19 @@ die() { printf '\033[31mx\033[0m %s\n' "$*" >&2; exit 1; }
 
 ours() { [ -L "$BIN_DIR/agent-team" ] && [ "$(readlink "$BIN_DIR/agent-team")" = "$VENV/bin/agent-team" ]; }
 
+# What to do when $BIN_DIR isn't on PATH. Lakeba OS (the starter and the app) runs agent-team by its full
+# path, so from the starter there's nothing to do and nothing to say.
+path_note() {
+  case ":$PATH:" in *":$BIN_DIR:"*) return 0 ;; esac
+  [ "${LAKEBA_OS_STARTER:-0}" = 1 ] && return 0
+  # Ubuntu and Debian's ~/.profile add ~/.local/bin for new logins once it exists: a new terminal is enough.
+  if [ "$BIN_DIR" = "$HOME/.local/bin" ] && grep -qs '\.local/bin' "$HOME/.profile"; then
+    say "open a new terminal (or log in again) to use agent-team: $BIN_DIR goes on your PATH then"
+  else
+    warn "$BIN_DIR is not on your PATH. Add this to your shell profile: export PATH=\"$BIN_DIR:\$PATH\""
+  fi
+}
+
 [ "$PURGE" = 1 ] && [ "$UNINSTALL" = 0 ] && die "--purge goes with --uninstall."
 
 # A yes/no question, read from the terminal even when this script arrives through a pipe.
@@ -213,16 +226,7 @@ if [ -e "$BIN_DIR/agent-team" ] || [ -L "$BIN_DIR/agent-team" ]; then
   fi
 fi
 [ -e "$BIN_DIR/agent-team" ] || ln -s "$VENV/bin/agent-team" "$BIN_DIR/agent-team"
-case ":$PATH:" in
-  *":$BIN_DIR:"*) ;;
-  *)
-    # Ubuntu and Debian's ~/.profile add ~/.local/bin for new logins once it exists: a new terminal is enough.
-    if [ "$BIN_DIR" = "$HOME/.local/bin" ] && grep -qs '\.local/bin' "$HOME/.profile"; then
-      say "open a new terminal (or log in again) to use agent-team: $BIN_DIR goes on your PATH then"
-    else
-      warn "$BIN_DIR is not on your PATH. Add this to your shell profile: export PATH=\"$BIN_DIR:\$PATH\""
-    fi ;;
-esac
+path_note
 say "installed $("$VENV/bin/agent-team" --version)"
 if "$VENV/bin/agent-team" completion install --shell bash >/dev/null 2>&1; then
   say "Tab completion for bash installed (new terminals)"

@@ -97,5 +97,42 @@ class StarterTest(unittest.TestCase):
             self.assertTrue((info.external_attr >> 16) & stat.S_IXUSR, "the starter must stay executable")
 
 
+@unittest.skipUnless(shutil.which("bash"), "needs bash")
+class PathNoteTest(unittest.TestCase):
+    """Lakeba OS runs agent-team by its full path: from the starter, ~/.local/bin off PATH needs no word."""
+
+    def note(self, starter, on_path=False, profile=""):
+        text = INSTALL.read_text()
+        start = text.index("path_note() {")
+        func = text[start:text.index("\n}\n", start) + 3]
+        home = Path(tempfile.mkdtemp(prefix="agent-team-path-test-"))
+        (home / ".profile").write_text(profile)
+        bin_dir = home / ".local" / "bin"
+        path = f"{bin_dir}:/usr/bin:/bin" if on_path else "/usr/bin:/bin"
+        env = {"HOME": str(home), "PATH": path, "BIN_DIR": str(bin_dir)}
+        if starter:
+            env["LAKEBA_OS_STARTER"] = "1"
+        script = ("say() { echo \"==> $*\"; }\nwarn() { echo \"! $*\"; }\n" + func + "path_note\n")
+        out = subprocess.run(["/bin/bash", "-c", script], env=env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return out.stdout + out.stderr
+
+    def test_starter_says_nothing_about_path(self):
+        self.assertEqual(self.note(starter=True), "")
+
+    def test_terminal_install_gives_the_export_line(self):
+        out = self.note(starter=False)
+        self.assertIn("is not on your PATH", out)
+        self.assertIn('export PATH="', out)
+
+    def test_terminal_install_on_debian_says_open_a_new_terminal(self):
+        out = self.note(starter=False, profile='PATH="$HOME/.local/bin:$PATH"\n')
+        self.assertIn("open a new terminal", out)
+        self.assertNotIn("export PATH", out)
+
+    def test_already_on_path_says_nothing(self):
+        self.assertEqual(self.note(starter=False, on_path=True), "")
+
+
 if __name__ == "__main__":
     unittest.main()
