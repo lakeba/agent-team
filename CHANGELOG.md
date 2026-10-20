@@ -6,6 +6,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+## [0.13.14] - 2026-10-20
+
 ### Added
 
 - CI for the projects the team builds. When the guided setup connects GitHub (or `agent-team ci setup`), a
