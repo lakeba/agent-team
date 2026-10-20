@@ -156,23 +156,35 @@ def clean(text: str) -> str:
 
 def calls_in_text(text: str, names: set[str]) -> list[ToolCall]:
     """Tool calls a local model wrote as text instead of through the API (Qwen2.5-Coder on mlx_lm:
-    {"name": ..., "arguments": {...}}, bare, in a ```json fence or in <tool_call> tags). Taken only when
-    every call names an offered tool, so a plain JSON answer stays an answer."""
-    pieces = re.findall(r"<tool_call>\s*(.*?)\s*</tool_call>", text, re.S)
-    if not pieces:
-        fenced = re.fullmatch(r"\s*```(?:json)?\s*(.*?)\s*```\s*", text, re.S)
-        pieces = [fenced.group(1) if fenced else text.strip()]
-    calls = []
-    for piece in pieces:
+    {"name": ..., "arguments": {...}}, bare, in a ```json fence, in <tool_call> tags or after a sentence,
+    its arguments sometimes a JSON string). Taken only when every call names an offered tool, so a plain
+    JSON answer stays an answer. The words before a call are dropped: the call is what the member did."""
+    def read(piece: str) -> ToolCall | None:
         try:
             v = json.loads(piece)
         except ValueError:
-            return []
+            return None
         args = v.get("arguments", v.get("parameters")) if isinstance(v, dict) else None
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except ValueError:
+                return None
         if not isinstance(v, dict) or v.get("name") not in names or (args is not None and not isinstance(args, dict)):
-            return []
-        calls.append(ToolCall(id=f"call_{uuid.uuid4().hex[:12]}", name=v["name"], arguments=args or {}))
-    return calls
+            return None
+        return ToolCall(id=f"call_{uuid.uuid4().hex[:12]}", name=v["name"], arguments=args or {})
+
+    tagged = re.findall(r"<tool_call>\s*(.*?)\s*</tool_call>", text, re.S)
+    if tagged:
+        calls = [read(t) for t in tagged]
+        return calls if all(calls) else []
+    fenced = re.fullmatch(r"\s*```(?:json)?\s*(.*?)\s*```\s*", text, re.S)
+    if whole := read(fenced.group(1) if fenced else text.strip()):
+        return [whole]
+    at = text.rfind('{"name"')   # a sentence, then the call at the very end
+    if at > 0 and (call := read(re.sub(r"\s*```\s*$", "", text[at:]).strip())):
+        return [call]
+    return []
 
 
 def closest_model(model: str, served: list[str]) -> str:

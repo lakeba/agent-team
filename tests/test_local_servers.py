@@ -251,8 +251,12 @@ class LocalServerTests(unittest.TestCase):
         self.assertEqual(len(calls_in_text(f"```json\n{call}\n```", names)), 1)
         self.assertEqual(len(calls_in_text(f"<tool_call>\n{call}\n</tool_call><tool_call>{{\"name\": \"run_tests\"}}</tool_call>", names)), 2)
         self.assertEqual(calls_in_text('{"name": "delete_everything", "arguments": {}}', names), [])
-        self.assertEqual(calls_in_text('Here: {"name": "read_file"}', names), [])
+        self.assertEqual([c.name for c in calls_in_text('Here: {"name": "read_file"}', names)], ["read_file"])   # a call ending the reply
         self.assertEqual(calls_in_text('{"name": "read_file", "arguments": "x"}', names), [])
+        said = 'Sure, I will run them.\n\n{"name": "run_tests", "arguments": "{\\"only\\": \\"slots\\"}"}'   # seen in a real chat
+        (c,) = calls_in_text(said, names)
+        self.assertEqual((c.name, c.arguments), ("run_tests", {"only": "slots"}))
+        self.assertEqual(calls_in_text('Use {"name": "read_file"} first, then continue.', names), [])
 
     def test_test_folder_keeps_its_real_name(self):
         for names, expected in ((["Tests"], "Tests/"), (["tests"], "tests/"), (["App", "App.Tests"], "App.Tests/"), (["src"], "tests/")):

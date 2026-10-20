@@ -36,7 +36,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
   replies ended with the chat template's `<|im_end|>`, which hid each member's last line "STATUS: AGREE".
   Replies from Ollama and OpenAI-compatible servers are now read without such tokens.
 - Members on a local model that writes its tool call as text (Qwen2.5-Coder on mlx_lm:
-  `{"name": ..., "arguments": {...}}`, bare, fenced or in `<tool_call>` tags) couldn't use their tools.
+  `{"name": ..., "arguments": {...}}`, bare, fenced, in `<tool_call>` tags or after a sentence, the
+  arguments sometimes a JSON string) couldn't use their tools.
   Such a call is now taken as the tool call, when it names one of the tools offered.
 
 - Exploring an app from the Inspiration tab did nothing visible when the project had no REA set up (the
