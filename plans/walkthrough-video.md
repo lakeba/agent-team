@@ -179,3 +179,40 @@ booking page opening in the browser; a booking made.]*
 1. The repository's visibility when the video goes out (private now).
 2. Whether the opening shows ChairTime on a phone-sized browser (it's a web page, not a native app).
 3. The thumbnail: a frame from chapter 7 (the booking page) with the title, unless you have a brand template.
+
+## 8. Dry run on the Ubuntu VM (20 October 2026)
+
+A clean install in a fresh home folder on the VM, with the published installer and agent-team 0.13.13; then
+ChairTime through the guided setup's code, a build, a release, and the app running on the VM. It cost $3.03
+on Claude (one build, one fix run, four devops shifts, the Slotbook brief).
+
+**It worked, end to end:**
+- install in about 9 s (with npm and pip caches);
+- the Slotbook brief in 47 s;
+- a build approved in round 1, in 13½ min (98 tests);
+- PR #1 merged by the devops shift, then v0.1.0 released on [lakeba/chairtime](https://github.com/lakeba/chairtime/releases/tag/v0.1.0);
+- ChairTime running on the VM: the barber set hours, a client booked 10:00 from the Mac, and a second client
+  was refused the same slot (409, "taken").
+
+**What broke, and what I did about it:**
+
+| # | What broke | Status |
+|---|---|---|
+| 1 | Members are told "No test command is configured" in a project that started empty, and the detected Python command ran without the project's dependencies | **Fixed** (b7be9f8): one `test_command_for()` for the build and the lead's tool; Python tests run in the project's `.venv` with `requirements.txt` |
+| 2 | "Install REA" left `.team.toml` uncommitted, so the first build on a branch refused to start | **Fixed** (b7be9f8): the setup commits it |
+| 3 | Inspire read `/` and `/index.html` as two pages | **Fixed** (b7be9f8) |
+| 4 | The release refused `## Unreleased` (without brackets), which the team itself wrote | **Fixed** (f97b984) |
+| 5 | **A new project has no CI**, so the devops shift can never merge or release (it rightly wants a green CI run with test counts) | To do: when the setup connects GitHub, add a CI workflow that runs the project's tests. Worked around by hand for the dry run |
+| 6 | `test_count_pattern` stays at the unittest default when the tests turn out to be pytest, so CI counts are never read | To do: set it with the detected test command, and try the common formats when the configured one doesn't match |
+| 7 | QA wrote a test asserting the CHANGELOG says "Unreleased", which fails as soon as a release dates it | To do: QA's guidance says to test what the product does, never the wording of the changelog or README |
+| 8 | The guided setup's GitHub step can only create a new repository, not connect an existing one | To do: offer "use an existing repository" |
+| 9 | Run my app doesn't recognise a Flask (or FastAPI) app that is a package with an app factory (`flask --app chairtime run`) | To do: detect packages, not only top-level files. `run_command` was set by hand for the dry run |
+| 10 | Run my app starts Flask's development server ("do not use in production"), on `127.0.0.1` unless told otherwise | For the video, chapter 7 says "running on my server", which is true. A real deployment (gunicorn and a service) is a task for the team, and it touches deployment files, which need your approval |
+| 11 | The installer's "not on your PATH" warning on a brand-new account | Minor: say "open a new terminal" first |
+
+**Notes for filming:**
+- This VM already has REA 6.7.0 installed globally, so the installer used it (by design). On a truly new machine it
+  installs its own copy; film the install on a fresh macOS user or a new VM if that should show.
+- Chapter 7 needs the barber's hours set first (`/barber`, with the barber token from the server's environment) so
+  slots show. The script can add one sentence for it.
+- The app keeps running on the VM at `http://10.211.55.4:5055` until stopped (Run my app's Stop, or `apprun.stop`).
