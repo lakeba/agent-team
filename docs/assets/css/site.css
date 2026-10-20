@@ -288,3 +288,13 @@ h2.title { font-family: var(--display); font-weight: 800; font-size: clamp(27px,
 
 /* Behaviour checks: the code samples keep their colours inside cards */
 .code .c-ok { color: #7fd37f; } .code .c-err { color: #f08a7e; }
+
+/* The app, in screenshots and short loops */
+.media { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; object-position: top;
+  border-radius: var(--radius); border: 1px solid var(--line); background: var(--card); box-shadow: var(--shadow); }
+.app-media .media { aspect-ratio: 16 / 10; }
+.media-card { margin: 0; padding: 12px; }
+.media-card .media { box-shadow: none; border-radius: 10px; }
+.media-card figcaption { padding: 14px 6px 4px; }
+.media-card figcaption p { margin: 0; color: var(--ink-2); font-size: 15px; }
+.dev-band { background: var(--accent-soft); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }

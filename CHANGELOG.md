@@ -17,6 +17,8 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ### Changed
 
+- The inspiration brief starts with its first section: the model no longer adds a title of its own above
+  the header agent-team writes.
 - Projects run agent-team's REA copy through a launcher in its folder (`~/.local/share/agent-team/rea/bin/rea`),
   a path that doesn't change when Node.js does; `rea setup` moves projects set up earlier to it.
 

@@ -10,7 +10,17 @@
     if (set) return set;
     return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
+  // Screenshots with a dark version (data-dark) follow the theme, the switch included.
+  function paintShots() {
+    var dark = currentTheme() === "dark";
+    document.querySelectorAll("img[data-dark]").forEach(function (img) {
+      if (!img.dataset.light) img.dataset.light = img.getAttribute("src");
+      var want = dark ? img.dataset.dark : img.dataset.light;
+      if (img.getAttribute("src") !== want) img.setAttribute("src", want);
+    });
+  }
   function paintToggle() {
+    paintShots();
     document.querySelectorAll(".theme-toggle").forEach(function (b) {
       var dark = currentTheme() === "dark";
       b.textContent = dark ? "☀" : "☾";
@@ -26,7 +36,29 @@
     paintToggle();
   });
 
+  // Loops play only while on screen, and never for people who asked for less motion (the poster stays).
+  function setUpLoops() {
+    var still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var videos = document.querySelectorAll("video.media");
+    if (still) {
+      videos.forEach(function (v) { v.removeAttribute("autoplay"); v.pause(); });
+      return;
+    }
+    if (!("IntersectionObserver" in window)) {
+      videos.forEach(function (v) { if (v.hasAttribute("data-autoplay")) v.play().catch(function () {}); });
+      return;
+    }
+    var seen = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) e.target.play().catch(function () {});
+        else e.target.pause();
+      });
+    }, { threshold: 0.35 });
+    videos.forEach(function (v) { seen.observe(v); });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
+    setUpLoops();
     paintToggle();
 
     // Copy buttons: on the install line, on .code blocks, and on every code block in the guides.

@@ -1,6 +1,7 @@
 # Inspire in the app, and a website for people who don't code
 
-Status: approved on 20 October 2026, with the decisions in section 6. Phases A1 and A2 are done (not yet released).
+Status: approved on 20 October 2026, with the decisions in section 6. A0–A3 and B1–B2 are done; A4 and A5 are
+not being built (see section 6); B3 (the YouTube walkthrough) is later.
 
 Checked against agent-team 0.13.12 (`main` at f839d12) and lakebaos-client `main` at a2850c0, on 20 October 2026.
 

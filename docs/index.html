@@ -12,38 +12,51 @@ description: Have an idea? Describe it to Lakeba OS. An AI team plans it, builds
         working MVP. Then apply to Lakeba to co-found your company, with Lakeba as investor and venture studio
         behind you.</p>
       <div class="ctas">
-        <a class="btn primary" href="#start">Start your MVP</a>
-        <a class="btn" href="#program">How the program works</a>
-        <a class="btn" href="https://github.com/lakeba/agent-team">View on GitHub</a>
+        <a class="btn primary" href="#start">Start your Business Now</a>
+        <a class="btn" href="#see">See it work</a>
+        <a class="btn" href="#desktop">Get the desktop app</a>
       </div>
-      <p class="muted small" style="margin:0 0 14px">Under the hood: agent-team, the engine of Lakeba OS, an open-source
-        AI dev team you can also run yourself.</p>
-      <div class="facts">
-        <span class="pill">Claude</span><span class="pill">Ollama</span><span class="pill">OpenAI-compatible</span>
-        <span class="pill">Your other machines</span><span class="pill">Behaviour checks with REA</span><span class="pill">Built-in specialists &amp; playbooks</span><span class="pill">MCP for any coding agent</span><span class="pill">macOS &amp; Linux</span>
-      </div>
+      <p class="muted small" style="margin:0 0 14px">No coding needed. Under the hood: agent-team, the engine of Lakeba OS,
+        open source, <a href="#developers">for developers too</a>.</p>
     </div>
-    <figure style="margin:0">
-    <div class="terminal" role="img" aria-label="A build run: the lead plans, the builder implements, tests pass, the lead approves, the PR merges">
-      <div class="bar"><i></i><i></i><i></i><span>agent-team build "add CSV export" --branch team/export --pr</span></div>
-      <div class="body">
-        <span class="line" style="animation-delay:.2s"><span class="who c-lead">Atlas · lead</span> <span class="c-dim">(claude-opus-5-5)</span></span>
-        <span class="line" style="animation-delay:.5s">  Wrote PLAN.md: export command, CSV writer, 4 tests.</span>
-        <span class="line" style="animation-delay:.9s"><span class="who c-qa">Probe · qa</span>  wrote tests/test_export.py first</span>
-        <span class="line" style="animation-delay:1.3s"><span class="who c-build">Forge · builder</span> <span class="c-dim">(qwen on your Mac)</span></span>
-        <span class="line" style="animation-delay:1.6s">  &lt;edit path="todo.py"&gt; 2 changes · export.py created</span>
-        <span class="line" style="animation-delay:2s"><span class="c-ok">✓ tests: 31 passed</span> <span class="c-dim">(in a sandbox, no network)</span></span>
-        <span class="line" style="animation-delay:2.2s"><span class="c-ok">✓ behaviour: 4 journeys</span> <span class="c-dim">used like a user would (REA)</span></span>
-        <span class="line" style="animation-delay:2.4s"><span class="who c-lead">Atlas</span> read export.py, ran the tests</span>
-        <span class="line" style="animation-delay:2.7s">  <span class="c-ok">VERDICT: APPROVED</span> after 1 round</span>
-        <span class="line" style="animation-delay:3.1s"><span class="who c-sec">Sentinel · security</span>  <span class="c-ok">SIGN-OFF: YES</span></span>
-        <span class="line" style="animation-delay:3.5s"><span class="c-dim">▸ secret check passed · opened PR #12</span></span>
-        <span class="line" style="animation-delay:3.9s"><span class="who c-ops">Harbor · devops</span> CI green, lead approved 4d74eaa</span>
-        <span class="line" style="animation-delay:4.3s"><span class="c-ok">▸ merged PR #12</span> <span class="c-dim">· $0.31 · 6 min</span></span>
-      </div>
-    </div>
-    <figcaption class="caption">What Lakeba OS does with one sentence from you: “add CSV export”.</figcaption>
+    <figure class="app-media" style="margin:0">
+      <video class="media" autoplay muted loop playsinline preload="auto" poster="{{ '/assets/app/setup-idea-light.jpg' | relative_url }}"
+        aria-label="Describing ChairTime, an idea for a booking app, in Lakeba OS’s guided setup">
+        <source src="{{ '/assets/app/loop-idea.mp4' | relative_url }}" type="video/mp4">
+      </video>
+      <figcaption class="caption">Lakeba OS’s guided setup: you describe your idea in plain words, and an AI team takes it from there.</figcaption>
     </figure>
+  </div>
+</section>
+
+<section id="see">
+  <div class="wrap">
+    <p class="eyebrow">See it work</p>
+    <h2 class="title">From an idea to a team at work, in plain words.</h2>
+    <p class="intro">Meet ChairTime, a made-up founder’s idea: online booking for barbers who work alone and take
+      appointments over WhatsApp. Every picture here is Lakeba OS itself, setting it up.</p>
+    <div class="grid g2 see">
+      <figure class="card media-card"><video class="media" muted loop playsinline preload="none" data-autoplay
+          poster="{{ '/assets/app/setup-idea-light.jpg' | relative_url }}" aria-label="Typing the idea for ChairTime into the guided setup">
+          <source src="{{ '/assets/app/loop-idea.mp4' | relative_url }}" type="video/mp4"></video>
+        <figcaption><div class="kind">Step 1</div><h3>Describe your idea</h3>
+          <p>A name and a few sentences: who it’s for and what it should do first. That’s the plan the whole team works from.</p></figcaption></figure>
+      <figure class="card media-card"><video class="media" muted loop playsinline preload="none" data-autoplay
+          poster="{{ '/assets/app/setup-inspiration-light.jpg' | relative_url }}" aria-label="Naming an app the founder likes, Slotbook, and confirming">
+          <source src="{{ '/assets/app/loop-inspiration.mp4' | relative_url }}" type="video/mp4"></video>
+        <figcaption><div class="kind">Step 2</div><h3>Name an app you like</h3>
+          <p>Optional. “Like Slotbook, but for one chair.” The team looks at it the way a visitor does, from the outside.</p></figcaption></figure>
+      <figure class="card media-card"><video class="media" muted loop playsinline preload="none" data-autoplay
+          poster="{{ '/assets/app/project-brief-light.jpg' | relative_url }}" aria-label="Scrolling through the inspiration brief the team wrote">
+          <source src="{{ '/assets/app/loop-brief.mp4' | relative_url }}" type="video/mp4"></video>
+        <figcaption><div class="kind">Step 3</div><h3>Read the brief</h3>
+          <p>What that app does, its prices, what it’s missing, and how yours can be different, in the team’s own words.</p></figcaption></figure>
+      <figure class="card media-card"><img class="media" data-dark="{{ '/assets/app/project-team-dark.jpg' | relative_url }}" src="{{ '/assets/app/project-team-light.jpg' | relative_url }}" loading="lazy"
+            alt="ChairTime’s team in the Lakeba OS app: a lead, a builder, marketing, devops and QA, each on its model, and a readiness checklist">
+        <figcaption><div class="kind">Step 4</div><h3>Your team gets to work</h3>
+          <p>A lead who plans and reviews, builders, QA, marketing and devops, with your spend limit. You approve what ships.</p></figcaption></figure>
+    </div>
+    <div class="ctas" style="margin-top:22px"><a class="btn primary" href="#start">Start your Business Now</a></div>
   </div>
 </section>
 
@@ -133,6 +146,44 @@ description: Have an idea? Describe it to Lakeba OS. An AI team plans it, builds
   </div>
 </section>
 
+<section id="developers" class="dev-band">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="eyebrow">For developers</p>
+      <h2 class="title">The engine is open source: agent-team.</h2>
+      <p class="intro">Everything Lakeba OS does, agent-team does from a terminal, from Claude Code or from any coding
+        agent over MCP: plans, builds, reviews, tests in a sandbox, behaviour checks, releases. MIT licensed.</p>
+      <div class="facts">
+        <span class="pill">Claude</span><span class="pill">Ollama</span><span class="pill">OpenAI-compatible</span>
+        <span class="pill">Your other machines</span><span class="pill">Behaviour checks with REA</span><span class="pill">Built-in specialists &amp; playbooks</span><span class="pill">MCP for any coding agent</span><span class="pill">macOS &amp; Linux</span>
+      </div>
+      <div class="ctas" style="margin-top:14px"><a class="btn" href="https://github.com/lakeba/agent-team">View on GitHub</a>
+        <a class="btn" href="{{ '/architecture.html' | relative_url }}">Read the guides</a></div>
+    </div>
+    <figure style="margin:0">
+    <div class="terminal" role="img" aria-label="A build run: the lead plans, the builder implements, tests pass, the lead approves, the PR merges">
+      <div class="bar"><i></i><i></i><i></i><span>agent-team build "add CSV export" --branch team/export --pr</span></div>
+      <div class="body">
+        <span class="line" style="animation-delay:.2s"><span class="who c-lead">Atlas · lead</span> <span class="c-dim">(claude-opus-5-5)</span></span>
+        <span class="line" style="animation-delay:.5s">  Wrote PLAN.md: export command, CSV writer, 4 tests.</span>
+        <span class="line" style="animation-delay:.9s"><span class="who c-qa">Probe · qa</span>  wrote tests/test_export.py first</span>
+        <span class="line" style="animation-delay:1.3s"><span class="who c-build">Forge · builder</span> <span class="c-dim">(qwen on your Mac)</span></span>
+        <span class="line" style="animation-delay:1.6s">  &lt;edit path="todo.py"&gt; 2 changes · export.py created</span>
+        <span class="line" style="animation-delay:2s"><span class="c-ok">✓ tests: 31 passed</span> <span class="c-dim">(in a sandbox, no network)</span></span>
+        <span class="line" style="animation-delay:2.2s"><span class="c-ok">✓ behaviour: 4 journeys</span> <span class="c-dim">used like a user would (REA)</span></span>
+        <span class="line" style="animation-delay:2.4s"><span class="who c-lead">Atlas</span> read export.py, ran the tests</span>
+        <span class="line" style="animation-delay:2.7s">  <span class="c-ok">VERDICT: APPROVED</span> after 1 round</span>
+        <span class="line" style="animation-delay:3.1s"><span class="who c-sec">Sentinel · security</span>  <span class="c-ok">SIGN-OFF: YES</span></span>
+        <span class="line" style="animation-delay:3.5s"><span class="c-dim">▸ secret check passed · opened PR #12</span></span>
+        <span class="line" style="animation-delay:3.9s"><span class="who c-ops">Harbor · devops</span> CI green, lead approved 4d74eaa</span>
+        <span class="line" style="animation-delay:4.3s"><span class="c-ok">▸ merged PR #12</span> <span class="c-dim">· $0.31 · 6 min</span></span>
+      </div>
+    </div>
+    <figcaption class="caption">What Lakeba OS does with one sentence from you: “add CSV export”.</figcaption>
+    </figure>
+  </div>
+</section>
+
 <section class="alt" id="how">
   <div class="wrap">
     <p class="eyebrow">How it works</p>
@@ -211,6 +262,11 @@ First difference: screen line 3:
           <li><b>You confirm once</b> per app that you use it and may look at it this way.</li>
         </ul></div>
     </div>
+  </div>
+  <div class="wrap" style="margin-top:-8px">
+    <img class="media" data-dark="{{ '/assets/app/project-brief-dark.jpg' | relative_url }}" src="{{ '/assets/app/project-brief-light.jpg' | relative_url }}" loading="lazy"
+        alt="The inspiration brief for Slotbook in the Lakeba OS app: what it is, and its features with where each was seen">
+    <p class="caption">The brief the team wrote about Slotbook, a made-up booking site, in the Lakeba OS app.</p>
   </div>
 </section>
 
@@ -394,7 +450,7 @@ agent-team playbook run code-review "src/export"</div>
 <section id="start">
   <div class="wrap">
     <p class="eyebrow">Get started</p>
-    <h2 class="title">Start your MVP.</h2>
+    <h2 class="title">Start your business.</h2>
     <div class="card" id="builders" style="margin-bottom:28px"><h3>Builders without code</h3>
       <p>On a Mac, download Lakeba OS and double-click it (the first time, right-click it and choose Open). It installs
         itself and opens a guided setup in your browser: describe your idea, choose where the AI runs, meet your team, and
@@ -469,7 +525,7 @@ agent-team ui</div></div>
     <h2 class="title">Have an idea? Start building.</h2>
     <p class="intro" style="margin:0 auto 26px">Build your MVP with an AI team, then apply to co-found your company with Lakeba. The engine is open source.</p>
     <div class="ctas">
-      <a class="btn primary" href="#start">Start your MVP</a>
+      <a class="btn primary" href="#start">Start your Business Now</a>
       <a class="btn" href="https://lakeba.com/os/apply">Apply to Lakeba</a>
       <a class="btn" href="https://github.com/lakeba/agent-team">Star on GitHub</a>
     </div>
