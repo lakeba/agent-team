@@ -117,6 +117,8 @@ class OllamaProvider(Provider):
                           arguments=_args(c["function"].get("arguments")))
                  for c in msg.get("tool_calls") or []]
         text = clean(msg.get("content") or "")
+        if not calls and (found := calls_in_text(text, {t["name"] for t in tools})):
+            calls, text = found, ""
         _say_calls(text, calls)
         return Reply(text=text, content=text, tool_calls=calls,
                      usage={"input": data.get("prompt_eval_count", 0), "output": data.get("eval_count", 0)})
@@ -150,6 +152,27 @@ TEMPLATE_TOKENS = re.compile(r"<\|(?:im_end|im_start|eot_id|end_of_text|endoftex
 def clean(text: str) -> str:
     """A local model's reply without chat-template tokens."""
     return TEMPLATE_TOKENS.sub("", text).rstrip() if "<" in text else text
+
+
+def calls_in_text(text: str, names: set[str]) -> list[ToolCall]:
+    """Tool calls a local model wrote as text instead of through the API (Qwen2.5-Coder on mlx_lm:
+    {"name": ..., "arguments": {...}}, bare, in a ```json fence or in <tool_call> tags). Taken only when
+    every call names an offered tool, so a plain JSON answer stays an answer."""
+    pieces = re.findall(r"<tool_call>\s*(.*?)\s*</tool_call>", text, re.S)
+    if not pieces:
+        fenced = re.fullmatch(r"\s*```(?:json)?\s*(.*?)\s*```\s*", text, re.S)
+        pieces = [fenced.group(1) if fenced else text.strip()]
+    calls = []
+    for piece in pieces:
+        try:
+            v = json.loads(piece)
+        except ValueError:
+            return []
+        args = v.get("arguments", v.get("parameters")) if isinstance(v, dict) else None
+        if not isinstance(v, dict) or v.get("name") not in names or (args is not None and not isinstance(args, dict)):
+            return []
+        calls.append(ToolCall(id=f"call_{uuid.uuid4().hex[:12]}", name=v["name"], arguments=args or {}))
+    return calls
 
 
 def closest_model(model: str, served: list[str]) -> str:
@@ -225,6 +248,8 @@ class OpenAICompatProvider(Provider):
                           arguments=_args(c["function"].get("arguments")))
                  for c in msg.get("tool_calls") or []]
         text = clean(msg.get("content") or "")
+        if not calls and (found := calls_in_text(text, {t["name"] for t in tools})):
+            calls, text = found, ""
         if not calls and not text.strip() and data["choices"][0].get("finish_reason") == "tool_calls":
             raise ProviderError(f"{model} tried to call a tool, but {self.cfg.url} couldn't read the call (mlx_lm logs "
                                 f"'Failed to parse tool call'). The model may be too small for tool use: use a larger "

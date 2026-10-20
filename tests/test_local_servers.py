@@ -242,6 +242,18 @@ class LocalServerTests(unittest.TestCase):
         self.assertEqual(clean("a </s>"), "a")
         self.assertEqual(clean("x < y and <b>bold</b>"), "x < y and <b>bold</b>")
 
+    def test_tool_calls_written_as_text_are_read(self):
+        from agent_team.providers.http_providers import calls_in_text
+        names = {"read_file", "run_tests"}
+        call = '{"name": "read_file", "arguments": {"path": "ROADMAP.md"}}'   # as Qwen2.5-Coder on mlx_lm wrote it
+        (c,) = calls_in_text(call, names)
+        self.assertEqual((c.name, c.arguments), ("read_file", {"path": "ROADMAP.md"}))
+        self.assertEqual(len(calls_in_text(f"```json\n{call}\n```", names)), 1)
+        self.assertEqual(len(calls_in_text(f"<tool_call>\n{call}\n</tool_call><tool_call>{{\"name\": \"run_tests\"}}</tool_call>", names)), 2)
+        self.assertEqual(calls_in_text('{"name": "delete_everything", "arguments": {}}', names), [])
+        self.assertEqual(calls_in_text('Here: {"name": "read_file"}', names), [])
+        self.assertEqual(calls_in_text('{"name": "read_file", "arguments": "x"}', names), [])
+
     def test_test_folder_keeps_its_real_name(self):
         for names, expected in ((["Tests"], "Tests/"), (["tests"], "tests/"), (["App", "App.Tests"], "App.Tests/"), (["src"], "tests/")):
             root = Path(tempfile.mkdtemp())
