@@ -298,3 +298,5 @@ h2.title { font-family: var(--display); font-weight: 800; font-size: clamp(27px,
 .media-card figcaption { padding: 14px 6px 4px; }
 .media-card figcaption p { margin: 0; color: var(--ink-2); font-size: 15px; }
 .dev-band { background: var(--accent-soft); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.see .wide { grid-column: 1 / -1; }
+.see .wide .media { aspect-ratio: 16 / 9; }
