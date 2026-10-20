@@ -202,6 +202,8 @@ class ExploreTests(unittest.TestCase):
     def test_links_are_read_from_anchors_only(self):
         html = '<script>location="/hidden"</script><a href="/a">A</a><a href="/a#x">A</a><a href="mailto:x@y">M</a>'
         self.assertEqual(inspire.same_site_links(html, "https://app.example/"), ["https://app.example/a"])
+        self.assertEqual(inspire.same_site_links('<a href="index.html">Home</a><a href="/">Logo</a><a href="docs/index.htm">D</a>',
+                                                 "https://app.example/"), ["https://app.example/", "https://app.example/docs/"])
 
 
 class BriefTests(unittest.TestCase):

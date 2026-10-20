@@ -115,9 +115,10 @@ def make_tools(team: Team, base: str | None = None, touched: set[str] | None = N
     @beta_tool
     def run_tests() -> str:
         """Run the project's test command and return the end of its output."""
-        cmd = team.project.test_command
+        from .workflows.init import test_command_for
+        cmd = test_command_for(team.root, team.project.test_command)   # the same one the build runs
         if not cmd:
-            return "No test command is configured."
+            return "No test command is configured, and the project has no tests it can find yet."
         from . import sandbox
         try:
             code, out = sandbox.run(team, cmd)

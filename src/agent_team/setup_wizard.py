@@ -481,7 +481,9 @@ def install_rea(root: Path) -> dict:
         except SystemExit as e:
             raise SetupError(str(e)) from None
         command, args, where = rea.find()
-    rea.configure(Path(root), command, args)
+    if rea.configure(Path(root), command, args):   # committed, so the first build on a branch isn't refused
+        _run(["git", "add", "--", ".team.toml"], Path(root))
+        _run(["git", "commit", "-q", "-m", "Set up REA for behaviour checks and Inspire", "--", ".team.toml"], Path(root))
     return {"command": command, "where": where}
 
 

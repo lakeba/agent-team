@@ -182,7 +182,8 @@ def same_site_links(html: str, base: str, with_text: bool = False) -> list:
             continue
         if u.path.lower().endswith(SKIP_EXT):
             continue
-        clean = urllib.parse.urlunsplit((u.scheme, u.netloc, u.path or "/", u.query, ""))
+        path = re.sub(r"/index\.html?$", "/", u.path or "/")   # the same page as its folder
+        clean = urllib.parse.urlunsplit((u.scheme, u.netloc, path, u.query, ""))
         text = " ".join(text.split())
         if clean not in seen:
             seen[clean] = len(out)

@@ -14,6 +14,13 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
   one isn't saved, the old one is kept, and the member is told why.
 - A build checked the journeys it started with, even after a member changed `team/behaviour.toml` in
   a round, so the lead kept seeing old results. They're read again after any round that changes them.
+- In a project that started empty, the lead's `run_tests` tool said "No test command is configured" even
+  after the team wrote tests; it now finds them as the build does. A Python project with a
+  `requirements.txt` runs its tests in its own `.venv` with its dependencies (added to `.gitignore`),
+  instead of a system Python that rarely has them.
+- The guided setup's "Install REA" commits the change to `.team.toml`, so the first build on a branch
+  isn't refused for uncommitted changes.
+- Inspire treats `/index.html` and `/` as one page.
 
 ### Added
 

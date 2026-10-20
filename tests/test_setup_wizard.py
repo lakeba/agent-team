@@ -154,6 +154,8 @@ class InspirationSetupTest(unittest.TestCase):
     def test_the_ready_check_offers_to_set_up_rea(self):
         from agent_team import rea
         root = project()
+        for args in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "t"], ["add", "-A"], ["commit", "-q", "-m", "start"]):
+            git(root, *args)
         with mock.patch.object(rea, "find", return_value=("", [], "")):
             (c,) = [c for c in setup_wizard.ready(root) if c["name"].startswith("REA")]
         self.assertEqual((c["ok"], c["optional"], c["action"]), (False, True, "rea"))
@@ -165,6 +167,9 @@ class InspirationSetupTest(unittest.TestCase):
         with mock.patch.object(rea, "find", return_value=("/opt/rea", ["--mcp"], "on the PATH")):
             self.assertEqual(setup_wizard.install_rea(root)["command"], "/opt/rea")
             self.assertEqual(load(root).mcp["rea"].command, "/opt/rea")
+            self.assertNotIn(".team.toml", subprocess.run(["git", "-C", str(root), "status", "--porcelain"],
+                                                          capture_output=True, text=True).stdout)   # committed
+            self.assertIn("Set up REA", subprocess.run(["git", "-C", str(root), "log", "--oneline"], capture_output=True, text=True).stdout)
             self.assertEqual([c for c in setup_wizard.ready(root) if c["name"].startswith("REA")], [])
 
     def _with_brief(self):
