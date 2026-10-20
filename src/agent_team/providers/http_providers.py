@@ -6,6 +6,7 @@ external machines join the team. Only the standard library is used.
 from __future__ import annotations
 
 import json
+import re
 import time
 import uuid
 import urllib.error
@@ -115,7 +116,7 @@ class OllamaProvider(Provider):
         calls = [ToolCall(id=f"call_{uuid.uuid4().hex[:12]}", name=c["function"]["name"],
                           arguments=_args(c["function"].get("arguments")))
                  for c in msg.get("tool_calls") or []]
-        text = msg.get("content") or ""
+        text = clean(msg.get("content") or "")
         _say_calls(text, calls)
         return Reply(text=text, content=text, tool_calls=calls,
                      usage={"input": data.get("prompt_eval_count", 0), "output": data.get("eval_count", 0)})
@@ -139,6 +140,16 @@ class OllamaProvider(Provider):
         if not model and status.startswith("ok"):   # Ollama answers "model is required"
             return f"FAILED: no model chosen; Ollama needs one{status[2:]}"
         return status
+
+
+# Chat-template tokens some local servers leave in the reply (mlx_lm with Qwen ends it with <|im_end|>).
+# Left in, they hide markers such as a last line "STATUS: AGREE".
+TEMPLATE_TOKENS = re.compile(r"<\|(?:im_end|im_start|eot_id|end_of_text|endoftext|end|eom_id|start_header_id|end_header_id)\|>|</s>")
+
+
+def clean(text: str) -> str:
+    """A local model's reply without chat-template tokens."""
+    return TEMPLATE_TOKENS.sub("", text).rstrip() if "<" in text else text
 
 
 def closest_model(model: str, served: list[str]) -> str:
@@ -177,7 +188,7 @@ class OpenAICompatProvider(Provider):
         with _post(f"{self.cfg.url.rstrip('/')}/v1/chat/completions", payload, self._headers()) as r:
             data = json.load(r)
         try:
-            text = data["choices"][0]["message"]["content"] or ""
+            text = clean(data["choices"][0]["message"]["content"] or "")
         except (KeyError, IndexError) as e:
             raise ProviderError(f"unexpected response from {self.cfg.url}: {str(data)[:300]}") from e
         ui.say(text)
@@ -213,7 +224,7 @@ class OpenAICompatProvider(Provider):
         calls = [ToolCall(id=c.get("id") or f"call_{uuid.uuid4().hex[:12]}", name=c["function"]["name"],
                           arguments=_args(c["function"].get("arguments")))
                  for c in msg.get("tool_calls") or []]
-        text = msg.get("content") or ""
+        text = clean(msg.get("content") or "")
         if not calls and not text.strip() and data["choices"][0].get("finish_reason") == "tool_calls":
             raise ProviderError(f"{model} tried to call a tool, but {self.cfg.url} couldn't read the call (mlx_lm logs "
                                 f"'Failed to parse tool call'). The model may be too small for tool use: use a larger "

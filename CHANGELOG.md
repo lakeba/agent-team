@@ -32,6 +32,10 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ### Fixed
 
+- With a local model through mlx_lm (Qwen), a discussion everyone agreed on ended "not approved": the
+  replies ended with the chat template's `<|im_end|>`, which hid each member's last line "STATUS: AGREE".
+  Replies from Ollama and OpenAI-compatible servers are now read without such tokens.
+
 - Exploring an app from the Inspiration tab did nothing visible when the project had no REA set up (the
   guided setup's Inspiration step was skipped): the run stopped at once on "[mcp.rea] isn't set up". It now
   sets REA up for the project first (as that step does), then explores. The tab shows each app's latest

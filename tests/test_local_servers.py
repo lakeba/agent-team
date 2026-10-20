@@ -232,6 +232,16 @@ class LocalServerTests(unittest.TestCase):
         self.assertFalse(same(found("10.211.55.2"), found("10.211.55.3")))                 # not a host address
         self.assertFalse(same(found("10.211.55.2", m=[]), found("10.37.129.2", m=[])))     # nothing to compare
 
+    def test_chat_template_tokens_are_taken_out(self):
+        from agent_team import files
+        from agent_team.providers.http_providers import clean
+        reply = "Great plan.\n\nSTATUS: AGREE<|im_end|>"   # what mlx_lm with Qwen returned in a real discussion
+        self.assertEqual(files.last_marker(files.STATUS_RE, reply), "")   # not seen: the discussion never agreed
+        self.assertEqual(files.last_marker(files.STATUS_RE, clean(reply)), "AGREE")
+        self.assertEqual(clean("hi<|eot_id|>"), "hi")
+        self.assertEqual(clean("a </s>"), "a")
+        self.assertEqual(clean("x < y and <b>bold</b>"), "x < y and <b>bold</b>")
+
     def test_test_folder_keeps_its_real_name(self):
         for names, expected in ((["Tests"], "Tests/"), (["tests"], "tests/"), (["App", "App.Tests"], "App.Tests/"), (["src"], "tests/")):
             root = Path(tempfile.mkdtemp())
