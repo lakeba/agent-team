@@ -14,7 +14,9 @@ if [ -x "$AT" ]; then
 else
   echo "Installing agent-team, the engine of Lakeba OS. This takes a few minutes the first time."
   echo
-  curl -fsSL https://raw.githubusercontent.com/lakeba/agent-team/main/scripts/install.sh | bash
+  # LAKEBA_OS_STARTER: the installer's "try again" advice says to double-click this, not to run a command.
+  # On a Mac without Apple's developer tools, it asks macOS to install them and waits, then carries on.
+  curl -fsSL https://raw.githubusercontent.com/lakeba/agent-team/main/scripts/install.sh | LAKEBA_OS_STARTER=1 bash
 fi
 echo
 echo "You can close this window. Next time, open Lakeba OS from your Applications folder."

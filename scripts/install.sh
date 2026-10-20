@@ -114,7 +114,37 @@ if [ "$UNINSTALL" = 1 ]; then
   exit 0
 fi
 
-# 1. A Python new enough (3.11+). macOS's own python3 is often older, so look for newer ones first.
+# 1. git. On a Mac it comes with Apple's command-line developer tools: when they're missing, ask macOS
+#    to install them and wait here until they're in, so a double-click goes straight on to the setup.
+#    (Before looking for Python: on a Mac without them, even running python3 pops up the same window.)
+if [ "${LAKEBA_OS_STARTER:-0}" = 1 ]; then AGAIN="double-click Lakeba OS again"; else AGAIN="run this installer again"; fi
+if [ "$(uname)" = "Darwin" ] && ! xcode-select -p >/dev/null 2>&1; then
+  xcode-select --install >/dev/null 2>&1 || true
+  say "agent-team needs Apple's developer tools (git is part of them), and macOS has opened a window to install them."
+  say "In that window, click Install, then Agree. It usually takes 5 to 20 minutes; leave this window open."
+  say "waiting for Apple's developer tools to finish installing..."
+  POLL="${AGENT_TEAM_CLT_POLL:-5}"; WAIT="${AGENT_TEAM_CLT_WAIT:-5400}"   # seconds between checks; give up after 90 min
+  waited=0; seen=0; gone=0; hinted=0; note=300
+  while :; do
+    if pgrep -f "Install Command Line Developer Tools" >/dev/null 2>&1; then
+      seen=1; gone=0
+    elif xcode-select -p >/dev/null 2>&1 && git --version >/dev/null 2>&1; then
+      break
+    elif [ "$seen" = 1 ]; then
+      gone=$((gone + 1))   # the window closed without the tools: a few more checks, in case they're just landing
+      [ "$gone" -ge 4 ] && die "Apple's developer tools weren't installed (the window was closed, or Cancel was clicked). When you're ready, $AGAIN and click Install in the window that opens."
+    elif [ "$waited" -ge 90 ] && [ "$hinted" = 0 ]; then
+      hinted=1   # keep waiting all the same: this only tells the person what to do if they see no window
+      say "No window to install them? Close this one and $AGAIN to bring it back."
+    fi
+    [ "$waited" -ge "$WAIT" ] && die "Apple's developer tools are still not installed after $((WAIT / 60)) minutes. Let the install finish, then $AGAIN."
+    sleep "$POLL"; waited=$((waited + (POLL > 0 ? POLL : 1)))   # tests check with no pause, still counting
+    if [ "$waited" -ge "$note" ]; then say "still waiting for the developer tools ($((waited / 60)) min so far)..."; note=$((note + 300)); fi
+  done
+  say "Apple's developer tools are installed: carrying on"
+fi
+command -v git >/dev/null 2>&1 || die "git is required (Ubuntu/Debian: sudo apt install git)."
+# 2. A Python new enough (3.11+). macOS's own python3 is often older, so look for newer ones first.
 PY=""
 for c in python3.13 python3.12 python3.11 /opt/homebrew/bin/python3.13 /opt/homebrew/bin/python3.12 \
          /opt/homebrew/bin/python3.11 /usr/local/bin/python3.11 python3; do
@@ -122,12 +152,6 @@ for c in python3.13 python3.12 python3.11 /opt/homebrew/bin/python3.13 /opt/home
     PY="$(command -v "$c")"; break
   fi
 done
-# macOS: git comes with Apple's command-line developer tools; ask macOS to install them if missing.
-if [ "$(uname)" = "Darwin" ] && ! xcode-select -p >/dev/null 2>&1; then
-  xcode-select --install >/dev/null 2>&1 || true
-  die "macOS is installing its developer tools (git is part of them): click Install in the window that opened, wait for it to finish, then run this again."
-fi
-command -v git >/dev/null 2>&1 || die "git is required (Ubuntu/Debian: sudo apt install git)."
 # No Python 3.11+? Use uv (https://docs.astral.sh/uv/) to get a private one, without touching the system's.
 if [ -z "$PY" ] && [ "${AGENT_TEAM_NO_UV:-0}" != 1 ]; then
   UV="$(command -v uv || true)"
@@ -145,7 +169,7 @@ fi
 [ -n "$PY" ] || die "agent-team needs Python 3.11 or newer (macOS: brew install python@3.12; Ubuntu/Debian: sudo apt install python3 python3-venv)."
 say "using $("$PY" --version) at $PY"
 
-# 2. The source: clone once, then update. gh is used when signed in (it also reaches private forks).
+# 3. The source: clone once, then update. gh is used when signed in (it also reaches private forks).
 mkdir -p "$HOME_DIR"
 if [ -d "$SRC/.git" ]; then
   say "updating $SRC to $REF"
@@ -165,7 +189,7 @@ else
   git -C "$SRC" checkout -q "$REF"
 fi
 
-# 3. Its own environment, so it never touches the system Python or your projects' packages.
+# 4. Its own environment, so it never touches the system Python or your projects' packages.
 say "installing into $VENV"
 FIRST_INSTALL=0
 [ -x "$VENV/bin/agent-team" ] || FIRST_INSTALL=1
@@ -178,7 +202,7 @@ fi
 "$VENV/bin/python" -m pip install -q --upgrade pip
 "$VENV/bin/python" -m pip install -q --upgrade "$SRC[screenshots]"
 
-# 4. The command on your PATH.
+# 5. The command on your PATH.
 mkdir -p "$BIN_DIR"
 if [ -e "$BIN_DIR/agent-team" ] || [ -L "$BIN_DIR/agent-team" ]; then
   if ours; then :
@@ -257,7 +281,7 @@ if [ "$REA" = 1 ]; then
   fi
 fi
 
-# 5. The Claude Code plugin, read from the local copy so updates arrive with the next run.
+# 6. The Claude Code plugin, read from the local copy so updates arrive with the next run.
 if [ "$PLUGIN" = 1 ] && command -v claude >/dev/null 2>&1; then
   claude plugin marketplace add "$SRC" >/dev/null 2>&1 || true
   claude plugin marketplace update lakeba-agent-team >/dev/null 2>&1 || true
@@ -274,7 +298,7 @@ elif [ "$PLUGIN" = 1 ]; then
   say "Claude Code not found; skipped the plugin."
 fi
 
-# 6. A way back in without a terminal: an app (macOS) or a menu entry (Linux) that opens the dashboard.
+# 7. A way back in without a terminal: an app (macOS) or a menu entry (Linux) that opens the dashboard.
 APP="$HOME/Applications/Lakeba OS.app"
 DESKTOP_ENTRY="${XDG_DATA_HOME:-$HOME/.local/share}/applications/lakeba-os.desktop"
 if [ "$SHORTCUT" = 1 ]; then
@@ -299,7 +323,7 @@ DESKTOP
   fi
 fi
 
-# 7. The first time: open the dashboard, where a short guided setup starts.
+# 8. The first time: open the dashboard, where a short guided setup starts.
 if [ "$UI" = 1 ] && [ "$FIRST_INSTALL" = 1 ] && { [ "$(uname)" = "Darwin" ] || [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; }; then
   (cd "$HOME" && nohup "$VENV/bin/agent-team" ui --from-app >/dev/null 2>&1 &)
   say "Opening Lakeba OS in your browser: a short guided setup takes you from your idea to a team at work."

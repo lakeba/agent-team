@@ -100,7 +100,8 @@ for you, or autopilot stops.
 On a Mac, download [Lakeba OS](https://lakeba.github.io/agent-team/downloads/Lakeba-OS-mac.zip), unzip
 it and double-click **Lakeba OS**. The first time, macOS says it can't check it: click **Done**, then in
 System Settings › Privacy & Security choose **Open Anyway** next to Lakeba OS and enter your Mac's password. It installs
-agent-team and opens the dashboard in your browser, where a guided setup walks through eight short
+agent-team (on a Mac without Apple's developer tools, click **Install** in the window macOS opens; it
+waits for them and carries on) and opens the dashboard in your browser, where a guided setup walks through eight short
 steps:
 
 1. **Your idea**: a name and a few sentences; it becomes the project's `VISION.md`.
@@ -143,7 +144,7 @@ signed in (`gh auth login`).
 
 One command installs the CLI into its own environment under `~/.agent-team`, puts `agent-team` on
 your `PATH` (`~/.local/bin`), and installs the Claude Code plugin if Claude Code is present. It gets
-what's missing: on a Mac it asks macOS to install its developer tools (for git), and without Python
+what's missing: on a Mac it asks macOS to install its developer tools (for git) and waits for them, and without Python
 3.11+ it installs a private Python with [uv](https://docs.astral.sh/uv/). A first install ends by
 opening the dashboard's guided setup (`--no-ui` to skip it) and adds the Lakeba OS app
 (`--no-shortcut` to skip it):

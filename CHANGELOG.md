@@ -13,6 +13,10 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
   Mac without Homebrew (or with one belonging to another account) was asked a Homebrew question that
   couldn't succeed, and REA was skipped, so Inspire and behaviour checks didn't work.
 - `--uninstall` also removes that Node.js and agent-team's REA copy.
+- On a Mac without Apple's developer tools, the installer (and the Lakeba OS starter) asks macOS to
+  install them, waits until they're in, then carries on. Before, it stopped and asked to be run again, and
+  people starting from the double-click lost the thread. If the window is closed or Cancel is clicked, it
+  says so and what to do (from the starter: double-click Lakeba OS again).
 
 ## [0.13.14] - 2026-10-20
 

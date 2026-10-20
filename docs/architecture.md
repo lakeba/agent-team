@@ -268,7 +268,7 @@ the page's session token and a same-origin request, and are refused if the file 
 - `mvp.py` (**My MVP**): the vision, what's been built (session summaries), what's changed, keeping
   a version (a commit with the secret check, pushed when there's a remote), the roadmap and the
   application (brief, deck, apply link).
-- `scripts/install.sh` gets git (macOS developer tools) and Python (uv) when missing, opens the
+- `scripts/install.sh` gets git (macOS developer tools, waiting while macOS installs them) and Python (uv) when missing, opens the
   dashboard after a first install, and adds a Lakeba OS app (macOS, via `osacompile`) or menu entry
   (Linux). `scripts/starter/Lakeba OS.command` (zipped in `docs/downloads/`) is the double-click
   starter for a Mac.

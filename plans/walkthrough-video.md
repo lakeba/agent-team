@@ -275,7 +275,9 @@ a minute and a half, with QuickTime. The terminal part is already filmed from a 
    "Privacy" > **Security settings**, then **Open Anyway** next to Lakeba OS, **Open Anyway** again, and the Mac's
    password. macOS asks only the first time, because the file is downloaded and unsigned (right-click > Open no
    longer gets past it on current macOS).
-5. Terminal opens and installs (a minute or two). Let it run; don't type anything.
+5. Terminal opens and installs (a minute or two). Let it run; don't type anything. On a clean Mac, macOS first
+   offers its developer tools: click **Install**, then **Agree**; Terminal says it's waiting and carries on by itself
+   when they're in (5 to 20 minutes; pause the recording while it installs).
 6. When the browser opens on **Let's set up your project**, wait 3 seconds and stop the recording
    (the menu bar's stop button). I film the guided setup itself.
 7. *Optional, if you want the desktop app in this chapter:* back on the site, **Get the desktop app** >
