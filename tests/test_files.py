@@ -41,6 +41,28 @@ class WriteFilesTests(unittest.TestCase):
         self.assertFalse((self.root / "todo.py").exists())
 
 
+class JourneysFileTests(unittest.TestCase):
+    """team/behaviour.toml is read with the team file: an invalid one from any member is never saved."""
+    GOOD = '[[scenarios]]\nname = "list"\nkind = "terminal"\nrun = "tally list"\n'
+    BAD = """[[scenarios]]\nname = "book"\nkind = "browser"\nserve = "flask run"\nurl = "http://127.0.0.1:5000/"\nsteps = [\n  'wait for css "input[value=\\'Jane\\']"',\n]\n"""
+
+    def test_an_invalid_journeys_file_is_held_back(self):
+        root = Path(tempfile.mkdtemp())
+        with quiet():
+            files.write_files(root, f'<file path="team/behaviour.toml">\n{self.GOOD}</file>')
+            out = files.write_files(root, f'<file path="team/behaviour.toml">\n{self.BAD}</file>')
+        self.assertEqual((root / "team" / "behaviour.toml").read_text(), self.GOOD)   # the old one is kept
+        self.assertNotIn("team/behaviour.toml", out)
+        self.assertIn("the journeys aren't valid (not valid TOML", out.problems[0])
+        with quiet():                                                             # an edit that breaks it too
+            out = files.write_files(root, '<edit path="team/behaviour.toml">\n<<<<<<< SEARCH\nrun = "tally list"\n=======\nrun = [\n>>>>>>> REPLACE\n</edit>')
+        self.assertEqual((root / "team" / "behaviour.toml").read_text(), self.GOOD)
+        self.assertTrue(out.problems)
+        with quiet():                                                             # other TOML files aren't its business
+            files.write_files(root, '<file path="other.toml">\nnot = [\n</file>')
+        self.assertTrue((root / "other.toml").exists())
+
+
 class SnapshotTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())

@@ -6,6 +6,13 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ## [Unreleased]
 
+### Fixed
+
+- A member could save an invalid `team/behaviour.toml` through an ordinary file block (seen in a real
+  build: a builder rewrote the journeys with `\'` inside a single-quoted string). The team file reads that
+  file, so every command and the dashboard then stopped. It's now checked whoever writes it: an invalid
+  one isn't saved, the old one is kept, and the member is told why.
+
 ### Added
 
 - REA is installed with agent-team: `scripts/install.sh` (and so the Lakeba OS app) runs

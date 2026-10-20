@@ -96,6 +96,18 @@ def last_marker(regex: re.Pattern, text: str) -> str:
     return found[-1] if found else ""
 
 
+def _not_journeys(rel: str, new: str) -> str:
+    """Why `new` can't be saved as team/behaviour.toml, or "". Any member may write that file, and the
+    team file reads it, so an invalid one would stop every command and the dashboard: it's checked
+    here, whoever writes it, and the old one is kept."""
+    from .config import SCENARIOS_FILE
+    if rel.replace("\\", "/").lstrip("./") != SCENARIOS_FILE:
+        return ""
+    from .workflows.journeys import check
+    problem = check(new)
+    return f"not saved, the journeys aren't valid ({problem}); the old file is kept, so fix it and resend it" if problem else ""
+
+
 def write_files(root: str | Path, text: str, allowed: tuple[str, ...] | None = None, guard=None) -> Written:
     """Apply every <edit> block and write every <file> block in `text` under `root`. Refuses paths
     that escape `root`, and, if `allowed` is given, paths outside those prefixes. Edits that can't
@@ -134,6 +146,7 @@ def write_files(root: str | Path, text: str, allowed: tuple[str, ...] | None = N
             written.problems.append(f"{rel}: the <edit> block has no SEARCH/REPLACE pairs")
             continue
         new, problem = apply_hunks(current, hunks)
+        problem = problem or _not_journeys(rel, new)
         if problem:
             ui.warn(f"{rel}: {problem}")
             written.problems.append(f"{rel}: {problem}")
@@ -155,6 +168,11 @@ def write_files(root: str | Path, text: str, allowed: tuple[str, ...] | None = N
             ui.warn(f"skipped {rel!r}: outside the paths this step may change")
             continue
         if held(rel, dest):
+            continue
+        problem = _not_journeys(rel, body)
+        if problem:
+            ui.warn(f"{rel}: {problem}")
+            written.problems.append(f"{rel}: {problem}")
             continue
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         with open(dest, "w", encoding="utf-8") as f:
