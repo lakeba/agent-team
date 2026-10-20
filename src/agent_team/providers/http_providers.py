@@ -134,6 +134,12 @@ class OllamaProvider(Provider):
             return f"FAILED: {model!r} is not pulled at {self.url}; did you mean {near!r}?"
         return f"FAILED: {model!r} is not pulled at {self.url} (run: ollama pull {model})"
 
+    def check_member(self, model):
+        status = self.check(model)
+        if not model and status.startswith("ok"):   # Ollama answers "model is required"
+            return f"FAILED: no model chosen; Ollama needs one{status[2:]}"
+        return status
+
 
 def closest_model(model: str, served: list[str]) -> str:
     """The served model `model` most likely means: the same name without its organisation
@@ -150,6 +156,12 @@ def closest_model(model: str, served: list[str]) -> str:
     return ""
 
 
+def _model(payload: dict, model: str) -> dict:
+    """No model chosen: leave it out, so the server uses its default (mlx_lm its --model, LM Studio the
+    loaded one). An empty "model" isn't that: mlx_lm tries to load a model named ''."""
+    return {"model": model, **payload} if model else payload
+
+
 @register("openai")
 class OpenAICompatProvider(Provider):
     """Any server with an OpenAI-style /v1/chat/completions endpoint: vLLM, LM Studio,
@@ -160,7 +172,7 @@ class OpenAICompatProvider(Provider):
 
     def complete(self, system, messages, *, model, effort, label):
         ui.say(f"\n--- {label} ({model}) is writing...")
-        payload = {"model": model, "messages": [{"role": "system", "content": system}] + text_messages(messages)}
+        payload = _model({"messages": [{"role": "system", "content": system}] + text_messages(messages)}, model)
         payload.update(self.cfg.options.get("extra_body", {}))
         with _post(f"{self.cfg.url.rstrip('/')}/v1/chat/completions", payload, self._headers()) as r:
             data = json.load(r)
@@ -190,7 +202,7 @@ class OpenAICompatProvider(Provider):
                 out.append({"role": "tool", "tool_call_id": m["tool_call_id"], "content": m["content"]})
             else:
                 out.append({"role": "user", "content": m["content"]})
-        payload = {"model": model, "messages": out, "tools": _openai_tools(tools)}
+        payload = _model({"messages": out, "tools": _openai_tools(tools)}, model)
         payload.update(self.cfg.options.get("extra_body", {}))
         with _post(f"{self.cfg.url.rstrip('/')}/v1/chat/completions", payload, self._headers()) as r:
             data = json.load(r)
@@ -226,6 +238,12 @@ class OpenAICompatProvider(Provider):
         hint = f"; did you mean {near!r}? (set the member's model to that)" if near else \
             f"; it serves: {', '.join(i for i in ids if not i.startswith('/'))[:200]}"
         return f"FAILED: {model!r} not served by {self.cfg.url}{hint}"
+
+    def check_member(self, model):
+        status = self.check(model)
+        if not model and status.startswith("ok ("):
+            return "ok (no model set, so the server's default; " + status[4:]
+        return status
 
 
 @register("agent-http")

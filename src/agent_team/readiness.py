@@ -344,10 +344,27 @@ def find_local(timeout: float = 1.5, candidates: list[str] | None = None, scan: 
         ollama = [{"url": u.rstrip("/"), "kind": "ollama", "label": "Ollama", "models": m} for u, m in ollama_job.result()]
     seen, out = set(), []
     for f in ollama + found_other + found_lan:
-        if f["url"] not in seen:
+        if f["url"] not in seen and not any(_same_host_server(f, g) for g in out):
             seen.add(f["url"])
             out.append(f)
     return out
+
+
+def _same_host_server(a: dict, b: dict) -> bool:
+    """Whether two finds are one server on the machine this VM runs on, reached on two of the
+    hypervisor's networks (Parallels: 10.211.55.2 and 10.37.129.2). Only the known host addresses
+    count, on different networks, with the same port, kind, label and models: two machines that
+    happen to serve the same models elsewhere on the network are never merged."""
+    def where(f: dict) -> tuple[str, str]:
+        host, _, port = f["url"].split("://", 1)[-1].split("/", 1)[0].rpartition(":")
+        return host, port
+    (ha, pa), (hb, pb) = where(a), where(b)
+    known = (*HOST_ADDRESSES, *HOST_NAMES)
+    if ha not in known or hb not in known or ha == hb or pa != pb:
+        return False
+    if ha.rsplit(".", 1)[0] == hb.rsplit(".", 1)[0]:   # one network: two addresses, two machines
+        return False
+    return bool(a.get("models")) and all(a.get(k) == b.get(k) for k in ("kind", "label", "models"))
 
 
 def _identity_check(member) -> Check:

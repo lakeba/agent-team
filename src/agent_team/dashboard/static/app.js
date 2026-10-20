@@ -188,6 +188,11 @@ function renderOverview() {
   el.append(h("div", { class: "grid two" }, recent, ghCard));
 }
 
+// A member with no model: a node picks its own, an OpenAI-compatible server uses the one it has loaded.
+function noModel(kind) {
+  return kind === "agent-http" ? "chosen by the node" : kind === "openai" ? "the server's default" : "none chosen";
+}
+
 function renderTeam() {
   const el = document.getElementById("team");
   el.replaceChildren();
@@ -207,7 +212,7 @@ function renderTeam() {
         hm ? status(hm.ok ? "good" : "bad", hm.ok ? "reachable" : "unreachable") : status("pending", "checking")),
       m.description ? h("p", { class: "secondary small" }, m.description) : null,
       h("dl", {},
-        h("dt", {}, "Model"), h("dd", { class: "mono" }, m.model || "chosen by the node"),
+        h("dt", {}, "Model"), h("dd", { class: "mono" }, m.model || noModel(m.kind)),
         h("dt", {}, "Runs on"), h("dd", {}, where),
         h("dt", {}, "Effort"), h("dd", {}, m.effort),
         h("dt", {}, "Owns"), h("dd", {}, m.owns.length ? h("span", { class: "chips" }, m.owns.map(o => h("span", { class: "chip" }, o))) : h("span", { class: "muted" }, "nothing")),

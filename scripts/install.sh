@@ -76,6 +76,19 @@ path_note() {
   fi
 }
 
+# osacompile names its applet "applet", and macOS shows that name when the dashboard (started from
+# the app) asks to scan the local network. Name it, say why it scans, then re-sign the changed bundle.
+name_app() {
+  plist="$1/Contents/Info.plist"
+  [ -f "$plist" ] || return 0
+  plutil -replace CFBundleName -string "Lakeba OS" "$plist" &&
+    plutil -replace CFBundleDisplayName -string "Lakeba OS" "$plist" &&
+    plutil -replace CFBundleIdentifier -string "com.lakeba.lakebaos-starter" "$plist" &&
+    plutil -replace NSLocalNetworkUsageDescription -string "Lakeba OS looks for AI model servers, like Ollama or mlx_lm, on your network when you ask it to." "$plist" ||
+    return 0
+  codesign --force --sign - "$1" >/dev/null 2>&1 || true
+}
+
 [ "$PURGE" = 1 ] && [ "$UNINSTALL" = 0 ] && die "--purge goes with --uninstall."
 
 # A yes/no question, read from the terminal even when this script arrives through a pipe.
@@ -310,6 +323,7 @@ if [ "$SHORTCUT" = 1 ]; then
     mkdir -p "$HOME/Applications"
     rm -rf "$APP"
     if osacompile -o "$APP" -e "do shell script \"cd ~ && nohup '$VENV/bin/agent-team' ui --from-app >/dev/null 2>&1 &\"" >/dev/null 2>&1; then
+      name_app "$APP"
       say "Lakeba OS is in your Applications folder: open it any time to get back to the dashboard"
     fi
   elif [ "$(uname)" = "Linux" ]; then

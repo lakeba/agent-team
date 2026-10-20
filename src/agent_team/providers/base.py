@@ -77,6 +77,10 @@ class Provider:
         """Cheap reachability check for `agent-team doctor`. Returns a short status line."""
         return "no check implemented"
 
+    def check_member(self, model: str) -> str:
+        """`check` for a member of the team (a test without a model only lists what's served)."""
+        return self.check(model)
+
 
 def to_text(content: Any) -> str:
     """Flatten Anthropic-style content blocks to plain text for text-only providers."""

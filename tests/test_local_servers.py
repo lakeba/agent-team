@@ -193,6 +193,45 @@ class LocalServerTests(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertEqual(r["models"], [])
 
+    def test_a_member_without_a_model(self):
+        from agent_team.providers import build
+        from agent_team.providers.http_providers import _model
+        # OpenAI-compatible: the model is left out, so mlx_lm uses its --model (it fails on an empty name)
+        self.assertNotIn("model", _model({"messages": []}, ""))
+        self.assertEqual(_model({"messages": []}, "m")["model"], "m")
+        status = build(config.ProviderConfig(name="m", kind="openai", url=self.url), "").check_member("")
+        self.assertTrue(status.startswith("ok (no model set, so the server's default;"), status)
+        # Ollama answers "model is required": the team's check says so
+        with mock.patch("agent_team.providers.http_providers._get_json", return_value={"models": [{"name": "qwen3"}]}):
+            p = build(config.ProviderConfig(name="o", kind="ollama", url="http://127.0.0.1:11434"), "")
+            self.assertTrue(p.check("").startswith("ok"))   # Test connection lists what's pulled
+            status = p.check_member("")
+        self.assertTrue(status.startswith("FAILED: no model chosen; Ollama needs one"), status)
+        self.assertIn("qwen3", status)
+
+    def test_the_team_page_names_what_runs_without_a_model(self):
+        js = (Path(__file__).resolve().parent.parent / "src/agent_team/dashboard/static/app.js").read_text()
+        self.assertIn('m.model || noModel(m.kind)', js)
+        self.assertIn('kind === "agent-http" ? "chosen by the node" : kind === "openai" ? "the server\'s default"', js)
+
+    def test_the_host_reached_on_two_vm_networks_is_listed_once(self):
+        models = FakeMlx.models
+        def found(host, port=8080, label="mlx_lm", m=models):
+            return {"url": f"http://{host}:{port}", "kind": "openai", "label": label, "models": list(m)}
+        finds = [found("10.211.55.2"), found("10.37.129.2"),
+                 found("192.168.1.20"), found("192.168.1.21"),      # two machines serving the same model
+                 found("10.0.2.2", port=1234, label="LM Studio")]
+        with mock.patch.object(readiness, "find_ollama", return_value=[]), \
+                mock.patch.object(readiness, "probe", side_effect=lambda u, t: next(f for f in finds if f["url"] == u)):
+            out = readiness.find_local(candidates=[f["url"] for f in finds])
+        self.assertEqual([f["url"] for f in out], ["http://10.211.55.2:8080", "http://192.168.1.20:8080",
+                                                   "http://192.168.1.21:8080", "http://10.0.2.2:1234"])
+        same = readiness._same_host_server
+        self.assertFalse(same(found("10.211.55.2"), found("10.37.129.2", m=["other"])))    # different models
+        self.assertFalse(same(found("10.211.55.2"), found("10.37.129.2", port=8000)))      # different port
+        self.assertFalse(same(found("10.211.55.2"), found("10.211.55.3")))                 # not a host address
+        self.assertFalse(same(found("10.211.55.2", m=[]), found("10.37.129.2", m=[])))     # nothing to compare
+
     def test_test_folder_keeps_its_real_name(self):
         for names, expected in ((["Tests"], "Tests/"), (["tests"], "tests/"), (["App", "App.Tests"], "App.Tests/"), (["src"], "tests/")):
             root = Path(tempfile.mkdtemp())

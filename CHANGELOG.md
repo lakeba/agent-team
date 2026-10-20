@@ -32,6 +32,16 @@ release is cut; changes after the latest release go under `## [Unreleased]`.
 
 ### Fixed
 
+- macOS asked whether to allow "applet" to find devices on local networks when the dashboard, started
+  from the Lakeba OS app, scanned for model servers. The installer now names the app Lakeba OS (bundle
+  id `com.lakeba.lakebaos-starter`), adds a line saying why it looks on the network, and re-signs it.
+- On the Team page, a member on an OpenAI-compatible server with no model showed "chosen by the node"
+  (that's for agent-team nodes); it now says "the server's default". Such a member's requests leave the
+  model out, so the server uses its own (mlx_lm failed on an empty name), and the check says so. A
+  member on Ollama with no model fails its check (Ollama needs one) and lists what's pulled.
+- "Find servers on this network" listed the machine a VM runs on twice when the VM reaches it on two
+  networks (Parallels: 10.211.55.2 and 10.37.129.2). Finds on the hypervisor's known host addresses,
+  on different networks, with the same port, server and models are shown once.
 - "Find servers on this network" missed mlx_lm: it takes a couple of seconds to list its models (it reads
   its model cache each time), longer than the scan waited. A server whose port is open now gets up to 8
   seconds to answer.

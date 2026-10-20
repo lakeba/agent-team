@@ -134,5 +134,34 @@ class PathNoteTest(unittest.TestCase):
         self.assertEqual(self.note(starter=False, on_path=True), "")
 
 
+@unittest.skipUnless(shutil.which("osacompile") and shutil.which("plutil"), "needs macOS")
+class AppNameTest(unittest.TestCase):
+    """The Local Network prompt names the app: Lakeba OS, not osacompile's "applet", and says why."""
+
+    def test_applet_is_named_and_says_why_it_scans(self):
+        import plistlib
+        text = INSTALL.read_text()
+        start = text.index("name_app() {")
+        func = text[start:text.index("\n}\n", start) + 3]
+        app = Path(tempfile.mkdtemp(prefix="agent-team-app-test-")) / "Lakeba OS.app"
+        subprocess.run(["osacompile", "-o", str(app), "-e", 'do shell script "true"'], check=True,
+                       capture_output=True, timeout=60)
+        out = subprocess.run(["/bin/bash", "-c", func + 'name_app "$1"', "-", str(app)],
+                             capture_output=True, text=True, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        info = plistlib.loads((app / "Contents" / "Info.plist").read_bytes())
+        self.assertEqual(info["CFBundleName"], "Lakeba OS")
+        self.assertEqual(info["CFBundleDisplayName"], "Lakeba OS")
+        self.assertEqual(info["CFBundleIdentifier"], "com.lakeba.lakebaos-starter")
+        self.assertIn("AI model servers", info["NSLocalNetworkUsageDescription"])
+        if shutil.which("codesign"):
+            check = subprocess.run(["codesign", "--verify", str(app)], capture_output=True, text=True)
+            self.assertEqual(check.returncode, 0, "re-signed after the change: " + check.stderr)
+
+    def test_installer_names_the_app_it_makes(self):
+        text = INSTALL.read_text()
+        self.assertLess(text.index('osacompile -o "$APP"'), text.index('name_app "$APP"'))
+
+
 if __name__ == "__main__":
     unittest.main()

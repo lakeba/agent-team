@@ -58,7 +58,7 @@ def cmd_doctor(args) -> int:
     for a in team.agents.values():
         pcfg = team.providers[a.provider]
         try:
-            status = providers.build(pcfg, team.secret(pcfg)).check(a.model)
+            status = providers.build(pcfg, team.secret(pcfg)).check_member(a.model)
         except Exception as e:
             status = f"FAILED: {e}"
         failed += status.startswith("FAILED")

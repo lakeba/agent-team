@@ -128,7 +128,7 @@ def health(team: config.Team, timeout: float = 25.0) -> dict:
     def check(a):
         p = team.providers[a.provider]
         try:
-            return providers.build(p, team.secret(p)).check(a.model)
+            return providers.build(p, team.secret(p)).check_member(a.model)
         except Exception as e:
             return f"FAILED: {type(e).__name__}: {e}"
     out = {}
